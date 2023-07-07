@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/guacsec/guac/pkg/assembler/backends/tinkerpop"
 	"net/http"
 	"os"
 	"os/signal"
@@ -38,9 +39,10 @@ import (
 )
 
 const (
-	arango = "arango"
-	neo4js = "neo4j"
-	inmems = "inmem"
+	arango     = "arango"
+	neo4js     = "neo4j"
+	inmems     = "inmem"
+	tinkerpops = "tinkerpop"
 )
 
 func startServer(cmd *cobra.Command) {
@@ -104,7 +106,7 @@ func startServer(cmd *cobra.Command) {
 
 func validateFlags() error {
 	if flags.backend != neo4js &&
-		flags.backend != inmems && flags.backend != arango {
+		flags.backend != inmems && flags.backend != arango && flags.backend != tinkerpops {
 		return fmt.Errorf("invalid graphql backend specified: %v", flags.backend)
 	}
 	return nil
@@ -114,6 +116,16 @@ func getGraphqlServer(ctx context.Context) (*handler.Server, error) {
 	var topResolver resolvers.Resolver
 
 	switch flags.backend {
+	case tinkerpops:
+		args := tinkerpop.TinkerPopConfig{
+			SettingsFile: flags.tinkerpopSettingsFile,
+		}
+
+		backend, err := tinkerpop.GetBackend(&args)
+		if err != nil {
+			return nil, fmt.Errorf("Error creating TinkerPop backend: %w", err)
+		}
+		topResolver = resolvers.Resolver{Backend: backend}
 
 	case neo4js:
 		args := neo4j.Neo4jConfig{
