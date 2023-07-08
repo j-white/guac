@@ -114,6 +114,7 @@ require (
 	github.com/nats-io/jwt/v2 v2.4.1 // indirect
 	github.com/nats-io/nkeys v0.4.4 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/nicksnyder/go-i18n/v2 v2.2.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc3 // indirect
@@ -166,6 +167,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/Khan/genqlient v0.6.0
 	github.com/Masterminds/semver v1.5.0
+	github.com/apache/tinkerpop/gremlin-go v0.0.0-20220530191148-29272fa563ec
 	github.com/arangodb/go-driver v1.6.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-git/go-git/v5 v5.7.0
