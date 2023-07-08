@@ -17,6 +17,7 @@ package tinkerpop
 
 import (
 	"context"
+	gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
 	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
@@ -25,14 +26,106 @@ type TinkerPopConfig struct {
 	SettingsFile string
 }
 
+type tinkerpopClient struct {
+	config TinkerPopConfig
+	remote *gremlingo.DriverRemoteConnection
+}
+
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	config := args.(*TinkerPopConfig)
-	client := &tinkerpopClient{*config}
+
+	// FIXME: Where do we close the backend?
+	remote, err := gremlingo.NewDriverRemoteConnection("ws://localhost:8182/gremlin")
+	if err != nil {
+		return nil, err
+	}
+
+	client := &tinkerpopClient{*config, remote}
+
 	return client, nil
 }
 
-type tinkerpopClient struct {
-	driver TinkerPopConfig
+func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+
+	g.AddV(pkg.Name).Property("pkgType", pkg.Type)
+
+	return nil, nil
+	/*
+			// Perform traversal
+			result, err := g.V().HasLabel("person").Has("age", __.Is(gt(28))).Order().By("age", order.Desc).Values("name").ToList()
+
+			session := c.driver.NewSession(neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+			defer session.Close()
+
+			values := map[string]any{}
+			values["pkgType"] = pkg.Type
+			values["name"] = pkg.Name
+			if pkg.Namespace != nil {
+				values["namespace"] = *pkg.Namespace
+			} else {
+				values["namespace"] = ""
+			}
+			if pkg.Version != nil {
+				values["version"] = *pkg.Version
+			} else {
+				values["version"] = ""
+			}
+			if pkg.Subpath != nil {
+				values["subpath"] = *pkg.Subpath
+			} else {
+				values["subpath"] = ""
+			}
+
+			// To ensure consistency, always sort the qualifiers by key
+			qualifiersMap := map[string]string{}
+			keys := []string{}
+			for _, kv := range pkg.Qualifiers {
+				qualifiersMap[kv.Key] = kv.Value
+				keys = append(keys, kv.Key)
+			}
+			sort.Strings(keys)
+			qualifiers := []string{}
+			for _, k := range keys {
+				qualifiers = append(qualifiers, k, qualifiersMap[k])
+			}
+			values["qualifier"] = qualifiers
+
+			result, err := session.WriteTransaction(
+				func(tx neo4j.Transaction) (interface{}, error) {
+					query := `MERGE (root:Pkg)
+		MERGE (root) -[:PkgHasType]-> (type:PkgType{type:$pkgType})
+		MERGE (type) -[:PkgHasNamespace]-> (ns:PkgNamespace{namespace:$namespace})
+		MERGE (ns) -[:PkgHasName]-> (name:PkgName{name:$name})
+		MERGE (name) -[:PkgHasVersion]-> (version:PkgVersion{version:$version,subpath:$subpath,qualifier_list:$qualifier})
+		RETURN type.type, ns.namespace, name.name, version.version, version.subpath, version.qualifier_list`
+					result, err := tx.Run(query, values)
+					if err != nil {
+						return nil, err
+					}
+
+					// query returns a single record
+					record, err := result.Single()
+					if err != nil {
+						return nil, err
+					}
+
+					qualifiersList := record.Values[5]
+					subPath := record.Values[4]
+					version := record.Values[3]
+					nameStr := record.Values[2].(string)
+					namespaceStr := record.Values[1].(string)
+					pkgType := record.Values[0].(string)
+
+					pkg := generateModelPackage(pkgType, namespaceStr, nameStr, version, subPath, qualifiersList)
+					return pkg, nil
+				})
+			if err != nil {
+				return nil, err
+			}
+
+			return result.(*model.Package), nil
+	*/
 }
 
 func (c *tinkerpopClient) HasMetadata(ctx context.Context, hasMetadataSpec *model.HasMetadataSpec) ([]*model.HasMetadata, error) {
@@ -171,11 +264,6 @@ func (c *tinkerpopClient) IngestMaterials(ctx context.Context, materials []*mode
 }
 
 func (c *tinkerpopClient) IngestOsv(ctx context.Context, osv *model.OSVInputSpec) (*model.Osv, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
 	//TODO implement me
 	panic("implement me")
 }
