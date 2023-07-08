@@ -20,6 +20,7 @@ import (
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
 	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	"github.com/guacsec/guac/pkg/logging"
 )
 
 type TinkerPopConfig struct {
@@ -32,16 +33,19 @@ type tinkerpopClient struct {
 }
 
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
+	ctx := logging.WithLogger(context.Background())
+	logger := logging.FromContext(ctx)
+
 	config := args.(*TinkerPopConfig)
 
 	// FIXME: Where do we close the backend?
-	remote, err := gremlingo.NewDriverRemoteConnection("ws://localhost:8182/gremlin")
+	remote, err := gremlingo.NewDriverRemoteConnection("ws://gremlin-server:8182/gremlin")
 	if err != nil {
 		return nil, err
 	}
+	logger.Infof("succesfully connected to gremlin-server!")
 
 	client := &tinkerpopClient{*config, remote}
-
 	return client, nil
 }
 
