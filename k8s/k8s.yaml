@@ -67,6 +67,8 @@ spec:
           env:
             - name: GUAC_GQL_DEBUG
               value: "true"
+            - name: GUAC_GQL_TEST_DATA
+              value: "true"
           ports:
             - name: http-port
               containerPort: 8080
