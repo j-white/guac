@@ -257,3 +257,37 @@ spec:
       port: 8182
       targetPort: 8182
   type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: janusgraph
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: janusgraph
+  template:
+    metadata:
+      labels:
+        app: janusgraph
+    spec:
+      containers:
+        - name: janusgraph
+          image: janusgraph/janusgraph:1.0.0-20230705-152651.16846ad-16846ad
+          ports:
+            - containerPort: 8182
+              name: ws
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: janusgraph
+spec:
+  selector:
+    app: janusgraph
+  ports:
+    - protocol: TCP
+      port: 8182
+      targetPort: 8182
+  type: ClusterIP

@@ -21,7 +21,6 @@ import (
 	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/guacsec/guac/pkg/logging"
-	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 type TinkerPopConfig struct {
@@ -40,13 +39,14 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	config := args.(*TinkerPopConfig)
 
 	// FIXME: Is there no clean shutdown of the backend?
-	remote, err := gremlingo.NewDriverRemoteConnection("ws://gremlin-server:8182/gremlin")
+	remote, err := gremlingo.NewDriverRemoteConnection("ws://janusgraph:8182/gremlin")
 	if err != nil {
 		return nil, err
 	}
 	logger.Infof("Succesfully connected to Gremlin server.")
 
 	// Verify that transactions are supported by the underlying graph engine
+	// FIXME: Is there a cleaner way to check this, something like: graph.features().graph().supportsTransactions()
 	g := gremlingo.Traversal_().WithRemote(remote)
 	tx := g.Tx()
 	gtx, err := tx.Begin()
@@ -67,89 +67,6 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 
 	client := &tinkerpopClient{*config, remote}
 	return client, nil
-}
-
-func (c *tinkerpopClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
-	//	var __ = gremlingo.T__
-	//	v := g.MergeV(__.Id(source.Name).Option()).Property("sourceType", source.Type).Property("namespace", source.Namespace)
-	logCtx := logging.WithLogger(context.Background())
-	logger := logging.FromContext(logCtx)
-	logger.Infof("MOO1")
-
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-
-	tx := g.Tx()
-	gtx, _ := tx.Begin()
-
-	v := gtx.AddV(source.Name).Property("sourceType", source.Type).Property("namespace", source.Namespace)
-
-	if source.Commit != nil && source.Tag != nil {
-		if *source.Commit != "" && *source.Tag != "" {
-			return nil, gqlerror.Errorf("Passing both commit and tag selectors is an error")
-		}
-	}
-
-	if source.Commit != nil {
-		v = v.Property("commit", *source.Commit)
-	} else {
-		v = v.Property("commit", "")
-	}
-
-	if source.Tag != nil {
-		v = v.Property("tag", *source.Tag)
-	} else {
-		v = v.Property("tag", "")
-	}
-
-	// Add a vertex with properties to the graph with the terminal step Iterate()
-	promise := v.Iterate()
-
-	// The returned promised is a go channel to wait for all submitted steps to finish execution and return error.
-	err := <-promise
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return nil, err
-	}
-
-	return generateModelSource(source.Type, source.Namespace, source.Name, *source.Commit, *source.Tag), nil
-}
-
-func generateModelSource(srcType, namespaceStr, nameStr string, commitValue, tagValue interface{}) *model.Source {
-	tag := (*string)(nil)
-	if tagValue != nil {
-		tagStr := tagValue.(string)
-		tag = &tagStr
-	}
-	commit := (*string)(nil)
-	if commitValue != nil {
-		commitStr := commitValue.(string)
-		commit = &commitStr
-	}
-	name := &model.SourceName{
-		Name:   nameStr,
-		Tag:    tag,
-		Commit: commit,
-	}
-
-	namespace := &model.SourceNamespace{
-		Namespace: namespaceStr,
-		Names:     []*model.SourceName{name},
-	}
-
-	src := model.Source{
-		Type:       srcType,
-		Namespaces: []*model.SourceNamespace{namespace},
-	}
-	return &src
-}
-
-func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
-
-	return nil, nil
 }
 
 func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
