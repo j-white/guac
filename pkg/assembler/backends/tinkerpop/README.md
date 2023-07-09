@@ -2,8 +2,7 @@
 # Notes
 
 * Optional values are stored as empty strings
-* 
-
+*
 
 # Compatibility matrix
 
@@ -12,3 +11,7 @@ Things that support TinkerPop/Gremlin:
  * Azure Cosmos DB: https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/support
  * JanusGraph: https://docs.janusgraph.org/ (Elasticsearch + ScyllaDB or Cassandra)
  * DSE Graph: https://docs.datastax.com/en/dse/5.1/dse-dev/datastax_enterprise/graph/using/insertDataGremlin.html
+ * ArangoDB: https://github.com/ArangoDB-Community/arangodb-tinkerpop-provider
+ * Aerospike: https://docs.aerospike.com/graph/overview
+
+Currently developing against `JanusGraph` with the intent to expand and test others.
