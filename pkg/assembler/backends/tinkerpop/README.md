@@ -1,4 +1,10 @@
 
+# Notes
+
+* Optional values are stored as empty strings
+* 
+
+
 # Compatibility matrix
 
 Things that support TinkerPop/Gremlin:
