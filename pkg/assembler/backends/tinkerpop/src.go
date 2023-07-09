@@ -63,6 +63,7 @@ func (c *tinkerpopClient) IngestSource(ctx context.Context, source model.SourceI
 		return nil, err
 	}
 
+	// Generate the model.Source in the database after process the model.SourceInputSpec
 	return generateModelSource(resultMap["sourceType"].(string),
 		resultMap["namespace"].(string),
 		resultMap["label"].(string),
