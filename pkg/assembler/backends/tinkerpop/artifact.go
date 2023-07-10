@@ -33,6 +33,7 @@ func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.Ar
 	tx := g.Tx()
 	gtx, _ := tx.Begin()
 
+	// FIXME: Upsert
 	v := gtx.AddV().Property(algorithm, artifact.Algorithm).Property(digest, artifact.Digest)
 	r, err := v.ElementMap().Next()
 	if err != nil {
@@ -67,6 +68,10 @@ func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.Art
 	gtx, _ := tx.Begin()
 
 	v := gtx.V()
+	// FIXME: Return all artifacts
+	if artifactSpec == nil {
+		return nil, nil
+	}
 	// FIXME: do we support looking up by ID as well?
 	if artifactSpec.Algorithm != nil {
 		v = v.Has(algorithm, artifactSpec.Algorithm)
