@@ -45,7 +45,7 @@ func ingestData(port int) {
 	// See issue https://github.com/guacsec/guac/issues/1000
 	logger.Infof("Ingesting test data into backend server")
 	ingestScorecards(ctx, gqlclient)
-	//ingestSLSA(ctx, gqlclient)
+	ingestSLSA(ctx, gqlclient)
 	//ingestDependency(ctx, gqlclient)
 	//ingestOccurrence(ctx, gqlclient)
 	//ingestVulnerability(ctx, gqlclient)

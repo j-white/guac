@@ -257,11 +257,6 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
 	//TODO implement me
 	panic("implement me")
@@ -348,11 +343,6 @@ func (c *tinkerpopClient) IngestOccurrences(ctx context.Context, subjects model.
 }
 
 func (c *tinkerpopClient) IngestPkgEqual(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, pkgEqual model.PkgEqualInputSpec) (*model.PkgEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestSLSA(ctx context.Context, subject model.ArtifactInputSpec, builtFrom []*model.ArtifactInputSpec, builtBy model.BuilderInputSpec, slsa model.SLSAInputSpec) (*model.HasSlsa, error) {
 	//TODO implement me
 	panic("implement me")
 }
