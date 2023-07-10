@@ -48,3 +48,49 @@ func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.Ar
 
 	return a, nil
 }
+
+func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
+	var artifactObjects []*model.Artifact
+	for _, artifactSpec := range artifacts {
+		artifact, err := c.IngestArtifact(ctx, artifactSpec)
+		if err != nil {
+			return nil, err
+		}
+		artifactObjects = append(artifactObjects, artifact)
+	}
+	return artifactObjects, nil
+}
+
+func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	tx := g.Tx()
+	gtx, _ := tx.Begin()
+
+	v := gtx.V()
+	// FIXME: do we support looking up by ID as well?
+	if artifactSpec.Algorithm != nil {
+		v = v.Has(algorithm, artifactSpec.Algorithm)
+	}
+	if artifactSpec.Digest != nil {
+		v = v.Has(digest, artifactSpec.Digest)
+	}
+
+	// FIXME: iterate in batches vs retrieving all the results as a list
+	results, err := v.ToList()
+	if err == nil {
+		return nil, err
+	}
+
+	var artifacts []*model.Artifact
+	for _, result := range results {
+		resultMap := result.GetInterface().(map[interface{}]interface{})
+		artifact := &model.Artifact{
+			ID:        strconv.FormatInt(resultMap[id].(int64), 10),
+			Algorithm: resultMap[algorithm].(string),
+			Digest:    resultMap[digest].(string),
+		}
+		artifacts = append(artifacts, artifact)
+	}
+
+	return artifacts, nil
+}

@@ -162,11 +162,6 @@ func (c *tinkerpopClient) IngestHasMetadata(ctx context.Context, subject model.P
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) Builders(ctx context.Context, builderSpec *model.BuilderSpec) ([]*model.Builder, error) {
 	//TODO implement me
 	panic("implement me")
@@ -253,11 +248,6 @@ func (c *tinkerpopClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgE
 }
 
 func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
 	//TODO implement me
 	panic("implement me")
 }
