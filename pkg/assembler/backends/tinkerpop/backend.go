@@ -25,6 +25,7 @@ import (
 
 type TinkerPopConfig struct {
 	SettingsFile string
+	MaxLimit     uint32
 }
 
 type tinkerpopClient struct {
@@ -37,6 +38,8 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	logger := logging.FromContext(ctx)
 
 	config := args.(*TinkerPopConfig)
+	// FIXME: Make this configurable
+	config.MaxLimit = 1000
 
 	// FIXME: Is there no clean shutdown of the backend?
 	remote, err := gremlingo.NewDriverRemoteConnection("ws://janusgraph:8182/gremlin")
