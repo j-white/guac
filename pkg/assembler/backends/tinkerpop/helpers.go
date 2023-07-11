@@ -17,7 +17,9 @@ package tinkerpop
 
 import gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
 
-func (c *tinkerpopClient) upsertVertex(properties map[string]interface{}) (int64, error) {
+type Label string
+
+func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (int64, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(properties).Id().Next()
 	if err != nil {
