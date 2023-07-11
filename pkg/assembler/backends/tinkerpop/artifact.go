@@ -20,37 +20,38 @@ import (
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"strconv"
+	"strings"
 )
 
 const (
-	id        string = "id"
 	algorithm string = "algorithm"
 	digest    string = "digest"
 )
 
 func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	tx := g.Tx()
-	gtx, _ := tx.Begin()
+	// all fields are required, and canonicalized to lower case
+	values := map[string]interface{}{
+		algorithm: strings.ToLower(string(artifact.Algorithm)),
+		digest:    strings.ToLower(string(artifact.Digest)),
+	}
 
-	// FIXME: Upsert
-	v := gtx.AddV().Property(algorithm, artifact.Algorithm).Property(digest, artifact.Digest)
-	r, err := v.ElementMap().Next()
+	id, err := c.upsertVertex(values)
 	if err != nil {
 		return nil, err
 	}
-	resultMap := r.GetInterface().(map[interface{}]interface{})
 
+	// build artifact from canonical model after a successful upsert
 	a := &model.Artifact{
-		ID:        strconv.FormatInt(resultMap[id].(int64), 10),
-		Algorithm: resultMap[algorithm].(string),
-		Digest:    resultMap[digest].(string),
+		ID:        strconv.FormatInt(id, 10),
+		Algorithm: values[algorithm].(string),
+		Digest:    values[digest].(string),
 	}
 
 	return a, nil
 }
 
 func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
+	// FIXME: A good opportunity to use async
 	var artifactObjects []*model.Artifact
 	for _, artifactSpec := range artifacts {
 		artifact, err := c.IngestArtifact(ctx, artifactSpec)
@@ -68,7 +69,7 @@ func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.Art
 	gtx, _ := tx.Begin()
 
 	v := gtx.V()
-	// FIXME: Return all artifacts
+	// FIXME: Return all artifacts?
 	if artifactSpec == nil {
 		return nil, nil
 	}
