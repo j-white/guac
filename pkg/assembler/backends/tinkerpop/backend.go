@@ -33,6 +33,26 @@ type tinkerpopClient struct {
 	remote *gremlingo.DriverRemoteConnection
 }
 
+func (c *tinkerpopClient) PointOfContact(ctx context.Context, pointOfContactSpec *model.PointOfContactSpec) ([]*model.PointOfContact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestBuilders(ctx context.Context, builders []*model.BuilderInputSpec) ([]*model.Builder, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestPointOfContact(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, pointOfContact model.PointOfContactInputSpec) (*model.PointOfContact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	ctx := logging.WithLogger(context.Background())
 	logger := logging.FromContext(ctx)
