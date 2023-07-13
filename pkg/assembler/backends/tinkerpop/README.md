@@ -43,6 +43,32 @@ digest
 }
 ```
 
+## CertifyScorecard
+```graphql
+mutation{
+  certifyScorecard(scorecard:{
+    checks:[{
+    check:"a",
+      score: 1
+    }],
+    aggregateScore: 0.1,
+    timeScanned: "2023-04-03T16:28:44.835711634Z",
+  	scorecardVersion: "1",
+    scorecardCommit:"asdf",
+    origin:"asdf",
+    collector:"sadf"
+  },
+  source:{
+    type:"t",
+    namespace:"",
+    name:"sd",
+    commit:"yes that is correct"
+  }) {
+    id
+  }
+}
+```
+
 # Bucket list
 
 * Review connection pooling & lifecycle
