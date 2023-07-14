@@ -18,10 +18,11 @@ package tinkerpop
 import (
 	"context"
 	"encoding/json"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
+	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -38,6 +39,11 @@ const (
 	scorecardCommit  string = "scorecardCommit"
 	sourceType       string = "sourceType"
 	timeScanned      string = "timeScanned"
+)
+
+const (
+	Source    Label = "source"
+	Scorecard Label = "scorecard"
 )
 
 // CertifyScorecard used to ingest scorecards
@@ -91,47 +97,66 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 	tx := g.Tx()
 	gtx, _ := tx.Begin()
 
-	r, err := gtx.V().HasLabel(source.Name).Has(sourceType, source.Type).
-		Has(namespace, source.Namespace).
-		As("source").
-		AddV().
-		Property(checkKeys, string(checkKeysJson)).
-		Property(checkValues, string(checkValuesJson)).
-		Property(aggregateScore, scorecard.AggregateScore).
-		Property(timeScanned, scorecard.TimeScanned.UTC()).
-		Property(scorecardVersion, scorecard.ScorecardVersion).
-		Property(scorecardCommit, scorecard.ScorecardCommit).
-		Property(origin, scorecard.Origin).
-		Property(collector, scorecard.Collector).
-		As("scorecard").
-		AddE("scorecard").From("source").To("scorecard").
+	sourceProperties := map[interface{}]interface{}{
+		gremlingo.T.Label: string(Source),
+		name:              source.Name,
+		"type":            source.Type,
+		namespace:         source.Namespace,
+	}
+
+	scorecardProperties := map[interface{}]interface{}{
+		gremlingo.T.Label: string(Scorecard),
+		checkKeys:         string(checkKeysJson),
+		checkValues:       string(checkValuesJson),
+		aggregateScore:    scorecard.AggregateScore,
+		timeScanned:       scorecard.TimeScanned.UTC(),
+		scorecardVersion:  scorecard.ScorecardVersion,
+		scorecardCommit:   scorecard.ScorecardCommit,
+		origin:            scorecard.Origin,
+		collector:         scorecard.Collector,
+	}
+
+	edgeProperties := map[interface{}]interface{}{
+		gremlingo.T.Label:       string(Scorecard),
+		gremlingo.Direction.In:  gremlingo.Merge.InV,
+		gremlingo.Direction.Out: gremlingo.Merge.OutV,
+	}
+
+	r, err := gtx.MergeV(sourceProperties).As("source").
+		MergeV(scorecardProperties).As("scorecard").
+		MergeE(edgeProperties).
+		// late bind
+		Option(gremlingo.Merge.InV, gremlingo.T__.Select("source")).
+		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("scorecard")).
+		As("edge").
 		Select("scorecard").
-		ElementMap().Next()
+		ValueMap(true).
+		Limit(1).
+		Next()
 	if err != nil {
 		return nil, err
 	}
 	resultMap := r.GetInterface().(map[interface{}]interface{})
 
 	checks, err := getCollectedChecks(
-		resultMap[checkKeys].(string),
-		resultMap[checkValues].(string))
+		resultMap[checkKeys].([]interface{}),
+		resultMap[checkValues].([]interface{}))
 	if err != nil {
 		return nil, err
 	}
 
 	src := generateModelSource(source.Type, source.Namespace, source.Name, nil, nil)
-
 	modelScorecard := model.Scorecard{
-		TimeScanned:      resultMap[timeScanned].(time.Time),
-		AggregateScore:   resultMap[aggregateScore].(float64),
+		TimeScanned:      (resultMap[timeScanned].([]interface{}))[0].(time.Time),
+		AggregateScore:   (resultMap[aggregateScore].([]interface{}))[0].(float64),
 		Checks:           checks,
-		ScorecardVersion: resultMap[scorecardVersion].(string),
-		ScorecardCommit:  resultMap[scorecardCommit].(string),
-		Origin:           resultMap[origin].(string),
-		Collector:        resultMap[collector].(string),
+		ScorecardVersion: (resultMap[scorecardVersion].([]interface{}))[0].(string),
+		ScorecardCommit:  (resultMap[scorecardCommit].([]interface{}))[0].(string),
+		Origin:           (resultMap[origin].([]interface{}))[0].(string),
+		Collector:        (resultMap[collector].([]interface{}))[0].(string),
 	}
-
 	certification := model.CertifyScorecard{
+		ID:        strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10),
 		Source:    src,
 		Scorecard: &modelScorecard,
 	}
@@ -139,28 +164,20 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 	return &certification, nil
 }
 
-func getCollectedChecks(keyListJson string, valueListJson string) ([]*model.ScorecardCheck, error) {
-
-	var keyList []string
-	var valueList []int64
-
-	err := json.Unmarshal([]byte(keyListJson), &keyList)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal([]byte(valueListJson), &valueList)
-	if err != nil {
-		return nil, err
-	}
-
+func getCollectedChecks(keyList []interface{}, valueList []interface{}) ([]*model.ScorecardCheck, error) {
 	if len(keyList) != len(valueList) {
 		return nil, gqlerror.Errorf("length of scorecard checks do not match")
 	}
-	checks := []*model.ScorecardCheck{}
+	var checks []*model.ScorecardCheck
 	for i := range keyList {
+		valueAsJson := valueList[i].(string)
+		score, err := strconv.ParseInt(valueAsJson[1:len(valueAsJson)-1], 10, 0)
+		if err != nil {
+			return nil, err
+		}
 		check := &model.ScorecardCheck{
-			Check: keyList[i],
-			Score: int(valueList[i]),
+			Check: keyList[i].(string),
+			Score: int(score),
 		}
 		checks = append(checks, check)
 	}
