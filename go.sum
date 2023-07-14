@@ -784,8 +784,8 @@ github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kd
 github.com/apache/arrow/go/v10 v10.0.1/go.mod h1:YvhnlEePVnBS4+0z3fhPfUy7W1Ikj0Ih0vcRo/gZ1M0=
 github.com/apache/arrow/go/v11 v11.0.0/go.mod h1:Eg5OsL5H+e299f7u5ssuXsuHQVEGC4xei5aX110hRiI=
 github.com/apache/thrift v0.16.0/go.mod h1:PHK3hniurgQaNMZYaCLEqXKsYK8upmhPbmdP2FXSqgU=
-github.com/apache/tinkerpop/gremlin-go v0.0.0-20220530191148-29272fa563ec h1:9cMmVpOQmePSOC13vDamxE79yyRFbmBv7eLaoBayGZs=
-github.com/apache/tinkerpop/gremlin-go v0.0.0-20220530191148-29272fa563ec/go.mod h1:+83SLBh+WdhcTo/eUHRuU0PZKH60Mg3wR5yX2UKyhyo=
+github.com/apache/tinkerpop/gremlin-go/v3 v3.6.4 h1:76fnwJwUtsqLptsUuLiowpYkxXebWzD8afxXar5hT4A=
+github.com/apache/tinkerpop/gremlin-go/v3 v3.6.4/go.mod h1:KZ4BFULeKTVqzgX41fiTj2XYTs9meWc/TWQHsICy69I=
 github.com/arangodb/go-driver v1.6.0 h1:NFWj/idqXZxhFVueihMSI2R9NotNIsgvNfM/xmpekb4=
 github.com/arangodb/go-driver v1.6.0/go.mod h1:HQmdGkvNMVBTE3SIPSQ8T/ZddC6iwNsfMR+dDJQxIsI=
 github.com/arangodb/go-velocypack v0.0.0-20200318135517-5af53c29c67e h1:Xg+hGrY2LcQBbxd0ZFdbGSyRKTYMZCfBbw/pMJFOk1g=

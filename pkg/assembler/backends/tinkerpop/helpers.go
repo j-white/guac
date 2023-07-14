@@ -15,7 +15,7 @@
 
 package tinkerpop
 
-import gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
+import gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 
 type Label string
 

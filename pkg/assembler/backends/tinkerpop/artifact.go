@@ -17,7 +17,7 @@ package tinkerpop
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/driver"
+	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"strconv"
 	"strings"
@@ -31,6 +31,11 @@ const (
 const (
 	Artifact Label = "artifact"
 )
+
+// meta
+// for every model object:
+// ingest: input spec to query / upsert criteria, model object from spec
+// query: query spec to query, model object from results
 
 func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
 	// all fields are required, and canonicalized to lower case
@@ -66,14 +71,6 @@ func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*mode
 		artifactObjects = append(artifactObjects, artifact)
 	}
 	return artifactObjects, nil
-}
-
-func specToCanonicalMap(artifact *model.ArtifactInputSpec) map[interface{}]interface{} {
-	return map[interface{}]interface{}{
-		gremlingo.T.Label: string(Artifact),
-		algorithm:         strings.ToLower(artifact.Algorithm),
-		digest:            strings.ToLower(artifact.Digest),
-	}
 }
 
 func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {

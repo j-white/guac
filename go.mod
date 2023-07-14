@@ -167,7 +167,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/Khan/genqlient v0.6.0
 	github.com/Masterminds/semver v1.5.0
-	github.com/apache/tinkerpop/gremlin-go v0.0.0-20220530191148-29272fa563ec
+	github.com/apache/tinkerpop/gremlin-go/v3 v3.6.4
 	github.com/arangodb/go-driver v1.6.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-git/go-git/v5 v5.8.0

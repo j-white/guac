@@ -48,23 +48,24 @@ digest
 mutation{
   certifyScorecard(scorecard:{
     checks:[{
-    check:"a",
-      score: 1
+    check:"Binary_Artifacts",
+      score: 4
     }],
-    aggregateScore: 0.1,
-    timeScanned: "2023-04-03T16:28:44.835711634Z",
-  	scorecardVersion: "1",
-    scorecardCommit:"asdf",
-    origin:"asdf",
+    aggregateScore: 2.9,
+    timeScanned: "2023-07-14T01:45:31.29Z",
+    scorecardVersion: "v4.10.2",
+    scorecardCommit:"5e6a521",
+    origin:"Demo ingestion",
     collector:"sadf"
   },
   source:{
     type:"t",
-    namespace:"",
+    namespace:"asd",
     name:"sd",
     commit:"yes that is correct"
   }) {
-    id
+    id,
+    scorecard:id
   }
 }
 ```
