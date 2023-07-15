@@ -32,11 +32,6 @@ const (
 	Artifact Label = "artifact"
 )
 
-// meta
-// for every model object:
-// ingest: input spec to query / upsert criteria, model object from spec
-// query: query spec to query, model object from results
-
 func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
 	// all fields are required, and canonicalized to lower case
 	values := map[interface{}]interface{}{

@@ -1,7 +1,18 @@
 
-# Notes
+# Observations
 
-* Optional values are stored as empty strings
+For every model object:
+* ingest: input spec to query / upsert criteria, model object from spec
+* query: query spec to query, model object from results
+
+> Could be a good candidate for code generation from existing models.
+
+# Design choices
+
+* Store nested properties as JSON
+* Optional values are not set with null value
+* Objects are built from model used as input to upsert, only retrieving the id, for speedy ingest
+* Global limit set for search queries
 
 # Compatibility matrix
 
