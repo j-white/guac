@@ -72,11 +72,21 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		name:              source.Name,
 		sourceType:        source.Type,
 		namespace:         source.Namespace,
-		tag:               source.Tag,
-		commit:            source.Commit,
+	}
+	// optional values, at least one of these must exist
+	if source.Tag != nil {
+		sourceProperties[tag] = *source.Tag
+	}
+	if source.Commit != nil {
+		sourceProperties[commit] = *source.Commit
 	}
 
 	checks := toChecks(scorecard.Checks)
+	checksJsonValue, err := json.Marshal(checks)
+	if err != nil {
+		return nil, err
+	}
+
 	scorecardProperties := map[interface{}]interface{}{
 		gremlingo.T.Label: string(Scorecard),
 		aggregateScore:    scorecard.AggregateScore,
@@ -85,7 +95,7 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		scorecardCommit:   scorecard.ScorecardCommit,
 		origin:            scorecard.Origin,
 		collector:         scorecard.Collector,
-		checksJson:        json.Marshal(checks),
+		checksJson:        string(checksJsonValue),
 	}
 
 	edgeProperties := map[interface{}]interface{}{
@@ -96,7 +106,7 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 
 	// upsert (source -> scorecard)
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	r, err := g.MergeV(sourceProperties).As("source").
+	r, err := g.MergeV(scorecardProperties).As("source").
 		MergeV(scorecardProperties).As("scorecard").
 		MergeE(edgeProperties).
 		// late bind
@@ -130,6 +140,33 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		Scorecard: &modelScorecard,
 	}
 	return &certification, nil
+}
+
+func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
+	/*Select("scorecard").
+		ValueMap(true).
+		Limit(1).
+		Next()
+	resultMap := r.GetInterface().(map[interface{}]interface{})
+	checks, err := readArrayFromVertexProperties(resultMap)
+
+	src := generateModelSource(source.Type, source.Namespace, source.Name, nil, nil)
+	modelScorecard := model.Scorecard{
+		TimeScanned:      (resultMap[timeScanned].([]interface{}))[0].(time.Time),
+		AggregateScore:   (resultMap[aggregateScore].([]interface{}))[0].(float64),
+		Checks:           checks,
+		ScorecardVersion: (resultMap[scorecardVersion].([]interface{}))[0].(string),
+		ScorecardCommit:  (resultMap[scorecardCommit].([]interface{}))[0].(string),
+		Origin:           (resultMap[origin].([]interface{}))[0].(string),
+		Collector:        (resultMap[collector].([]interface{}))[0].(string),
+	}
+	certification := model.CertifyScorecard{
+		ID:        strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10),
+		Source:    src,
+		Scorecard: &modelScorecard,
+	}*/
+
+	panic("implement me")
 }
 
 func (c *tinkerpopClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
@@ -212,32 +249,5 @@ func toCheck(inputCheck *model.ScorecardCheckInputSpec) *model.ScorecardCheck {
 
 func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
 	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
-	/*Select("scorecard").
-		ValueMap(true).
-		Limit(1).
-		Next()
-	resultMap := r.GetInterface().(map[interface{}]interface{})
-	checks, err := readArrayFromVertexProperties(resultMap)
-
-	src := generateModelSource(source.Type, source.Namespace, source.Name, nil, nil)
-	modelScorecard := model.Scorecard{
-		TimeScanned:      (resultMap[timeScanned].([]interface{}))[0].(time.Time),
-		AggregateScore:   (resultMap[aggregateScore].([]interface{}))[0].(float64),
-		Checks:           checks,
-		ScorecardVersion: (resultMap[scorecardVersion].([]interface{}))[0].(string),
-		ScorecardCommit:  (resultMap[scorecardCommit].([]interface{}))[0].(string),
-		Origin:           (resultMap[origin].([]interface{}))[0].(string),
-		Collector:        (resultMap[collector].([]interface{}))[0].(string),
-	}
-	certification := model.CertifyScorecard{
-		ID:        strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10),
-		Source:    src,
-		Scorecard: &modelScorecard,
-	}*/
-
 	panic("implement me")
 }
