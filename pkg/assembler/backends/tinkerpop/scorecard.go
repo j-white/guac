@@ -21,14 +21,17 @@ import (
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-	"sort"
 	"strconv"
-	"strings"
-	"time"
+)
+
+const (
+	commit string = "commit"
+	tag    string = "tag"
 )
 
 const (
 	aggregateScore   string = "aggregateScore"
+	checksJson       string = "checksJson"
 	checkKeys        string = "checkKeys"
 	checkValues      string = "checkValues"
 	collector        string = "collector"
@@ -37,7 +40,7 @@ const (
 	origin           string = "origin"
 	scorecardVersion string = "scorecardVersion"
 	scorecardCommit  string = "scorecardCommit"
-	sourceType       string = "sourceType"
+	sourceType       string = "type"
 	timeScanned      string = "timeScanned"
 )
 
@@ -46,74 +49,43 @@ const (
 	Scorecard Label = "scorecard"
 )
 
-// CertifyScorecard used to ingest scorecards
-func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
-	values := map[string]any{}
-	// FIXME: dedup
+func validateSourceInputSpec(source model.SourceInputSpec) error {
 	if source.Commit != nil && source.Tag != nil {
 		if *source.Commit != "" && *source.Tag != "" {
-			return nil, gqlerror.Errorf("Passing both commit and tag selectors is an error")
+			return gqlerror.Errorf("Passing both commit and tag selectors is an error")
 		}
 	}
+	return nil
+}
 
-	if source.Commit != nil {
-		values["commit"] = *source.Commit
-	} else {
-		values["commit"] = ""
+// CertifyScorecard used to ingest scorecards
+func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+	// TODO: Can we push this validation up a layer, so that the storage engines don't need to worry about it?
+	err := validateSourceInputSpec(source)
+	if err != nil {
+		return nil, err
 	}
 
-	if source.Tag != nil {
-		values["tag"] = *source.Tag
-	} else {
-		values["tag"] = ""
-	}
-
-	// flatten checks into a list keys (check name) and a list of values (the scores)
-	checksMap := map[string]int{}
-	checkKeysList := []string{}
-	checkValuesList := []int{}
-	for _, check := range scorecard.Checks {
-		key := removeInvalidCharFromProperty(check.Check)
-		checksMap[key] = check.Score
-		checkKeysList = append(checkKeysList, key)
-	}
-	sort.Strings(checkKeysList)
-	for _, k := range checkKeysList {
-		checkValuesList = append(checkValuesList, checksMap[k])
-	}
-
-	// Support for arrays may vary based on the implementation of Gremlin
-	// FIXME: 2023/07/09 02:26:18 %!(EXTRA string=gremlinServerWSProtocol.responseHandler(), string=%!(EXTRA gremlingo.responseStatus={244 Property value [[Binary_Artifacts, Branch_Protection, Code_Review, Contributors]] is of type class java.util.ArrayList is not supported map[exceptions:[java.lang.IllegalArgumentException] stackTrace:java.lang.IllegalArgumentException: Property value [[Binary_Artifacts, Branch_Protection, Code_Review, Contributors]] is of type class java.util.ArrayList is not supported
-	//	at org.apache.tinkerpop.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:159)
-	//	at org.apache.tinkerpop.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:155)
-	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.verifyAttribute(StandardJanusGraphTx.java:673)
-	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.addProperty(StandardJanusGraphTx.java:888)
-	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.addProperty(StandardJanusGraphTx.java:877)
-	checkKeysJson, _ := json.Marshal(checkKeysList)
-	checkValuesJson, _ := json.Marshal(checkValuesList)
-
-	// find the source vertex, upsert the scorecard, and make sure there's an edge created between Source and ScoreCard
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	tx := g.Tx()
-	gtx, _ := tx.Begin()
-
+	// map to vertices and edges
 	sourceProperties := map[interface{}]interface{}{
 		gremlingo.T.Label: string(Source),
 		name:              source.Name,
-		"type":            source.Type,
+		sourceType:        source.Type,
 		namespace:         source.Namespace,
+		tag:               source.Tag,
+		commit:            source.Commit,
 	}
 
+	checks := toChecks(scorecard.Checks)
 	scorecardProperties := map[interface{}]interface{}{
 		gremlingo.T.Label: string(Scorecard),
-		checkKeys:         string(checkKeysJson),
-		checkValues:       string(checkValuesJson),
 		aggregateScore:    scorecard.AggregateScore,
 		timeScanned:       scorecard.TimeScanned.UTC(),
 		scorecardVersion:  scorecard.ScorecardVersion,
 		scorecardCommit:   scorecard.ScorecardCommit,
 		origin:            scorecard.Origin,
 		collector:         scorecard.Collector,
+		checksJson:        json.Marshal(checks),
 	}
 
 	edgeProperties := map[interface{}]interface{}{
@@ -122,7 +94,9 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		gremlingo.Direction.Out: gremlingo.Merge.OutV,
 	}
 
-	r, err := gtx.MergeV(sourceProperties).As("source").
+	// upsert (source -> scorecard)
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	r, err := g.MergeV(sourceProperties).As("source").
 		MergeV(scorecardProperties).As("scorecard").
 		MergeE(edgeProperties).
 		// late bind
@@ -130,20 +104,124 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("scorecard")).
 		As("edge").
 		Select("scorecard").
+		Id().Next()
+	if err != nil {
+		return nil, err
+	}
+	id, err := r.GetInt64()
+	if err != nil {
+		return nil, err
+	}
+
+	// build artifact from canonical model after a successful upsert
+	src := generateModelSource(source.Type, source.Namespace, source.Name, nil, nil)
+	modelScorecard := model.Scorecard{
+		TimeScanned:      scorecard.TimeScanned,
+		AggregateScore:   scorecard.AggregateScore,
+		Checks:           checks,
+		ScorecardVersion: scorecard.ScorecardVersion,
+		ScorecardCommit:  scorecard.ScorecardCommit,
+		Origin:           scorecard.Origin,
+		Collector:        scorecard.Collector,
+	}
+	certification := model.CertifyScorecard{
+		ID:        strconv.FormatInt(id, 10),
+		Source:    src,
+		Scorecard: &modelScorecard,
+	}
+	return &certification, nil
+}
+
+func (c *tinkerpopClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
+	// build the query
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	v := g.V().HasLabel(string(Source))
+	if sourceSpec != nil {
+		if sourceSpec.ID != nil {
+			id, err := strconv.ParseInt(*sourceSpec.ID, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			v = g.V(id).HasLabel(string(Artifact))
+		}
+		if sourceSpec.Name != nil {
+			v = v.Has(name, *sourceSpec.Name)
+		}
+		if sourceSpec.Type != nil {
+			v = v.Has(sourceType, *sourceSpec.Type)
+		}
+		if sourceSpec.Namespace != nil {
+			v = v.Has(namespace, *sourceSpec.Namespace)
+		}
+		if sourceSpec.Tag != nil {
+			v = v.Has(tag, *sourceSpec.Tag)
+		}
+		if sourceSpec.Commit != nil {
+			v = v.Has(commit, *sourceSpec.Commit)
+		}
+	}
+	v = v.ValueMap(true)
+
+	// execute the query
+	results, err := v.Limit(c.config.MaxLimit).ToList()
+	if err != nil {
+		return nil, err
+	}
+
+	// generate the model objects from the resultset
+	var sources []*model.Source
+	for _, result := range results {
+		resultMap := result.GetInterface().(map[interface{}]interface{})
+		id := strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10)
+		tagValue := (resultMap[tag].([]interface{}))[0].(string)
+		commitValue := (resultMap[commit].([]interface{}))[0].(string)
+		source := &model.Source{
+			ID:   id,
+			Type: (resultMap[sourceType].([]interface{}))[0].(string),
+			Namespaces: []*model.SourceNamespace{{
+				ID:        id,
+				Namespace: (resultMap[namespace].([]interface{}))[0].(string),
+				Names: []*model.SourceName{{
+					ID:     id,
+					Name:   (resultMap[name].([]interface{}))[0].(string),
+					Tag:    &tagValue,
+					Commit: &commitValue,
+				}},
+			}},
+		}
+		sources = append(sources, source)
+	}
+
+	return sources, nil
+}
+
+func toChecks(inputCheck []*model.ScorecardCheckInputSpec) []*model.ScorecardCheck {
+	var checks []*model.ScorecardCheck
+	for _, check := range inputCheck {
+		checks = append(checks, toCheck(check))
+	}
+	return checks
+}
+
+func toCheck(inputCheck *model.ScorecardCheckInputSpec) *model.ScorecardCheck {
+	return &model.ScorecardCheck{
+		Check: inputCheck.Check,
+		Score: inputCheck.Score,
+	}
+}
+
+func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
+	/*Select("scorecard").
 		ValueMap(true).
 		Limit(1).
 		Next()
-	if err != nil {
-		return nil, err
-	}
 	resultMap := r.GetInterface().(map[interface{}]interface{})
-
-	checks, err := getCollectedChecks(
-		resultMap[checkKeys].([]interface{}),
-		resultMap[checkValues].([]interface{}))
-	if err != nil {
-		return nil, err
-	}
+	checks, err := readArrayFromVertexProperties(resultMap)
 
 	src := generateModelSource(source.Type, source.Namespace, source.Name, nil, nil)
 	modelScorecard := model.Scorecard{
@@ -159,34 +237,7 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		ID:        strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10),
 		Source:    src,
 		Scorecard: &modelScorecard,
-	}
+	}*/
 
-	return &certification, nil
-}
-
-func getCollectedChecks(keyList []interface{}, valueList []interface{}) ([]*model.ScorecardCheck, error) {
-	if len(keyList) != len(valueList) {
-		return nil, gqlerror.Errorf("length of scorecard checks do not match")
-	}
-	var checks []*model.ScorecardCheck
-	for i := range keyList {
-		valueAsJson := valueList[i].(string)
-		score, err := strconv.ParseInt(valueAsJson[1:len(valueAsJson)-1], 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		check := &model.ScorecardCheck{
-			Check: keyList[i].(string),
-			Score: int(score),
-		}
-		checks = append(checks, check)
-	}
-	return checks, nil
-}
-
-// FIXME: We should be able to store this verbatim
-func removeInvalidCharFromProperty(key string) string {
-	// neo4j does not accept "." in its properties. If the qualifier contains a "." that must
-	// be replaced by an "-"
-	return strings.ReplaceAll(key, ".", "_")
+	panic("implement me")
 }

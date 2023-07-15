@@ -43,11 +43,6 @@ func (c *tinkerpopClient) IngestBuilders(ctx context.Context, builders []*model.
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) IngestPointOfContact(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, pointOfContact model.PointOfContactInputSpec) (*model.PointOfContact, error) {
 	//TODO implement me
 	panic("implement me")
@@ -210,11 +205,6 @@ func (c *tinkerpopClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) 
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {
 	//TODO implement me
 	panic("implement me")
@@ -266,11 +256,6 @@ func (c *tinkerpopClient) IsVulnerability(ctx context.Context, isVulnerabilitySp
 }
 
 func (c *tinkerpopClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
 	//TODO implement me
 	panic("implement me")
 }
