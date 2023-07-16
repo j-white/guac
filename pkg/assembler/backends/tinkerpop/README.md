@@ -90,3 +90,15 @@ gremlin> :> g.V().values()
 ```
 
 > Use `:>` as prefix to be able to access `g` that's tied to the deployment
+
+Delete everything
+```
+gremlin> :> g.V().drop()
+```
+
+Debugging
+```
+gremlin> :>  g.V().hasLabel("scorecard").as("scorecard").out().hasLabel("source").as("source").select("scorecard","source")
+==>{scorecard=v[65640], source=v[37048]}
+==>{scorecard=v[147584], source=v[41080]}
+```
