@@ -146,6 +146,8 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
+	fmt.Println("spec", certifyScorecardSpec)
+
 	v := g.V().HasLabel(string(Scorecard))
 	if certifyScorecardSpec != nil {
 		if certifyScorecardSpec.ID != nil {
@@ -173,7 +175,7 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 		if certifyScorecardSpec.AggregateScore != nil {
 			v = v.Has(aggregateScore, certifyScorecardSpec.AggregateScore)
 		}
-		if certifyScorecardSpec.Checks != nil {
+		if certifyScorecardSpec.Checks != nil && len(certifyScorecardSpec.Checks) > 0 {
 			// match checks 1:1
 			checksJsonValue, err := json.Marshal(certifyScorecardSpec.Checks)
 			if err != nil {
@@ -182,7 +184,6 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 			v = v.Has(checksJson, string(checksJsonValue))
 		}
 		v = v.As("scorecard")
-		//
 		// all scorecards should have at least one source
 		v = v.Out().HasLabel(string(Source))
 		if certifyScorecardSpec.Source != nil {
@@ -211,10 +212,10 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 		}
 		v = v.As("source")
 	}
-	v = v.Select("scorecard", "source").Unfold().ValueMap(true)
+	v = v.Select("scorecard", "source").Select(gremlingo.Column.Values).Limit(c.config.MaxLimit).Unfold().ValueMap(true)
 
 	// execute the query
-	results, err := v.Limit(c.config.MaxLimit).ToList()
+	results, err := v.ToList()
 	if err != nil {
 		return nil, err
 	}
@@ -222,36 +223,39 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 
 	// generate the model objects from the resultset
 	var scorecards []*model.CertifyScorecard
-	for _, result := range results {
+	id := ""
+	var scorecard *model.CertifyScorecard
+	for i, result := range results {
 		resultMap := result.GetInterface().(map[interface{}]interface{})
-		id := strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10)
-		var tagValue string
-		if resultMap[tag] != nil {
-			tagValue = (resultMap[tag].([]interface{}))[0].(string)
-		}
-		var commitValue string
-		if resultMap[commit] != nil {
-			commitValue = (resultMap[commit].([]interface{}))[0].(string)
-		}
-
-		var checks []*model.ScorecardCheck
-		err := json.Unmarshal([]byte(resultMap[checksJson].([]interface{})[0].(string)), &checks)
-		if err != nil {
-			return nil, err
-		}
-
-		scorecard := &model.CertifyScorecard{
-			ID: id,
-			Scorecard: &model.Scorecard{
-				TimeScanned:      (resultMap[timeScanned].([]interface{}))[0].(time.Time),
-				AggregateScore:   (resultMap[aggregateScore].([]interface{}))[0].(float64),
-				Checks:           checks,
-				ScorecardVersion: (resultMap[scorecardVersion].([]interface{}))[0].(string),
-				ScorecardCommit:  (resultMap[scorecardCommit].([]interface{}))[0].(string),
-				Origin:           (resultMap[origin].([]interface{}))[0].(string),
-				Collector:        (resultMap[collector].([]interface{}))[0].(string),
-			},
-			Source: &model.Source{
+		id = strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10)
+		if (i % 2) == 0 {
+			var checks []*model.ScorecardCheck
+			err := json.Unmarshal([]byte(resultMap[checksJson].([]interface{})[0].(string)), &checks)
+			if err != nil {
+				return nil, err
+			}
+			scorecard = &model.CertifyScorecard{
+				ID: id,
+				Scorecard: &model.Scorecard{
+					TimeScanned:      (resultMap[timeScanned].([]interface{}))[0].(time.Time),
+					AggregateScore:   (resultMap[aggregateScore].([]interface{}))[0].(float64),
+					Checks:           checks,
+					ScorecardVersion: (resultMap[scorecardVersion].([]interface{}))[0].(string),
+					ScorecardCommit:  (resultMap[scorecardCommit].([]interface{}))[0].(string),
+					Origin:           (resultMap[origin].([]interface{}))[0].(string),
+					Collector:        (resultMap[collector].([]interface{}))[0].(string),
+				},
+			}
+		} else {
+			var tagValue string
+			if resultMap[tag] != nil {
+				tagValue = (resultMap[tag].([]interface{}))[0].(string)
+			}
+			var commitValue string
+			if resultMap[commit] != nil {
+				commitValue = (resultMap[commit].([]interface{}))[0].(string)
+			}
+			scorecard.Source = &model.Source{
 				ID:   id,
 				Type: (resultMap[sourceType].([]interface{}))[0].(string),
 				Namespaces: []*model.SourceNamespace{{
@@ -264,9 +268,9 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 						Commit: &commitValue,
 					}},
 				}},
-			},
+			}
+			scorecards = append(scorecards, scorecard)
 		}
-		scorecards = append(scorecards, scorecard)
 	}
 
 	return scorecards, nil
