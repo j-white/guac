@@ -18,6 +18,7 @@ package tinkerpop
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
@@ -143,6 +144,91 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 }
 
 func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
+	// build the query
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	v := g.V().HasLabel(string(Source))
+	if certifyScorecardSpec != nil {
+		if certifyScorecardSpec.ID != nil {
+			id, err := strconv.ParseInt(*certifyScorecardSpec.ID, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			v = g.V(id).HasLabel(string(Scorecard))
+		}
+		if certifyScorecardSpec.ScorecardVersion != nil {
+			v = v.Has(scorecardVersion, certifyScorecardSpec.ScorecardVersion)
+		}
+		if certifyScorecardSpec.ScorecardCommit != nil {
+			v = v.Has(scorecardVersion, certifyScorecardSpec.ScorecardCommit)
+		}
+		if certifyScorecardSpec.Collector != nil {
+			v = v.Has(collector, certifyScorecardSpec.Collector)
+		}
+		if certifyScorecardSpec.Origin != nil {
+			v = v.Has(origin, certifyScorecardSpec.Origin)
+		}
+		if certifyScorecardSpec.TimeScanned != nil {
+			v = v.Has(timeScanned, certifyScorecardSpec.TimeScanned)
+		}
+		if certifyScorecardSpec.AggregateScore != nil {
+			v = v.Has(aggregateScore, certifyScorecardSpec.AggregateScore)
+		}
+		if certifyScorecardSpec.Checks != nil {
+			// match checks 1:1
+			checksJsonValue, err := json.Marshal(certifyScorecardSpec.Checks)
+			if err != nil {
+				return nil, err
+			}
+			v = v.Has(checksJson, string(checksJsonValue))
+		}
+		v = v.As("scorecard")
+
+		// all scorecards should have at least one source
+		//v = v.OutV().HasLabel(string(Source))
+		//if certifyScorecardSpec.Source != nil {
+		//	if certifyScorecardSpec.Source.ID != nil {
+		//		id, err := strconv.ParseInt(*certifyScorecardSpec.Source.ID, 10, 64)
+		//		if err != nil {
+		//			return nil, err
+		//		}
+		//		v = v.OutV(id).HasLabel(string(Source))
+		//	}
+		//	if certifyScorecardSpec.Source.Name != nil {
+		//		v = v.Has(name, certifyScorecardSpec.Source.Name)
+		//	}
+		//	if certifyScorecardSpec.Source.Type != nil {
+		//		v = v.Has(sourceType, certifyScorecardSpec.Source.Type)
+		//	}
+		//	if certifyScorecardSpec.Source.Namespace != nil {
+		//		v = v.Has(namespace, certifyScorecardSpec.Source.Namespace)
+		//	}
+		//	if certifyScorecardSpec.Source.Commit != nil {
+		//		v = v.Has(commit, certifyScorecardSpec.Source.Commit)
+		//	}
+		//	if certifyScorecardSpec.Source.Tag != nil {
+		//		v = v.Has(tag, certifyScorecardSpec.Source.Tag)
+		//	}
+		//}
+		//v = v.As("source")
+	}
+	v = v.Select("scorecard").ValueMap(true)
+
+	// execute the query
+	results, err := v.Limit(c.config.MaxLimit).ToList()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("results", results)
+
+	// generate the model objects from the resultset
+	var scorecards []*model.CertifyScorecard
+	for _, result := range results {
+		_ = result.GetInterface().(map[interface{}]interface{})
+		scorecard := &model.CertifyScorecard{}
+		scorecards = append(scorecards, scorecard)
+	}
+
+	return scorecards, nil
 	/*Select("scorecard").
 		ValueMap(true).
 		Limit(1).
@@ -165,8 +251,6 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 		Source:    src,
 		Scorecard: &modelScorecard,
 	}*/
-
-	panic("implement me")
 }
 
 func (c *tinkerpopClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
