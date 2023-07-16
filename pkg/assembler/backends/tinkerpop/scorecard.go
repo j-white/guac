@@ -108,13 +108,12 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 
 	// upsert (source -> scorecard)
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	r, err := g.MergeV(scorecardProperties).As("source").
+	r, err := g.MergeV(sourceProperties).As("source").
 		MergeV(scorecardProperties).As("scorecard").
 		MergeE(edgeProperties).
 		// late bind
-		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("source")).
-		Option(gremlingo.Merge.InV, gremlingo.T__.Select("scorecard")).
-		As("edge").
+		Option(gremlingo.Merge.InV, gremlingo.T__.Select("source")).
+		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("scorecard")).
 		Select("scorecard").
 		Id().Next()
 	if err != nil {
@@ -212,7 +211,7 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 		}
 		v = v.As("source")
 	}
-	v = v.Select("scorecard", "source").ValueMap(true)
+	v = v.Select("scorecard", "source").Unfold().ValueMap(true)
 
 	// execute the query
 	results, err := v.Limit(c.config.MaxLimit).ToList()
