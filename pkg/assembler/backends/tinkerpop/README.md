@@ -32,51 +32,46 @@ Currently developing against `JanusGraph` with the intent to expand and test oth
 
 ```graphql
 mutation {
-ingestArtifact(artifact:{
-algorithm: "andy",
-digest: "hope is a good thing",
-}) {
-id,
-algorithm,
-digest
-}
+  ingestArtifact(artifact: {algorithm: "andy", digest: "hope is a good thing"}) {
+    id
+    algorithm
+    digest
+  }
 }
 ```
 
 ## Query artifact
 
 ```graphql
-query {
-artifacts(artifactSpec:{id:"2"}){
-id,
-digest
-}
+{
+  artifacts(artifactSpec: {id: "2"}) {
+    id
+    digest
+  }
 }
 ```
 
 ## CertifyScorecard
 ```graphql
-mutation{
-  certifyScorecard(scorecard:{
-    checks:[{
-    check:"Binary_Artifacts",
-      score: 4
-    }],
-    aggregateScore: 2.9,
-    timeScanned: "2023-07-14T01:45:31.29Z",
-    scorecardVersion: "v4.10.2",
-    scorecardCommit:"5e6a521",
-    origin:"Demo ingestion",
-    collector:"sadf"
-  },
-  source:{
-    type:"t",
-    namespace:"asd",
-    name:"sd",
-    commit:"yes that is correct"
-  }) {
+mutation {
+  certifyScorecard(
+    scorecard: {checks: [{check: "Binary_Artifacts", score: 4}], aggregateScore: 2.9, timeScanned: "2023-07-14T01:45:31.29Z", scorecardVersion: "v4.10.2", scorecardCommit: "5e6a521", origin: "Demo ingestion", collector: "sadf"}
+    source: {type: "t", namespace: "asd", name: "sd", commit: "yes that is correct"}
+  ) {
+    id
+    scorecard: id
+  }
+}
+```
+
+## Query scorecards
+
+```graphql
+{
+  scorecards(scorecardSpec:{}){
     id,
-    scorecard:id
+    scorecard:id,
+    source:id,
   }
 }
 ```
