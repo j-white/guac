@@ -80,3 +80,13 @@ mutation {
 
 * Review connection pooling & lifecycle
 * Add metrics
+
+# JanusGraph notes
+
+```
+kubectl exec -it deploy/janusgraph ./bin/gremlin.sh
+gremlin> :remote connect tinkerpop.server conf/remote.yaml
+gremlin> :> g.V().values()
+```
+
+> Use `:>` as prefix to be able to access `g` that's tied to the deployment
