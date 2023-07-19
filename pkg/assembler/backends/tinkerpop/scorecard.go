@@ -225,10 +225,36 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 	var scorecards []*model.CertifyScorecard
 	id := ""
 	var scorecard *model.CertifyScorecard
-	for i, result := range results {
+	var sources []*model.Source
+	for _, result := range results {
 		resultMap := result.GetInterface().(map[interface{}]interface{})
 		id = strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10)
-		if (i % 2) == 0 {
+		if resultMap[sourceType] != nil {
+			var tagValue string
+			if resultMap[tag] != nil {
+				tagValue = (resultMap[tag].([]interface{}))[0].(string)
+			}
+			var commitValue string
+			if resultMap[commit] != nil {
+				commitValue = (resultMap[commit].([]interface{}))[0].(string)
+			}
+			source := &model.Source{
+				ID:   id,
+				Type: (resultMap[sourceType].([]interface{}))[0].(string),
+				Namespaces: []*model.SourceNamespace{{
+					ID:        id,
+					Namespace: (resultMap[namespace].([]interface{}))[0].(string),
+					Names: []*model.SourceName{{
+						ID:     id,
+						Name:   (resultMap[name].([]interface{}))[0].(string),
+						Tag:    &tagValue,
+						Commit: &commitValue,
+					}},
+				}},
+			}
+			sources = append(sources, source)
+		}
+		if resultMap[checksJson] != nil {
 			var checks []*model.ScorecardCheck
 			err := json.Unmarshal([]byte(resultMap[checksJson].([]interface{})[0].(string)), &checks)
 			if err != nil {
@@ -246,31 +272,13 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 					Collector:        (resultMap[collector].([]interface{}))[0].(string),
 				},
 			}
-		} else {
-			var tagValue string
-			if resultMap[tag] != nil {
-				tagValue = (resultMap[tag].([]interface{}))[0].(string)
-			}
-			var commitValue string
-			if resultMap[commit] != nil {
-				commitValue = (resultMap[commit].([]interface{}))[0].(string)
-			}
-			scorecard.Source = &model.Source{
-				ID:   id,
-				Type: (resultMap[sourceType].([]interface{}))[0].(string),
-				Namespaces: []*model.SourceNamespace{{
-					ID:        id,
-					Namespace: (resultMap[namespace].([]interface{}))[0].(string),
-					Names: []*model.SourceName{{
-						ID:     id,
-						Name:   (resultMap[name].([]interface{}))[0].(string),
-						Tag:    &tagValue,
-						Commit: &commitValue,
-					}},
-				}},
-			}
 			scorecards = append(scorecards, scorecard)
 		}
+	}
+
+	for i, scorecard := range scorecards {
+		// FIXME: This is not necessarily true... they may not be returned in the same order they were paired
+		scorecard.Source = sources[i]
 	}
 
 	return scorecards, nil
