@@ -33,21 +33,6 @@ type tinkerpopClient struct {
 	remote *gremlingo.DriverRemoteConnection
 }
 
-func (c *tinkerpopClient) PointOfContact(ctx context.Context, pointOfContactSpec *model.PointOfContactSpec) ([]*model.PointOfContact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestBuilders(ctx context.Context, builders []*model.BuilderInputSpec) ([]*model.Builder, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestPointOfContact(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, pointOfContact model.PointOfContactInputSpec) (*model.PointOfContact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	ctx := logging.WithLogger(context.Background())
 	logger := logging.FromContext(ctx)
@@ -381,6 +366,36 @@ func (c *tinkerpopClient) FindSoftware(ctx context.Context, searchText string) (
 }
 
 func (c *tinkerpopClient) CertifyBad(ctx context.Context, certifyBadSpec *model.CertifyBadSpec) ([]*model.CertifyBad, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestCVEs(ctx context.Context, cves []*model.CVEInputSpec) ([]*model.Cve, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestGHSAs(ctx context.Context, ghsas []*model.GHSAInputSpec) ([]*model.Ghsa, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestOSVs(ctx context.Context, osvs []*model.OSVInputSpec) ([]*model.Osv, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) PointOfContact(ctx context.Context, pointOfContactSpec *model.PointOfContactSpec) ([]*model.PointOfContact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestBuilders(ctx context.Context, builders []*model.BuilderInputSpec) ([]*model.Builder, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestPointOfContact(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, pointOfContact model.PointOfContactInputSpec) (*model.PointOfContact, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -102,3 +102,11 @@ gremlin> :>  g.V().hasLabel("scorecard").as("scorecard").out().hasLabel("source"
 ==>{scorecard=v[65640], source=v[37048]}
 ==>{scorecard=v[147584], source=v[41080]}
 ```
+
+# Demo
+
+* Get local environment up with Tilt
+* Launch into GraphQL playground
+* Enter Gremlin console, show empty graph: `:> g.V()`
+* GraphQL playground: upsert and search
+* Add `Dedup()` to query, in `scorecard.go:215`, wait for reload, query, error
