@@ -50,6 +50,9 @@ var flags = struct {
 	arangoAddr string
 	arangoUser string
 	arangoPass string
+
+	// Needed only if using tinkerpop backend
+	tinkerpopSettingsFile string
 }{}
 
 var rootCmd = &cobra.Command{
@@ -78,6 +81,9 @@ var rootCmd = &cobra.Command{
 		flags.arangoPass = viper.GetString("arango-pass")
 		flags.arangoAddr = viper.GetString("arango-addr")
 
+		// Needed only if using tinkerpop backend
+		flags.tinkerpopSettingsFile = viper.GetString("tinkerpop-settings-file")
+
 		startServer(cmd)
 	},
 }
@@ -87,9 +93,10 @@ func init() {
 
 	set, err := cli.BuildFlags([]string{
 		"arango-addr", "arango-user", "arango-pass",
-		"neo4j-addr", "neo4j-user", "neo4j-pass", "neo4j-realm",
-		"gql-test-data", "gql-listen-port", "gql-debug", "gql-backend", "gql-trace",
+		"neo4j-addr", "neo4j-user", "neo4j-pass", "neo4j-realm", "gql-test-data",
+		"gql-listen-port", "gql-debug", "gql-backend", "gql-trace",
 		"db-address", "db-driver", "db-debug", "db-migrate",
+		"tinkerpop-settings-file",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to setup flag: %v", err)

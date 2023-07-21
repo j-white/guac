@@ -67,6 +67,8 @@ spec:
           env:
             - name: GUAC_GQL_DEBUG
               value: "true"
+            - name: GUAC_GQL_TEST_DATA
+              value: "true"
           ports:
             - name: http-port
               containerPort: 8080
@@ -165,3 +167,127 @@ spec:
               value: nats://nats:4222
             - name: GUAC_CSUB_ADDR
               value: guac-collectsub:2782
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gremlin-server.yaml
+data:
+  gremlin-server.yaml: |
+    host: 0.0.0.0
+    port: 8182
+    evaluationTimeout: 30000
+    graphs: {
+      graph: conf/tinkergraph-empty.properties}
+    scriptEngines: {
+      gremlin-groovy: {
+        plugins: { org.apache.tinkerpop.gremlin.server.jsr223.GremlinServerGremlinPlugin: {},
+                  org.apache.tinkerpop.gremlin.tinkergraph.jsr223.TinkerGraphGremlinPlugin: {},
+                  org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin: {enableThreadInterrupt: true},
+                  org.apache.tinkerpop.gremlin.jsr223.ImportGremlinPlugin: {classImports: [java.lang.Math], methodImports: [java.lang.Math#*]},
+                  org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin: {files: [scripts/generate-modern.groovy]}}}}
+    serializers:
+      - { className: org.apache.tinkerpop.gremlin.util.ser.GraphSONMessageSerializerV3d0, config: { ioRegistries: [org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerIoRegistryV3d0] }}        # application/json
+      - { className: org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1 }                                                                                                           # application/vnd.graphbinary-v1.0
+      - { className: org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1, config: { serializeResultToString: true }}                                                                 # application/vnd.graphbinary-v1.0-stringd
+    metrics: {
+      slf4jReporter: {enabled: true, interval: 180000}}
+    strictTransactionManagement: false
+    idleConnectionTimeout: 0
+    keepAliveInterval: 0
+    maxInitialLineLength: 4096
+    maxHeaderSize: 8192
+    maxChunkSize: 8192
+    maxContentLength: 10485760
+    maxAccumulationBufferComponents: 1024
+    resultIterationBatchSize: 64
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gremlin-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gremlin-server
+  template:
+    metadata:
+      labels:
+        app: gremlin-server
+    spec:
+      securityContext:
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+      containers:
+        - name: gremlin-server
+          image: tinkerpop/gremlin-server
+          workingDir: /opt/gremlin-server
+          ports:
+            - containerPort: 8182
+              name: ws
+          # command:
+          #   - sh
+          #   - -c
+          #   - while true; do sleep 1000; done
+          #command: ["/opt/gremlin-server/bin/gremlin-server.sh"]
+          args: ["/opt/gremlin-server/conf/gremlin-server-modern.yaml"]
+          volumeMounts:
+          - name: config
+            mountPath: "/tmp/gremlin-server.yaml"
+            subPath: gremlin-server.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: gremlin-server.yaml
+            items:
+              - key: "gremlin-server.yaml"
+                path: "gremlin-server.yaml"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gremlin-server
+spec:
+  selector:
+    app: gremlin-server
+  ports:
+    - protocol: TCP
+      port: 8182
+      targetPort: 8182
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: janusgraph
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: janusgraph
+  template:
+    metadata:
+      labels:
+        app: janusgraph
+    spec:
+      containers:
+        - name: janusgraph
+          image: janusgraph/janusgraph:1.0.0-20230705-152651.16846ad-16846ad
+          ports:
+            - containerPort: 8182
+              name: ws
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: janusgraph
+spec:
+  selector:
+    app: janusgraph
+  ports:
+    - protocol: TCP
+      port: 8182
+      targetPort: 8182
+  type: ClusterIP
