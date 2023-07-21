@@ -29,6 +29,16 @@ func SetupBackend(ctx context.Context, options BackendOptions) (*ent.Client, err
 		driver = options.DriverName
 	}
 
+	// Grrrrrr
+	if driver == dialect.Gremlin {
+		logger.Infof("connecting to gremlin server: %s", options.Address)
+		client, err := ent.Open("gremlin", options.Address)
+		if err != nil {
+			return nil, err
+		}
+		return client, nil
+	}
+
 	if driver != dialect.Postgres {
 		// TODO: Passively import preferred driver packages for MySQL and Sqlite
 		return nil, fmt.Errorf("only postgres is supported at this time")
