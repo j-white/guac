@@ -7,7 +7,7 @@ require (
 	github.com/fsouza/fake-gcs-server v1.45.2
 	github.com/in-toto/in-toto-golang v0.9.0
 	github.com/neo4j/neo4j-go-driver/v4 v4.4.7
-	github.com/secure-systems-lab/go-securesystemslib v0.6.0
+	github.com/secure-systems-lab/go-securesystemslib v0.7.0
 	github.com/spf13/cobra v1.7.0
 	go.uber.org/zap v1.24.0
 	google.golang.org/api v0.130.0
@@ -50,7 +50,7 @@ require (
 require (
 	ariga.io/atlas v0.12.1-0.20230620155259-b8e83e5e8ad6 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	github.com/BurntSushi/toml v1.3.0 // indirect
+	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230518184743-7afd39499903 // indirect
@@ -85,6 +85,8 @@ require (
 	github.com/go-git/go-billy/v5 v5.4.1 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
+	github.com/goark/errs v1.1.0 // indirect
+	github.com/goark/go-cvss v1.6.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/google/go-containerregistry v0.15.2 // indirect
@@ -145,7 +147,7 @@ require (
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/theupdateframework/go-tuf v0.5.2 // indirect
 	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
-	github.com/urfave/cli/v2 v2.25.5 // indirect
+	github.com/urfave/cli/v2 v2.25.7 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
@@ -174,7 +176,7 @@ require (
 require (
 	entgo.io/contrib v0.4.5
 	entgo.io/ent v0.12.4-0.20230702151415-1ec75238037c
-	github.com/99designs/gqlgen v0.17.34
+	github.com/99designs/gqlgen v0.17.35
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/DATA-DOG/go-txdb v0.1.6
 	github.com/Khan/genqlient v0.6.0
@@ -186,14 +188,14 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/google/go-github/v50 v50.2.0
-	github.com/google/osv-scanner v1.3.4
+	github.com/google/osv-scanner v1.3.5
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/jeremywohl/flatten v1.0.1
 	github.com/lib/pq v1.10.9
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/nats-io/nats-server/v2 v2.9.19
+	github.com/nats-io/nats-server/v2 v2.9.20
 	github.com/nats-io/nats.go v1.27.1
 	github.com/openvex/go-vex v0.2.0
 	github.com/ossf/scorecard/v4 v4.11.0
@@ -206,7 +208,7 @@ require (
 	github.com/spdx/tools-golang v0.5.2
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
-	github.com/vektah/gqlparser/v2 v2.5.4
+	github.com/vektah/gqlparser/v2 v2.5.8
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	gopkg.in/yaml.v3 v3.0.1
 )

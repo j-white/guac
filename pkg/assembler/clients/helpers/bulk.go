@@ -41,7 +41,6 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 				return fmt.Errorf("ingestPackages failed with error: %w", err)
 			}
 
-			// TODO(pxp928): add bulk ingestion for sources
 			sources := p.GetSources(ctx)
 			logger.Infof("assembling Source: %v", len(sources))
 
@@ -65,55 +64,60 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 				return fmt.Errorf("ingestArtifacts failed with error: %w", err)
 			}
 
-			// TODO(pxp928): add bulk ingestion for builders
-			builders := p.GetBuilders(ctx)
-			logger.Infof("assembling Builder: %v", len(builders))
-			for _, v := range builders {
-				if err := ingestBuilder(ctx, gqlclient, v); err != nil {
-					return fmt.Errorf("ingestBuilder failed with error: %w", err)
-				}
-			}
-
-			// TODO(pxp928): add bulk ingestion for materials
 			materials := p.GetMaterials(ctx)
 			logger.Infof("assembling Materials (Artifact): %v", len(materials))
-			if err := ingestMaterials(ctx, gqlclient, materials); err != nil {
-				return fmt.Errorf("ingestMaterials failed with error: %w", err)
+			if err := ingestArtifacts(ctx, gqlclient, materials); err != nil {
+				return fmt.Errorf("ingestArtifacts failed with error: %w", err)
 			}
 
-			// TODO(pxp928): add bulk ingestion for cves
+			builders := p.GetBuilders(ctx)
+			logger.Infof("assembling Builder: %v", len(builders))
+			var collectedBuilders []model.BuilderInputSpec
+			collectedBuilders = make([]model.BuilderInputSpec, 0)
+			for _, v := range builders {
+				collectedBuilders = append(collectedBuilders, *v)
+			}
+			if err := ingestBuilders(ctx, gqlclient, collectedBuilders); err != nil {
+				return fmt.Errorf("ingestBuilders failed with error: %w", err)
+			}
+
 			cves := p.GetCVEs(ctx)
 			logger.Infof("assembling CVE: %v", len(cves))
+			var collectedCVEs []model.CVEInputSpec
+			collectedCVEs = make([]model.CVEInputSpec, 0)
 			for _, v := range cves {
-				if err := ingestCVE(ctx, gqlclient, v); err != nil {
-					return fmt.Errorf("ingestCVE failed with error: %w", err)
-				}
+				collectedCVEs = append(collectedCVEs, *v)
+			}
+			if err := ingestCVEs(ctx, gqlclient, collectedCVEs); err != nil {
+				return fmt.Errorf("ingestCVEs failed with error: %w", err)
 			}
 
-			// TODO(pxp928): add bulk ingestion for osvs
 			osvs := p.GetOSVs(ctx)
 			logger.Infof("assembling OSV: %v", len(osvs))
+			var collectedOSVs []model.OSVInputSpec
+			collectedOSVs = make([]model.OSVInputSpec, 0)
 			for _, v := range osvs {
-				if err := ingestOSV(ctx, gqlclient, v); err != nil {
-					return fmt.Errorf("ingestOSV failed with error: %w", err)
-				}
+				collectedOSVs = append(collectedOSVs, *v)
+			}
+			if err := ingestOSVs(ctx, gqlclient, collectedOSVs); err != nil {
+				return fmt.Errorf("ingestOSVs failed with error: %w", err)
 			}
 
 			// TODO(pxp928): add bulk ingestion for ghsas
 			ghsas := p.GetGHSAs(ctx)
 			logger.Infof("assembling GHSA: %v", len(ghsas))
+			var collectedGHSAs []model.GHSAInputSpec
+			collectedGHSAs = make([]model.GHSAInputSpec, 0)
 			for _, v := range ghsas {
-				if err := ingestGHSA(ctx, gqlclient, v); err != nil {
-					return fmt.Errorf("ingestGHSA failed with error: %w", err)
-				}
+				collectedGHSAs = append(collectedGHSAs, *v)
+			}
+			if err := ingestGHSAs(ctx, gqlclient, collectedGHSAs); err != nil {
+				return fmt.Errorf("ingestGHSAs failed with error: %w", err)
 			}
 
-			// TODO(pxp928): add bulk ingestion for CertifyScorecard
 			logger.Infof("assembling CertifyScorecard: %v", len(p.CertifyScorecard))
-			for _, v := range p.CertifyScorecard {
-				if err := ingestCertifyScorecards(ctx, gqlclient, v); err != nil {
-					return fmt.Errorf("ingestCertifyScorecards failed with error: %w", err)
-				}
+			if err := ingestCertifyScorecards(ctx, gqlclient, p.CertifyScorecard); err != nil {
+				return fmt.Errorf("ingestCertifyScorecards failed with error: %w", err)
 			}
 
 			logger.Infof("assembling IsDependency: %v", len(p.IsDependency))
@@ -126,12 +130,9 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 				return fmt.Errorf("ingestIsOccurrences failed with error: %w", err)
 			}
 
-			// TODO(pxp928): add bulk ingestion for HasSLSA
 			logger.Infof("assembling HasSLSA: %v", len(p.HasSlsa))
-			for _, v := range p.HasSlsa {
-				if err := ingestHasSlsa(ctx, gqlclient, v); err != nil {
-					return fmt.Errorf("ingestHasSlsa failed with error: %w", err)
-				}
+			if err := ingestHasSLSAs(ctx, gqlclient, p.HasSlsa); err != nil {
+				return fmt.Errorf("ingestHasSLSAs failed with error: %w", err)
 			}
 
 			// TODO(pxp928): add bulk ingestion for CertifyVuln
@@ -174,6 +175,15 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 			for _, good := range p.CertifyGood {
 				if err := ingestCertifyGood(ctx, gqlclient, good); err != nil {
 					return fmt.Errorf("ingestCertifyGood failed with error: %w", err)
+
+				}
+			}
+
+			// TODO: add bulk ingestion for PointOfContact
+			logger.Infof("assembling PointOfContact: %v", len(p.CertifyGood))
+			for _, poc := range p.PointOfContact {
+				if err := ingestPointOfContact(ctx, gqlclient, poc); err != nil {
+					return fmt.Errorf("ingestPointOfContact failed with error: %w", err)
 
 				}
 			}
@@ -238,6 +248,74 @@ func ingestArtifacts(ctx context.Context, client graphql.Client, v []model.Artif
 	_, err := model.IngestArtifacts(ctx, client, v)
 	if err != nil {
 		return fmt.Errorf("ingestArtifacts failed with error: %w", err)
+	}
+	return nil
+}
+
+func ingestBuilders(ctx context.Context, client graphql.Client, v []model.BuilderInputSpec) error {
+	_, err := model.IngestBuilders(ctx, client, v)
+	if err != nil {
+		return fmt.Errorf("ingestBuilders failed with error: %w", err)
+	}
+	return nil
+}
+
+func ingestCVEs(ctx context.Context, client graphql.Client, v []model.CVEInputSpec) error {
+	_, err := model.IngestCVEs(ctx, client, v)
+	if err != nil {
+		return fmt.Errorf("ingestCVEs failed with error: %w", err)
+	}
+	return nil
+}
+
+func ingestOSVs(ctx context.Context, client graphql.Client, v []model.OSVInputSpec) error {
+	_, err := model.IngestOSVs(ctx, client, v)
+	if err != nil {
+		return fmt.Errorf("ingestOSVs failed with error: %w", err)
+	}
+	return nil
+}
+
+func ingestGHSAs(ctx context.Context, client graphql.Client, v []model.GHSAInputSpec) error {
+	_, err := model.IngestGHSAs(ctx, client, v)
+	if err != nil {
+		return fmt.Errorf("ingestGHSAs failed with error: %w", err)
+	}
+	return nil
+}
+
+func ingestHasSLSAs(ctx context.Context, client graphql.Client, v []assembler.HasSlsaIngest) error {
+	var subjects []model.ArtifactInputSpec
+	var slsaAttestations []model.SLSAInputSpec
+	var materialList [][]model.ArtifactInputSpec
+	var builders []model.BuilderInputSpec
+	for _, ingest := range v {
+		subjects = append(subjects, *ingest.Artifact)
+		slsaAttestations = append(slsaAttestations, *ingest.HasSlsa)
+		builders = append(builders, *ingest.Builder)
+		materialList = append(materialList, ingest.Materials)
+	}
+	if len(v) > 0 {
+		_, err := model.SLSAForArtifacts(ctx, client, subjects, materialList, builders, slsaAttestations)
+		if err != nil {
+			return fmt.Errorf("SLSAForArtifacts failed with error: %w", err)
+		}
+	}
+	return nil
+}
+
+func ingestCertifyScorecards(ctx context.Context, client graphql.Client, v []assembler.CertifyScorecardIngest) error {
+	var srcs []model.SourceInputSpec
+	var scorecards []model.ScorecardInputSpec
+	for _, ingest := range v {
+		srcs = append(srcs, *ingest.Source)
+		scorecards = append(scorecards, *ingest.Scorecard)
+	}
+	if len(v) > 0 {
+		_, err := model.CertifyScorecards(ctx, client, srcs, scorecards)
+		if err != nil {
+			return fmt.Errorf("certifyScorecards failed with error: %w", err)
+		}
 	}
 	return nil
 }

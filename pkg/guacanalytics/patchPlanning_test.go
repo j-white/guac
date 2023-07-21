@@ -36,6 +36,7 @@ import (
 )
 
 var (
+	tm, _                   = time.Parse(time.RFC3339, "2023-07-17T17:45:50.52Z")
 	simpleIsDependencyGraph = assembler.IngestPredicates{
 		IsDependency: []assembler.IsDependencyIngest{
 			{
@@ -461,22 +462,356 @@ var (
 			},
 		},
 	}
+
+	hasSourceAtPackageVersionGraph = assembler.IngestPredicates{
+		IsOccurrence: []assembler.IsOccurrenceIngest{
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "pkgTypeC",
+					Namespace: ptrfrom.String("pkgNamespaceC"),
+					Name:      "pkgNameC",
+					Version:   ptrfrom.String("3.0.3"),
+				},
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "testArtifactAlgorithmC",
+					Digest:    "testArtifactDigestC",
+				},
+				IsOccurrence: &model.IsOccurrenceInputSpec{
+					Justification: "connect pkgC and artifactC",
+				},
+			},
+			{
+				Src: &model.SourceInputSpec{
+					Type:      "srcTypeD",
+					Namespace: "srcNamespaceD",
+					Name:      "srcNameD",
+				},
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "testArtifactAlgorithmD",
+					Digest:    "testArtifactDigestD",
+				},
+				IsOccurrence: &model.IsOccurrenceInputSpec{
+					Justification: "connect srcD and artifactD",
+				},
+			},
+		},
+		HasSlsa: []assembler.HasSlsaIngest{
+			{
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "testArtifactAlgorithmD",
+					Digest:    "testArtifactDigestD",
+				},
+				Builder: &model.BuilderInputSpec{
+					Uri: "testUri",
+				},
+				Materials: []model.ArtifactInputSpec{{
+					Algorithm: "testArtifactAlgorithmC",
+					Digest:    "testArtifactDigestC",
+				}},
+				HasSlsa: &model.SLSAInputSpec{
+					BuildType:   "testBuildType",
+					SlsaVersion: "testSlsaVersion",
+					SlsaPredicate: []model.SLSAPredicateInputSpec{
+						{Key: "slsa.testKey", Value: "testValue"},
+					},
+				},
+			},
+		},
+		HasSourceAt: []assembler.HasSourceAtIngest{
+			{
+				Src: &model.SourceInputSpec{
+					Type:      "srcTypeD",
+					Namespace: "srcNamespaceD",
+					Name:      "srcNameD",
+				},
+				Pkg: &model.PkgInputSpec{
+					Type:      "pkgTypeE",
+					Namespace: ptrfrom.String("pkgNamespaceE"),
+					Name:      "pkgNameE",
+					Version:   ptrfrom.String("1.19.0"),
+				},
+				HasSourceAt: &model.HasSourceAtInputSpec{
+					Justification: "test justification",
+					KnownSince:    tm,
+				},
+				PkgMatchFlag: model.MatchFlags{
+					Pkg: model.PkgMatchTypeSpecificVersion,
+				},
+			},
+		},
+		IsDependency: []assembler.IsDependencyIngest{
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "pkgTypeF",
+					Namespace: ptrfrom.String("pkgNamespaceF"),
+					Name:      "pkgNameF",
+					Version:   ptrfrom.String("2.19.0"),
+				},
+				DepPkg: &model.PkgInputSpec{
+					Type:      "pkgTypeE",
+					Namespace: ptrfrom.String("pkgNamespaceE"),
+					Name:      "pkgNameE",
+					Version:   ptrfrom.String("3.0.3"),
+				},
+				IsDependency: &model.IsDependencyInputSpec{
+					VersionRange:   "=>2.0.0",
+					DependencyType: model.DependencyTypeDirect,
+					Justification:  "test justification one",
+					Origin:         "Demo ingestion",
+					Collector:      "Demo ingestion",
+				},
+			},
+		},
+	}
+
+	hasSourceAtPackageNameGraph = assembler.IngestPredicates{
+		IsOccurrence: []assembler.IsOccurrenceIngest{
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "pkgTypeG",
+					Namespace: ptrfrom.String("pkgNamespaceG"),
+					Name:      "pkgNameG",
+					Version:   ptrfrom.String("3.0.3"),
+				},
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "testArtifactAlgorithmG",
+					Digest:    "testArtifactDigestG",
+				},
+				IsOccurrence: &model.IsOccurrenceInputSpec{
+					Justification: "connect pkgG and artifactG",
+				},
+			},
+			{
+				Src: &model.SourceInputSpec{
+					Type:      "srcTypeH",
+					Namespace: "srcNamespaceH",
+					Name:      "srcNameH",
+				},
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "testArtifactAlgorithmH",
+					Digest:    "testArtifactDigestH",
+				},
+				IsOccurrence: &model.IsOccurrenceInputSpec{
+					Justification: "connect srcH and artifactH",
+				},
+			},
+		},
+		HasSlsa: []assembler.HasSlsaIngest{
+			{
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "testArtifactAlgorithmH",
+					Digest:    "testArtifactDigestH",
+				},
+				Builder: &model.BuilderInputSpec{
+					Uri: "testUri",
+				},
+				Materials: []model.ArtifactInputSpec{{
+					Algorithm: "testArtifactAlgorithmG",
+					Digest:    "testArtifactDigestG",
+				}},
+				HasSlsa: &model.SLSAInputSpec{
+					BuildType:   "testBuildType",
+					SlsaVersion: "testSlsaVersion",
+					SlsaPredicate: []model.SLSAPredicateInputSpec{
+						{Key: "slsa.testKey", Value: "testValue"},
+					},
+				},
+			},
+		},
+		HasSourceAt: []assembler.HasSourceAtIngest{
+			{
+				Src: &model.SourceInputSpec{
+					Type:      "srcTypeH",
+					Namespace: "srcNamespaceH",
+					Name:      "srcNameH",
+				},
+				Pkg: &model.PkgInputSpec{
+					Type:      "pkgTypeI",
+					Namespace: ptrfrom.String("pkgNamespaceI"),
+					Name:      "pkgNameI",
+				},
+				HasSourceAt: &model.HasSourceAtInputSpec{
+					Justification: "test justification",
+					KnownSince:    tm,
+				},
+				PkgMatchFlag: model.MatchFlags{
+					Pkg: model.PkgMatchTypeAllVersions,
+				},
+			},
+		},
+		IsDependency: []assembler.IsDependencyIngest{
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "pkgTypeJ",
+					Namespace: ptrfrom.String("pkgNamespaceJ"),
+					Name:      "pkgNameJ",
+					Version:   ptrfrom.String("2.19.0"),
+				},
+				DepPkg: &model.PkgInputSpec{
+					Type:      "pkgTypeI",
+					Namespace: ptrfrom.String("pkgNamespaceI"),
+					Name:      "pkgNameI",
+					Version:   ptrfrom.String("3.0.3"),
+				},
+				IsDependency: &model.IsDependencyInputSpec{
+					VersionRange:   ">=2.0.0",
+					DependencyType: model.DependencyTypeDirect,
+					Justification:  "test justification one",
+					Origin:         "Demo ingestion",
+					Collector:      "Demo ingestion",
+				},
+			},
+		},
+	}
+
+	pkgEqualGraph = assembler.IngestPredicates{
+		PkgEqual: []assembler.PkgEqualIngest{
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "aType",
+					Namespace: ptrfrom.String("aNamespace"),
+					Name:      "aName",
+					Version:   ptrfrom.String("1.19.0"),
+				},
+				EqualPkg: &model.PkgInputSpec{
+					Type:      "bType",
+					Namespace: ptrfrom.String("bNamespace"),
+					Name:      "bName",
+					Version:   ptrfrom.String("1.19.1"),
+				},
+				PkgEqual: &model.PkgEqualInputSpec{
+					Justification: "these two packages are the same",
+					Origin:        "Demo ingestion",
+					Collector:     "Demo ingestion",
+				},
+			},
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "aType",
+					Namespace: ptrfrom.String("aNamespace"),
+					Name:      "aName",
+					Version:   ptrfrom.String("1.19.0"),
+				},
+				EqualPkg: &model.PkgInputSpec{
+					Type:      "cType",
+					Namespace: ptrfrom.String("cNamespace"),
+					Name:      "cName",
+					Version:   ptrfrom.String("1.19.1"),
+				},
+				PkgEqual: &model.PkgEqualInputSpec{
+					Justification: "these two packages are the same",
+					Origin:        "Demo ingestion",
+					Collector:     "Demo ingestion",
+				},
+			},
+		},
+		IsDependency: []assembler.IsDependencyIngest{
+			{
+				DepPkg: &model.PkgInputSpec{
+					Type:      "bType",
+					Namespace: ptrfrom.String("bNamespace"),
+					Name:      "bName",
+					Version:   ptrfrom.String("1.19.1"),
+				},
+				Pkg: &model.PkgInputSpec{
+					Type:      "dType",
+					Namespace: ptrfrom.String("dNamespace"),
+					Name:      "dName",
+					Version:   ptrfrom.String("1.19.1"),
+				},
+				IsDependency: &model.IsDependencyInputSpec{
+					VersionRange:   ">=1.0.0",
+					DependencyType: model.DependencyTypeDirect,
+					Justification:  "test justification one",
+					Origin:         "Demo ingestion",
+					Collector:      "Demo ingestion",
+				},
+			},
+		},
+	}
+
+	hashEqualGraph = assembler.IngestPredicates{
+		HashEqual: []assembler.HashEqualIngest{
+			{
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "abcTestArtifactAlgorithm",
+					Digest:    "aTestArtifactDigest",
+				},
+				EqualArtifact: &model.ArtifactInputSpec{
+					Algorithm: "abcTestArtifactAlgorithm",
+					Digest:    "bTestArtifactDigest",
+				},
+				HashEqual: &model.HashEqualInputSpec{
+					Justification: "these two abc artifacts are the same",
+					Origin:        "Demo ingestion",
+					Collector:     "Demo ingestion",
+				},
+			},
+			{
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "abcTestArtifactAlgorithm",
+					Digest:    "aTestArtifactDigest",
+				},
+				EqualArtifact: &model.ArtifactInputSpec{
+					Algorithm: "abcTestArtifactAlgorithm",
+					Digest:    "cTestArtifactDigest",
+				},
+				HashEqual: &model.HashEqualInputSpec{
+					Justification: "these two abc artifacts are the same",
+					Origin:        "Demo ingestion",
+					Collector:     "Demo ingestion",
+				},
+			},
+		},
+		IsOccurrence: []assembler.IsOccurrenceIngest{
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "abcPkg2",
+					Namespace: ptrfrom.String("abcPkgNamespace2"),
+					Name:      "abcPkgName2",
+					Version:   ptrfrom.String("3.0.3"),
+				},
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "abcTestArtifactAlgorithm",
+					Digest:    "bTestArtifactDigest",
+				},
+				IsOccurrence: &model.IsOccurrenceInputSpec{
+					Justification: "connect abcPkg2 and bTestArtifactDigest",
+				},
+			},
+			{
+				Pkg: &model.PkgInputSpec{
+					Type:      "abcPkg1",
+					Namespace: ptrfrom.String("abcPkgNamespace1"),
+					Name:      "abcPkgName1",
+					Version:   ptrfrom.String("3.0.3"),
+				},
+				Artifact: &model.ArtifactInputSpec{
+					Algorithm: "abcTestArtifactAlgorithm",
+					Digest:    "aTestArtifactDigest",
+				},
+				IsOccurrence: &model.IsOccurrenceInputSpec{
+					Justification: "connect abcPkg1 and aTestArtifactDigest",
+				},
+			},
+		},
+	}
 )
 
 func ingestIsDependency(ctx context.Context, client graphql.Client, graph assembler.IngestPredicates) error {
 	for _, ingest := range graph.IsDependency {
-		_, err := model.IngestPackage(context.Background(), client, *ingest.Pkg)
+		_, err := model.IngestPackage(ctx, client, *ingest.Pkg)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting package: %s\n", err)
 		}
 
-		_, err = model.IngestPackage(context.Background(), client, *ingest.DepPkg)
+		_, err = model.IngestPackage(ctx, client, *ingest.DepPkg)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting dependent package: %s\n", err)
 		}
-		_, err = model.IsDependency(context.Background(), client, *ingest.Pkg, *ingest.DepPkg, *ingest.IsDependency)
+		_, err = model.IsDependency(ctx, client, *ingest.Pkg, *ingest.DepPkg, *ingest.IsDependency)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting isDependency: %s\n", err)
@@ -487,22 +822,45 @@ func ingestIsDependency(ctx context.Context, client graphql.Client, graph assemb
 
 func ingestHasSLSA(ctx context.Context, client graphql.Client, graph assembler.IngestPredicates) error {
 	for _, ingest := range graph.HasSlsa {
-		_, err := model.IngestBuilder(context.Background(), client, *ingest.Builder)
+		_, err := model.IngestBuilder(ctx, client, *ingest.Builder)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting Builder for HasSlsa: %v\n", err)
 		}
 
-		_, err = model.IngestMaterials(context.Background(), client, ingest.Materials)
+		_, err = model.IngestArtifacts(ctx, client, ingest.Materials)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting Material for HasSlsa: %v\n", err)
 		}
 
-		_, err = model.SLSAForArtifact(context.Background(), client, *ingest.Artifact, ingest.Materials, *ingest.Builder, *ingest.HasSlsa)
+		_, err = model.SLSAForArtifact(ctx, client, *ingest.Artifact, ingest.Materials, *ingest.Builder, *ingest.HasSlsa)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting HasSlsa: %v\n", err)
+		}
+	}
+	return nil
+}
+
+func ingestHasSourceAt(ctx context.Context, client graphql.Client, graph assembler.IngestPredicates) error {
+	for _, ingest := range graph.HasSourceAt {
+		_, err := model.IngestPackage(ctx, client, *ingest.Pkg)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting pkg HasSourceAt: %v\n", err)
+		}
+
+		_, err = model.IngestSource(ctx, client, *ingest.Src)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting src HasSourceAt: %v\n", err)
+		}
+
+		_, err = model.HasSourceAt(ctx, client, *ingest.Pkg, ingest.PkgMatchFlag, *ingest.Src, *ingest.HasSourceAt)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting HasSourceAt: %v\n", err)
 		}
 	}
 	return nil
@@ -513,9 +871,9 @@ func ingestIsOccurrence(ctx context.Context, client graphql.Client, graph assemb
 		var err error
 
 		if ingest.Src != nil {
-			_, err = model.IngestSource(context.Background(), client, *ingest.Src)
+			_, err = model.IngestSource(ctx, client, *ingest.Src)
 		} else {
-			_, err = model.IngestPackage(context.Background(), client, *ingest.Pkg)
+			_, err = model.IngestPackage(ctx, client, *ingest.Pkg)
 
 		}
 
@@ -523,16 +881,16 @@ func ingestIsOccurrence(ctx context.Context, client graphql.Client, graph assemb
 			return fmt.Errorf("error in ingesting pkg/src IsOccurrence: %v\n", err)
 		}
 
-		_, err = model.IngestArtifact(context.Background(), client, *ingest.Artifact)
+		_, err = model.IngestArtifact(ctx, client, *ingest.Artifact)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting artifact for IsOccurrence: %v\n", err)
 		}
 
 		if ingest.Src != nil {
-			_, err = model.IsOccurrenceSrc(context.Background(), client, *ingest.Src, *ingest.Artifact, *ingest.IsOccurrence)
+			_, err = model.IsOccurrenceSrc(ctx, client, *ingest.Src, *ingest.Artifact, *ingest.IsOccurrence)
 		} else {
-			_, err = model.IsOccurrencePkg(context.Background(), client, *ingest.Pkg, *ingest.Artifact, *ingest.IsOccurrence)
+			_, err = model.IsOccurrencePkg(ctx, client, *ingest.Pkg, *ingest.Artifact, *ingest.IsOccurrence)
 		}
 
 		if err != nil {
@@ -544,16 +902,62 @@ func ingestIsOccurrence(ctx context.Context, client graphql.Client, graph assemb
 
 func ingestCertifyGood(ctx context.Context, client graphql.Client, graph assembler.IngestPredicates) error {
 	for _, ingest := range graph.CertifyGood {
-		_, err := model.IngestPackage(context.Background(), client, *ingest.Pkg)
+		_, err := model.IngestPackage(ctx, client, *ingest.Pkg)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting Package for CertifyGood: %v\n", err)
 		}
 
-		_, err = model.CertifyGoodPkg(context.Background(), client, *ingest.Pkg, &ingest.PkgMatchFlag, *ingest.CertifyGood)
+		_, err = model.CertifyGoodPkg(ctx, client, *ingest.Pkg, &ingest.PkgMatchFlag, *ingest.CertifyGood)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting CertifyGood: %v\n", err)
+		}
+	}
+	return nil
+}
+
+func ingestPkgEqual(ctx context.Context, client graphql.Client, graph assembler.IngestPredicates) error {
+	for _, ingest := range graph.PkgEqual {
+		_, err := model.IngestPackage(ctx, client, *ingest.Pkg)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting Pkg for PkgEqual: %v\n", err)
+		}
+
+		_, err = model.IngestPackage(ctx, client, *ingest.EqualPkg)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting EqualPkg for PkgEqual: %v\n", err)
+		}
+
+		_, err = model.PkgEqual(ctx, client, *ingest.Pkg, *ingest.EqualPkg, *ingest.PkgEqual)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting PkgEqual: %v\n", err)
+		}
+	}
+	return nil
+}
+
+func ingestHashEqual(ctx context.Context, client graphql.Client, graph assembler.IngestPredicates) error {
+	for _, ingest := range graph.HashEqual {
+		_, err := model.IngestArtifact(ctx, client, *ingest.Artifact)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting Artifact for HashEqual: %v\n", err)
+		}
+
+		_, err = model.IngestArtifact(ctx, client, *ingest.EqualArtifact)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting EqualArtifact for HashEqual: %v\n", err)
+		}
+
+		_, err = model.HashEqual(ctx, client, *ingest.Artifact, *ingest.EqualArtifact, *ingest.HashEqual)
+
+		if err != nil {
+			return fmt.Errorf("error in ingesting HashEqual: %v\n", err)
 		}
 	}
 	return nil
@@ -587,6 +991,28 @@ func ingestTestData(ctx context.Context, client graphql.Client, graph assembler.
 			return err
 		}
 	}
+
+	if len(graph.HasSourceAt) > 0 {
+		err := ingestHasSourceAt(ctx, client, graph)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(graph.PkgEqual) > 0 {
+		err := ingestPkgEqual(ctx, client, graph)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(graph.HashEqual) > 0 {
+		err := ingestHashEqual(ctx, client, graph)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -785,6 +1211,66 @@ func Test_SearchSubgraphFromVuln(t *testing.T) {
 			expectedSrcs:      []string{"srcType2"},
 			graphInputs:       []assembler.IngestPredicates{sourceNameHasSLSAGraph},
 		},
+		{
+			name:              "15: test hasSourceAt attached to packageVersion",
+			startType:         "pkgTypeC",
+			startNamespace:    "pkgNamespaceC",
+			startName:         "pkgNameC",
+			startVersion:      ptrfrom.String("3.0.3"),
+			maxDepth:          9,
+			expectedLen:       7,
+			expectedPkgs:      []string{"pkgTypeC", "pkgTypeE"},
+			expectedArtifacts: []string{"testArtifactAlgorithmC", "testArtifactAlgorithmD"},
+			expectedSrcs:      []string{"srcTypeD"},
+			graphInputs:       []assembler.IngestPredicates{hasSourceAtPackageVersionGraph},
+		},
+		{
+			name:              "16: test hasSourceAt attached to packageName",
+			startType:         "pkgTypeG",
+			startNamespace:    "pkgNamespaceG",
+			startName:         "pkgNameG",
+			startVersion:      ptrfrom.String("3.0.3"),
+			maxDepth:          9,
+			expectedLen:       10,
+			expectedPkgs:      []string{"pkgTypeG", "pkgTypeI", "pkgTypeJ"},
+			expectedArtifacts: []string{"testArtifactAlgorithmG", "testArtifactAlgorithmH"},
+			expectedSrcs:      []string{"srcTypeH"},
+			graphInputs:       []assembler.IngestPredicates{hasSourceAtPackageNameGraph},
+		},
+		{
+			name:           "17: test hasSourceAt from packageName",
+			startType:      "pkgTypeE",
+			startNamespace: "pkgNamespaceE",
+			startName:      "pkgNameE",
+			maxDepth:       9,
+			expectedLen:    6,
+			expectedPkgs:   []string{"pkgTypeE", "pkgTypeF"},
+			expectedSrcs:   []string{"srcTypeD"},
+			graphInputs:    []assembler.IngestPredicates{hasSourceAtPackageVersionGraph},
+		},
+		{
+			name:           "18: test pkgEqual",
+			startType:      "aType",
+			startNamespace: "aNamespace",
+			startName:      "aName",
+			startVersion:   ptrfrom.String("1.19.0"),
+			maxDepth:       10,
+			expectedLen:    8,                                            // change to 8 once implemented
+			expectedPkgs:   []string{"aType", "bType", "cType", "dType"}, // add dType once implemented
+			graphInputs:    []assembler.IngestPredicates{pkgEqualGraph},
+		},
+		{
+			name:              "19: test hashEqual",
+			startType:         "abcPkg1",
+			startNamespace:    "abcPkgNamespace1",
+			startName:         "abcPkgName1",
+			startVersion:      ptrfrom.String("3.0.3"),
+			maxDepth:          10,
+			expectedLen:       7,                              // change to 8 once implemented
+			expectedPkgs:      []string{"abcPkg1", "abcPkg2"}, // add abcPkg2 once implemented and expectedArtifacts abcTestArtifactAlgorithm
+			expectedArtifacts: []string{"abcTestArtifactAlgorithm"},
+			graphInputs:       []assembler.IngestPredicates{hashEqualGraph},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -862,12 +1348,13 @@ func Test_SearchSubgraphFromVuln(t *testing.T) {
 
 			var expectedArtifactIDs []string
 			for _, artifact := range tt.expectedArtifacts {
-				artifactID, err := getArtifactID(ctx, gqlClient, artifact)
+				artifactIDs, err := getArtifactIDs(ctx, gqlClient, artifact)
 				if err != nil {
 					t.Errorf("%s \n", err)
 				}
 
-				expectedArtifactIDs = append(expectedArtifactIDs, artifactID)
+				expectedArtifactIDs = append(expectedArtifactIDs, artifactIDs...)
+
 			}
 
 			var expectedSrcIDs []string
@@ -1003,8 +1490,8 @@ func getPackageIDs(ctx context.Context, gqlClient graphql.Client, nodeType *stri
 	}
 
 	if len(pkgResponse.Packages[0].Namespaces[0].Names[0].Versions) > 0 && !justFindName {
-		for _, version := range pkgResponse.Packages[0].Namespaces[0].Names[0].Versions {
-			foundIDs = append(foundIDs, &version.Id)
+		for index := range pkgResponse.Packages[0].Namespaces[0].Names[0].Versions {
+			foundIDs = append(foundIDs, &pkgResponse.Packages[0].Namespaces[0].Names[0].Versions[index].Id)
 		}
 	}
 
@@ -1015,7 +1502,7 @@ func getPackageIDs(ctx context.Context, gqlClient graphql.Client, nodeType *stri
 	return foundIDs, nil
 }
 
-func getArtifactID(ctx context.Context, gqlClient graphql.Client, algorithm string) (string, error) {
+func getArtifactIDs(ctx context.Context, gqlClient graphql.Client, algorithm string) ([]string, error) {
 	artifactFilter := model.ArtifactSpec{
 		Algorithm: &algorithm,
 	}
@@ -1023,14 +1510,19 @@ func getArtifactID(ctx context.Context, gqlClient graphql.Client, algorithm stri
 	artifactResponse, err := model.Artifacts(ctx, gqlClient, &artifactFilter)
 
 	if err != nil {
-		return "", fmt.Errorf("error filtering for expected artifact: %s\n", err)
+		return nil, fmt.Errorf("error filtering for expected artifact: %s\n", err)
 	}
 
-	if len(artifactResponse.Artifacts) != 1 {
-		return "", fmt.Errorf("could not find the matching artifact\n")
+	if len(artifactResponse.Artifacts) < 1 {
+		return nil, fmt.Errorf("could not find the matching artifact\n")
 	}
 
-	return artifactResponse.Artifacts[0].Id, nil
+	var foundIDs []string
+	for _, artifact := range artifactResponse.Artifacts {
+		foundIDs = append(foundIDs, artifact.Id)
+	}
+
+	return foundIDs, nil
 }
 
 func getSrcID(ctx context.Context, gqlClient graphql.Client, srcType string) (string, error) {

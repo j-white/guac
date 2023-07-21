@@ -88,7 +88,7 @@ func ingestScorecards(ctx context.Context, client graphql.Client) {
 	if _, err := model.IngestSource(ctx, client, source); err != nil {
 		logger.Errorf("Error in ingesting source: %v\n", err)
 	}
-	if _, err := model.Scorecard(ctx, client, source, scorecard); err != nil {
+	if _, err := model.CertifyScorecard(ctx, client, source, scorecard); err != nil {
 		logger.Errorf("Error in ingesting: %v\n", err)
 	}
 }
@@ -167,7 +167,7 @@ func ingestSLSA(ctx context.Context, client graphql.Client) {
 		if _, err := model.IngestArtifact(ctx, client, ingest.artifact); err != nil {
 			logger.Errorf("Error in ingesting artifact: %v\n", err)
 		}
-		if _, err := model.IngestMaterials(ctx, client, ingest.materials); err != nil {
+		if _, err := model.IngestArtifacts(ctx, client, ingest.materials); err != nil {
 			logger.Errorf("Error in ingesting materials: %v\n", err)
 		}
 		if _, err := model.IngestBuilder(ctx, client, ingest.builder); err != nil {
