@@ -57,6 +57,7 @@ func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.Ar
 
 // IngestArtifacts iterate through the list one by one on a single thread, abort on any failure and return those inserted so far
 func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
+	// FIXME: Implement bulk insert
 	var artifactObjects []*model.Artifact
 	for _, artifactSpec := range artifacts {
 		artifact, err := c.IngestArtifact(ctx, artifactSpec)

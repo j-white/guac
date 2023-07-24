@@ -60,8 +60,7 @@ func validateSourceInputSpec(source model.SourceInputSpec) error {
 	return nil
 }
 
-// CertifyScorecard used to ingest scorecards
-func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
 	// TODO: Can we push this validation up a layer, so that the storage engines don't need to worry about it?
 	err := validateSourceInputSpec(source)
 	if err != nil {
@@ -141,6 +140,24 @@ func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.Sou
 		Scorecard: &modelScorecard,
 	}
 	return &certification, nil
+}
+
+func (c *tinkerpopClient) IngestScorecards(ctx context.Context, sources []*model.SourceInputSpec, scorecards []*model.ScorecardInputSpec) ([]*model.CertifyScorecard, error) {
+	// FIXME: Implement bulk insert
+	var scorecardObjects []*model.CertifyScorecard
+	for k, scorecardSpec := range scorecards {
+		scorecard, err := c.IngestScorecard(ctx, *sources[k], *scorecardSpec)
+		if err != nil {
+			return scorecardObjects, err
+		}
+		scorecardObjects = append(scorecardObjects, scorecard)
+	}
+	return scorecardObjects, nil
+}
+
+// CertifyScorecard an existing alias for ingesting scorecards
+func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+	return c.IngestScorecard(ctx, source, scorecard)
 }
 
 func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
@@ -360,9 +377,4 @@ func toCheck(inputCheck *model.ScorecardCheckInputSpec) *model.ScorecardCheck {
 		Check: inputCheck.Check,
 		Score: inputCheck.Score,
 	}
-}
-
-func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
-	//TODO implement me
-	panic("implement me")
 }

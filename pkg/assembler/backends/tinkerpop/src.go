@@ -22,6 +22,19 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
+func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
+	// FIXME: Bulk insert support
+	var sourceObjects []*model.Source
+	for _, sourceSpec := range sources {
+		source, err := c.IngestSource(ctx, *sourceSpec)
+		if err != nil {
+			return sourceObjects, err
+		}
+		sourceObjects = append(sourceObjects, source)
+	}
+	return sourceObjects, nil
+}
+
 func (c *tinkerpopClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
 	// FIXME: We should be using an upsert pattern
 	// FIXME: How do we differentiate vertices of different "types"
