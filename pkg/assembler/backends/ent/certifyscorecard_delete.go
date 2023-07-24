@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyscorecard"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (csd *CertifyScorecardDelete) Where(ps ...predicate.CertifyScorecard) *Cert
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (csd *CertifyScorecardDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, csd.sqlExec, csd.mutation, csd.hooks)
+	return withHooks(ctx, csd.gremlinExec, csd.mutation, csd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (csd *CertifyScorecardDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (csd *CertifyScorecardDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(certifyscorecard.Table, sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt))
-	if ps := csd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, csd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (csd *CertifyScorecardDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := csd.gremlin().Query()
+	if err := csd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	csd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (csd *CertifyScorecardDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(certifyscorecard.Label)
+	for _, p := range csd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // CertifyScorecardDeleteOne is the builder for deleting a single CertifyScorecard entity.

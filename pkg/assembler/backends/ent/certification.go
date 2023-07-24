@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certification"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
@@ -38,8 +37,7 @@ type Certification struct {
 	Collector string `json:"collector,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the CertificationQuery when eager-loading is set.
-	Edges        CertificationEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges CertificationEdges `json:"edges"`
 }
 
 // CertificationEdges holds the relations/edges for other nodes in the graph.
@@ -55,8 +53,6 @@ type CertificationEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [4]bool
-	// totalCount holds the count of the edges above.
-	totalCount [4]map[string]int
 }
 
 // SourceOrErr returns the Source value or an error if the edge
@@ -111,99 +107,36 @@ func (e CertificationEdges) ArtifactOrErr() (*Artifact, error) {
 	return nil, &NotLoadedError{edge: "artifact"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*Certification) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case certification.FieldID, certification.FieldSourceID, certification.FieldPackageVersionID, certification.FieldPackageNameID, certification.FieldArtifactID:
-			values[i] = new(sql.NullInt64)
-		case certification.FieldType, certification.FieldJustification, certification.FieldOrigin, certification.FieldCollector:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into Certification.
+func (c *Certification) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Certification fields.
-func (c *Certification) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanc struct {
+		ID               int                `json:"id,omitempty"`
+		SourceID         *int               `json:"source_id,omitempty"`
+		PackageVersionID *int               `json:"package_version_id,omitempty"`
+		PackageNameID    *int               `json:"package_name_id,omitempty"`
+		ArtifactID       *int               `json:"artifact_id,omitempty"`
+		Type             certification.Type `json:"type,omitempty"`
+		Justification    string             `json:"justification,omitempty"`
+		Origin           string             `json:"origin,omitempty"`
+		Collector        string             `json:"collector,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case certification.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			c.ID = int(value.Int64)
-		case certification.FieldSourceID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field source_id", values[i])
-			} else if value.Valid {
-				c.SourceID = new(int)
-				*c.SourceID = int(value.Int64)
-			}
-		case certification.FieldPackageVersionID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_version_id", values[i])
-			} else if value.Valid {
-				c.PackageVersionID = new(int)
-				*c.PackageVersionID = int(value.Int64)
-			}
-		case certification.FieldPackageNameID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_name_id", values[i])
-			} else if value.Valid {
-				c.PackageNameID = new(int)
-				*c.PackageNameID = int(value.Int64)
-			}
-		case certification.FieldArtifactID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field artifact_id", values[i])
-			} else if value.Valid {
-				c.ArtifactID = new(int)
-				*c.ArtifactID = int(value.Int64)
-			}
-		case certification.FieldType:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field type", values[i])
-			} else if value.Valid {
-				c.Type = certification.Type(value.String)
-			}
-		case certification.FieldJustification:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field justification", values[i])
-			} else if value.Valid {
-				c.Justification = value.String
-			}
-		case certification.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				c.Origin = value.String
-			}
-		case certification.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				c.Collector = value.String
-			}
-		default:
-			c.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanc); err != nil {
+		return err
 	}
+	c.ID = scanc.ID
+	c.SourceID = scanc.SourceID
+	c.PackageVersionID = scanc.PackageVersionID
+	c.PackageNameID = scanc.PackageNameID
+	c.ArtifactID = scanc.ArtifactID
+	c.Type = scanc.Type
+	c.Justification = scanc.Justification
+	c.Origin = scanc.Origin
+	c.Collector = scanc.Collector
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the Certification.
-// This includes values selected through modifiers, order, etc.
-func (c *Certification) Value(name string) (ent.Value, error) {
-	return c.selectValues.Get(name)
 }
 
 // QuerySource queries the "source" edge of the Certification entity.
@@ -286,3 +219,38 @@ func (c *Certification) String() string {
 
 // Certifications is a parsable slice of Certification.
 type Certifications []*Certification
+
+// FromResponse scans the gremlin response data into Certifications.
+func (c *Certifications) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanc []struct {
+		ID               int                `json:"id,omitempty"`
+		SourceID         *int               `json:"source_id,omitempty"`
+		PackageVersionID *int               `json:"package_version_id,omitempty"`
+		PackageNameID    *int               `json:"package_name_id,omitempty"`
+		ArtifactID       *int               `json:"artifact_id,omitempty"`
+		Type             certification.Type `json:"type,omitempty"`
+		Justification    string             `json:"justification,omitempty"`
+		Origin           string             `json:"origin,omitempty"`
+		Collector        string             `json:"collector,omitempty"`
+	}
+	if err := vmap.Decode(&scanc); err != nil {
+		return err
+	}
+	for _, v := range scanc {
+		node := &Certification{ID: v.ID}
+		node.SourceID = v.SourceID
+		node.PackageVersionID = v.PackageVersionID
+		node.PackageNameID = v.PackageNameID
+		node.ArtifactID = v.ArtifactID
+		node.Type = v.Type
+		node.Justification = v.Justification
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		*c = append(*c, node)
+	}
+	return nil
+}

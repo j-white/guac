@@ -3,16 +3,13 @@
 package ent
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -43,8 +40,7 @@ type SLSAAttestation struct {
 	BuiltFromHash string `json:"built_from_hash,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the SLSAAttestationQuery when eager-loading is set.
-	Edges        SLSAAttestationEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges SLSAAttestationEdges `json:"edges"`
 }
 
 // SLSAAttestationEdges holds the relations/edges for other nodes in the graph.
@@ -58,10 +54,6 @@ type SLSAAttestationEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [3]bool
-	// totalCount holds the count of the edges above.
-	totalCount [3]map[string]int
-
-	namedBuiltFrom map[string][]*Artifact
 }
 
 // BuiltFromOrErr returns the BuiltFrom value or an error if the edge
@@ -99,115 +91,42 @@ func (e SLSAAttestationEdges) SubjectOrErr() (*Artifact, error) {
 	return nil, &NotLoadedError{edge: "subject"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*SLSAAttestation) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case slsaattestation.FieldSlsaPredicate:
-			values[i] = new([]byte)
-		case slsaattestation.FieldID, slsaattestation.FieldBuiltByID, slsaattestation.FieldSubjectID:
-			values[i] = new(sql.NullInt64)
-		case slsaattestation.FieldBuildType, slsaattestation.FieldSlsaVersion, slsaattestation.FieldOrigin, slsaattestation.FieldCollector, slsaattestation.FieldBuiltFromHash:
-			values[i] = new(sql.NullString)
-		case slsaattestation.FieldStartedOn, slsaattestation.FieldFinishedOn:
-			values[i] = new(sql.NullTime)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into SLSAAttestation.
+func (sa *SLSAAttestation) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the SLSAAttestation fields.
-func (sa *SLSAAttestation) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scansa struct {
+		ID            int                    `json:"id,omitempty"`
+		BuildType     string                 `json:"build_type,omitempty"`
+		BuiltByID     int                    `json:"built_by_id,omitempty"`
+		SubjectID     int                    `json:"subject_id,omitempty"`
+		SlsaPredicate []*model.SLSAPredicate `json:"slsa_predicate,omitempty"`
+		SlsaVersion   string                 `json:"slsa_version,omitempty"`
+		StartedOn     int64                  `json:"started_on,omitempty"`
+		FinishedOn    int64                  `json:"finished_on,omitempty"`
+		Origin        string                 `json:"origin,omitempty"`
+		Collector     string                 `json:"collector,omitempty"`
+		BuiltFromHash string                 `json:"built_from_hash,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case slsaattestation.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			sa.ID = int(value.Int64)
-		case slsaattestation.FieldBuildType:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field build_type", values[i])
-			} else if value.Valid {
-				sa.BuildType = value.String
-			}
-		case slsaattestation.FieldBuiltByID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field built_by_id", values[i])
-			} else if value.Valid {
-				sa.BuiltByID = int(value.Int64)
-			}
-		case slsaattestation.FieldSubjectID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field subject_id", values[i])
-			} else if value.Valid {
-				sa.SubjectID = int(value.Int64)
-			}
-		case slsaattestation.FieldSlsaPredicate:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field slsa_predicate", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &sa.SlsaPredicate); err != nil {
-					return fmt.Errorf("unmarshal field slsa_predicate: %w", err)
-				}
-			}
-		case slsaattestation.FieldSlsaVersion:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field slsa_version", values[i])
-			} else if value.Valid {
-				sa.SlsaVersion = value.String
-			}
-		case slsaattestation.FieldStartedOn:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field started_on", values[i])
-			} else if value.Valid {
-				sa.StartedOn = new(time.Time)
-				*sa.StartedOn = value.Time
-			}
-		case slsaattestation.FieldFinishedOn:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field finished_on", values[i])
-			} else if value.Valid {
-				sa.FinishedOn = new(time.Time)
-				*sa.FinishedOn = value.Time
-			}
-		case slsaattestation.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				sa.Origin = value.String
-			}
-		case slsaattestation.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				sa.Collector = value.String
-			}
-		case slsaattestation.FieldBuiltFromHash:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field built_from_hash", values[i])
-			} else if value.Valid {
-				sa.BuiltFromHash = value.String
-			}
-		default:
-			sa.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scansa); err != nil {
+		return err
 	}
+	sa.ID = scansa.ID
+	sa.BuildType = scansa.BuildType
+	sa.BuiltByID = scansa.BuiltByID
+	sa.SubjectID = scansa.SubjectID
+	sa.SlsaPredicate = scansa.SlsaPredicate
+	sa.SlsaVersion = scansa.SlsaVersion
+	v5 := time.Unix(0, scansa.StartedOn)
+	sa.StartedOn = &v5
+	v6 := time.Unix(0, scansa.FinishedOn)
+	sa.FinishedOn = &v6
+	sa.Origin = scansa.Origin
+	sa.Collector = scansa.Collector
+	sa.BuiltFromHash = scansa.BuiltFromHash
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the SLSAAttestation.
-// This includes values selected through modifiers, order, etc.
-func (sa *SLSAAttestation) Value(name string) (ent.Value, error) {
-	return sa.selectValues.Get(name)
 }
 
 // QueryBuiltFrom queries the "built_from" edge of the SLSAAttestation entity.
@@ -285,29 +204,46 @@ func (sa *SLSAAttestation) String() string {
 	return builder.String()
 }
 
-// NamedBuiltFrom returns the BuiltFrom named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (sa *SLSAAttestation) NamedBuiltFrom(name string) ([]*Artifact, error) {
-	if sa.Edges.namedBuiltFrom == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := sa.Edges.namedBuiltFrom[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (sa *SLSAAttestation) appendNamedBuiltFrom(name string, edges ...*Artifact) {
-	if sa.Edges.namedBuiltFrom == nil {
-		sa.Edges.namedBuiltFrom = make(map[string][]*Artifact)
-	}
-	if len(edges) == 0 {
-		sa.Edges.namedBuiltFrom[name] = []*Artifact{}
-	} else {
-		sa.Edges.namedBuiltFrom[name] = append(sa.Edges.namedBuiltFrom[name], edges...)
-	}
-}
-
 // SLSAAttestations is a parsable slice of SLSAAttestation.
 type SLSAAttestations []*SLSAAttestation
+
+// FromResponse scans the gremlin response data into SLSAAttestations.
+func (sa *SLSAAttestations) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scansa []struct {
+		ID            int                    `json:"id,omitempty"`
+		BuildType     string                 `json:"build_type,omitempty"`
+		BuiltByID     int                    `json:"built_by_id,omitempty"`
+		SubjectID     int                    `json:"subject_id,omitempty"`
+		SlsaPredicate []*model.SLSAPredicate `json:"slsa_predicate,omitempty"`
+		SlsaVersion   string                 `json:"slsa_version,omitempty"`
+		StartedOn     int64                  `json:"started_on,omitempty"`
+		FinishedOn    int64                  `json:"finished_on,omitempty"`
+		Origin        string                 `json:"origin,omitempty"`
+		Collector     string                 `json:"collector,omitempty"`
+		BuiltFromHash string                 `json:"built_from_hash,omitempty"`
+	}
+	if err := vmap.Decode(&scansa); err != nil {
+		return err
+	}
+	for _, v := range scansa {
+		node := &SLSAAttestation{ID: v.ID}
+		node.BuildType = v.BuildType
+		node.BuiltByID = v.BuiltByID
+		node.SubjectID = v.SubjectID
+		node.SlsaPredicate = v.SlsaPredicate
+		node.SlsaVersion = v.SlsaVersion
+		v5 := time.Unix(0, v.StartedOn)
+		node.StartedOn = &v5
+		v6 := time.Unix(0, v.FinishedOn)
+		node.FinishedOn = &v6
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		node.BuiltFromHash = v.BuiltFromHash
+		*sa = append(*sa, node)
+	}
+	return nil
+}

@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
+	"entgo.io/ent/dialect/gremlin"
 )
 
 // Builder is the model entity for the Builder schema.
@@ -20,8 +18,7 @@ type Builder struct {
 	URI string `json:"uri,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the BuilderQuery when eager-loading is set.
-	Edges        BuilderEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges BuilderEdges `json:"edges"`
 }
 
 // BuilderEdges holds the relations/edges for other nodes in the graph.
@@ -31,10 +28,6 @@ type BuilderEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
-	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
-
-	namedSlsaAttestations map[string][]*SLSAAttestation
 }
 
 // SlsaAttestationsOrErr returns the SlsaAttestations value or an error if the edge
@@ -46,53 +39,22 @@ func (e BuilderEdges) SlsaAttestationsOrErr() ([]*SLSAAttestation, error) {
 	return nil, &NotLoadedError{edge: "slsa_attestations"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*Builder) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case builder.FieldID:
-			values[i] = new(sql.NullInt64)
-		case builder.FieldURI:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into Builder.
+func (b *Builder) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Builder fields.
-func (b *Builder) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanb struct {
+		ID  int    `json:"id,omitempty"`
+		URI string `json:"uri,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case builder.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			b.ID = int(value.Int64)
-		case builder.FieldURI:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field uri", values[i])
-			} else if value.Valid {
-				b.URI = value.String
-			}
-		default:
-			b.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanb); err != nil {
+		return err
 	}
+	b.ID = scanb.ID
+	b.URI = scanb.URI
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the Builder.
-// This includes values selected through modifiers, order, etc.
-func (b *Builder) Value(name string) (ent.Value, error) {
-	return b.selectValues.Get(name)
 }
 
 // QuerySlsaAttestations queries the "slsa_attestations" edge of the Builder entity.
@@ -129,29 +91,26 @@ func (b *Builder) String() string {
 	return builder.String()
 }
 
-// NamedSlsaAttestations returns the SlsaAttestations named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (b *Builder) NamedSlsaAttestations(name string) ([]*SLSAAttestation, error) {
-	if b.Edges.namedSlsaAttestations == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := b.Edges.namedSlsaAttestations[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (b *Builder) appendNamedSlsaAttestations(name string, edges ...*SLSAAttestation) {
-	if b.Edges.namedSlsaAttestations == nil {
-		b.Edges.namedSlsaAttestations = make(map[string][]*SLSAAttestation)
-	}
-	if len(edges) == 0 {
-		b.Edges.namedSlsaAttestations[name] = []*SLSAAttestation{}
-	} else {
-		b.Edges.namedSlsaAttestations[name] = append(b.Edges.namedSlsaAttestations[name], edges...)
-	}
-}
-
 // Builders is a parsable slice of Builder.
 type Builders []*Builder
+
+// FromResponse scans the gremlin response data into Builders.
+func (b *Builders) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanb []struct {
+		ID  int    `json:"id,omitempty"`
+		URI string `json:"uri,omitempty"`
+	}
+	if err := vmap.Decode(&scanb); err != nil {
+		return err
+	}
+	for _, v := range scanb {
+		node := &Builder{ID: v.ID}
+		node.URI = v.URI
+		*b = append(*b, node)
+	}
+	return nil
+}

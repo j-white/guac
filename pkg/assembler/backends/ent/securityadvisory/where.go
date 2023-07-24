@@ -3,361 +3,485 @@
 package securityadvisory
 
 import (
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNEQ(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIn(FieldID, ids...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotIn(FieldID, ids...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGT(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGTE(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLT(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLTE(FieldID, id))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // GhsaID applies equality check predicate on the "ghsa_id" field. It's identical to GhsaIDEQ.
 func GhsaID(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.EQ(v))
+	})
 }
 
 // CveID applies equality check predicate on the "cve_id" field. It's identical to CveIDEQ.
 func CveID(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.EQ(v))
+	})
 }
 
 // CveYear applies equality check predicate on the "cve_year" field. It's identical to CveYearEQ.
 func CveYear(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.EQ(v))
+	})
 }
 
 // OsvID applies equality check predicate on the "osv_id" field. It's identical to OsvIDEQ.
 func OsvID(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.EQ(v))
+	})
 }
 
 // GhsaIDEQ applies the EQ predicate on the "ghsa_id" field.
 func GhsaIDEQ(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.EQ(v))
+	})
 }
 
 // GhsaIDNEQ applies the NEQ predicate on the "ghsa_id" field.
 func GhsaIDNEQ(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNEQ(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.NEQ(v))
+	})
 }
 
 // GhsaIDIn applies the In predicate on the "ghsa_id" field.
 func GhsaIDIn(vs ...string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIn(FieldGhsaID, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.Within(vs...))
+	})
 }
 
 // GhsaIDNotIn applies the NotIn predicate on the "ghsa_id" field.
 func GhsaIDNotIn(vs ...string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotIn(FieldGhsaID, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.Without(vs...))
+	})
 }
 
 // GhsaIDGT applies the GT predicate on the "ghsa_id" field.
 func GhsaIDGT(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGT(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.GT(v))
+	})
 }
 
 // GhsaIDGTE applies the GTE predicate on the "ghsa_id" field.
 func GhsaIDGTE(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGTE(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.GTE(v))
+	})
 }
 
 // GhsaIDLT applies the LT predicate on the "ghsa_id" field.
 func GhsaIDLT(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLT(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.LT(v))
+	})
 }
 
 // GhsaIDLTE applies the LTE predicate on the "ghsa_id" field.
 func GhsaIDLTE(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLTE(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.LTE(v))
+	})
 }
 
 // GhsaIDContains applies the Contains predicate on the "ghsa_id" field.
 func GhsaIDContains(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldContains(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.Containing(v))
+	})
 }
 
 // GhsaIDHasPrefix applies the HasPrefix predicate on the "ghsa_id" field.
 func GhsaIDHasPrefix(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldHasPrefix(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.StartingWith(v))
+	})
 }
 
 // GhsaIDHasSuffix applies the HasSuffix predicate on the "ghsa_id" field.
 func GhsaIDHasSuffix(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldHasSuffix(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldGhsaID, p.EndingWith(v))
+	})
 }
 
 // GhsaIDIsNil applies the IsNil predicate on the "ghsa_id" field.
 func GhsaIDIsNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIsNull(FieldGhsaID))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldGhsaID)
+	})
 }
 
 // GhsaIDNotNil applies the NotNil predicate on the "ghsa_id" field.
 func GhsaIDNotNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotNull(FieldGhsaID))
-}
-
-// GhsaIDEqualFold applies the EqualFold predicate on the "ghsa_id" field.
-func GhsaIDEqualFold(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEqualFold(FieldGhsaID, v))
-}
-
-// GhsaIDContainsFold applies the ContainsFold predicate on the "ghsa_id" field.
-func GhsaIDContainsFold(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldContainsFold(FieldGhsaID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldGhsaID)
+	})
 }
 
 // CveIDEQ applies the EQ predicate on the "cve_id" field.
 func CveIDEQ(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.EQ(v))
+	})
 }
 
 // CveIDNEQ applies the NEQ predicate on the "cve_id" field.
 func CveIDNEQ(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNEQ(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.NEQ(v))
+	})
 }
 
 // CveIDIn applies the In predicate on the "cve_id" field.
 func CveIDIn(vs ...string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIn(FieldCveID, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.Within(vs...))
+	})
 }
 
 // CveIDNotIn applies the NotIn predicate on the "cve_id" field.
 func CveIDNotIn(vs ...string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotIn(FieldCveID, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.Without(vs...))
+	})
 }
 
 // CveIDGT applies the GT predicate on the "cve_id" field.
 func CveIDGT(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGT(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.GT(v))
+	})
 }
 
 // CveIDGTE applies the GTE predicate on the "cve_id" field.
 func CveIDGTE(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGTE(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.GTE(v))
+	})
 }
 
 // CveIDLT applies the LT predicate on the "cve_id" field.
 func CveIDLT(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLT(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.LT(v))
+	})
 }
 
 // CveIDLTE applies the LTE predicate on the "cve_id" field.
 func CveIDLTE(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLTE(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.LTE(v))
+	})
 }
 
 // CveIDContains applies the Contains predicate on the "cve_id" field.
 func CveIDContains(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldContains(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.Containing(v))
+	})
 }
 
 // CveIDHasPrefix applies the HasPrefix predicate on the "cve_id" field.
 func CveIDHasPrefix(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldHasPrefix(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.StartingWith(v))
+	})
 }
 
 // CveIDHasSuffix applies the HasSuffix predicate on the "cve_id" field.
 func CveIDHasSuffix(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldHasSuffix(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveID, p.EndingWith(v))
+	})
 }
 
 // CveIDIsNil applies the IsNil predicate on the "cve_id" field.
 func CveIDIsNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIsNull(FieldCveID))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldCveID)
+	})
 }
 
 // CveIDNotNil applies the NotNil predicate on the "cve_id" field.
 func CveIDNotNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotNull(FieldCveID))
-}
-
-// CveIDEqualFold applies the EqualFold predicate on the "cve_id" field.
-func CveIDEqualFold(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEqualFold(FieldCveID, v))
-}
-
-// CveIDContainsFold applies the ContainsFold predicate on the "cve_id" field.
-func CveIDContainsFold(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldContainsFold(FieldCveID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldCveID)
+	})
 }
 
 // CveYearEQ applies the EQ predicate on the "cve_year" field.
 func CveYearEQ(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.EQ(v))
+	})
 }
 
 // CveYearNEQ applies the NEQ predicate on the "cve_year" field.
 func CveYearNEQ(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNEQ(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.NEQ(v))
+	})
 }
 
 // CveYearIn applies the In predicate on the "cve_year" field.
 func CveYearIn(vs ...int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIn(FieldCveYear, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.Within(vs...))
+	})
 }
 
 // CveYearNotIn applies the NotIn predicate on the "cve_year" field.
 func CveYearNotIn(vs ...int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotIn(FieldCveYear, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.Without(vs...))
+	})
 }
 
 // CveYearGT applies the GT predicate on the "cve_year" field.
 func CveYearGT(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGT(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.GT(v))
+	})
 }
 
 // CveYearGTE applies the GTE predicate on the "cve_year" field.
 func CveYearGTE(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGTE(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.GTE(v))
+	})
 }
 
 // CveYearLT applies the LT predicate on the "cve_year" field.
 func CveYearLT(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLT(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.LT(v))
+	})
 }
 
 // CveYearLTE applies the LTE predicate on the "cve_year" field.
 func CveYearLTE(v int) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLTE(FieldCveYear, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCveYear, p.LTE(v))
+	})
 }
 
 // CveYearIsNil applies the IsNil predicate on the "cve_year" field.
 func CveYearIsNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIsNull(FieldCveYear))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldCveYear)
+	})
 }
 
 // CveYearNotNil applies the NotNil predicate on the "cve_year" field.
 func CveYearNotNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotNull(FieldCveYear))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldCveYear)
+	})
 }
 
 // OsvIDEQ applies the EQ predicate on the "osv_id" field.
 func OsvIDEQ(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEQ(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.EQ(v))
+	})
 }
 
 // OsvIDNEQ applies the NEQ predicate on the "osv_id" field.
 func OsvIDNEQ(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNEQ(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.NEQ(v))
+	})
 }
 
 // OsvIDIn applies the In predicate on the "osv_id" field.
 func OsvIDIn(vs ...string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIn(FieldOsvID, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.Within(vs...))
+	})
 }
 
 // OsvIDNotIn applies the NotIn predicate on the "osv_id" field.
 func OsvIDNotIn(vs ...string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotIn(FieldOsvID, vs...))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.Without(vs...))
+	})
 }
 
 // OsvIDGT applies the GT predicate on the "osv_id" field.
 func OsvIDGT(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGT(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.GT(v))
+	})
 }
 
 // OsvIDGTE applies the GTE predicate on the "osv_id" field.
 func OsvIDGTE(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldGTE(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.GTE(v))
+	})
 }
 
 // OsvIDLT applies the LT predicate on the "osv_id" field.
 func OsvIDLT(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLT(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.LT(v))
+	})
 }
 
 // OsvIDLTE applies the LTE predicate on the "osv_id" field.
 func OsvIDLTE(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldLTE(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.LTE(v))
+	})
 }
 
 // OsvIDContains applies the Contains predicate on the "osv_id" field.
 func OsvIDContains(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldContains(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.Containing(v))
+	})
 }
 
 // OsvIDHasPrefix applies the HasPrefix predicate on the "osv_id" field.
 func OsvIDHasPrefix(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldHasPrefix(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.StartingWith(v))
+	})
 }
 
 // OsvIDHasSuffix applies the HasSuffix predicate on the "osv_id" field.
 func OsvIDHasSuffix(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldHasSuffix(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOsvID, p.EndingWith(v))
+	})
 }
 
 // OsvIDIsNil applies the IsNil predicate on the "osv_id" field.
 func OsvIDIsNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldIsNull(FieldOsvID))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldOsvID)
+	})
 }
 
 // OsvIDNotNil applies the NotNil predicate on the "osv_id" field.
 func OsvIDNotNil() predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldNotNull(FieldOsvID))
-}
-
-// OsvIDEqualFold applies the EqualFold predicate on the "osv_id" field.
-func OsvIDEqualFold(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldEqualFold(FieldOsvID, v))
-}
-
-// OsvIDContainsFold applies the ContainsFold predicate on the "osv_id" field.
-func OsvIDContainsFold(v string) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.FieldContainsFold(FieldOsvID, v))
+	return predicate.SecurityAdvisory(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldOsvID)
+	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.SecurityAdvisory) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.AndPredicates(predicates...))
+	return predicate.SecurityAdvisory(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.SecurityAdvisory) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.OrPredicates(predicates...))
+	return predicate.SecurityAdvisory(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.SecurityAdvisory) predicate.SecurityAdvisory {
-	return predicate.SecurityAdvisory(sql.NotPredicates(p))
+	return predicate.SecurityAdvisory(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

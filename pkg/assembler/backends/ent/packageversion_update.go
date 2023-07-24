@@ -5,12 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/dialect/sql/sqljson"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
@@ -217,7 +217,7 @@ func (pvu *PackageVersionUpdate) RemoveEqualPackages(p ...*PkgEqual) *PackageVer
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (pvu *PackageVersionUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, pvu.sqlSave, pvu.mutation, pvu.hooks)
+	return withHooks(ctx, pvu.gremlinSave, pvu.mutation, pvu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -250,212 +250,106 @@ func (pvu *PackageVersionUpdate) check() error {
 	return nil
 }
 
-func (pvu *PackageVersionUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (pvu *PackageVersionUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := pvu.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(packageversion.Table, packageversion.Columns, sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt))
-	if ps := pvu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := pvu.gremlin().Query()
+	if err := pvu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := pvu.mutation.Version(); ok {
-		_spec.SetField(packageversion.FieldVersion, field.TypeString, value)
-	}
-	if value, ok := pvu.mutation.Subpath(); ok {
-		_spec.SetField(packageversion.FieldSubpath, field.TypeString, value)
-	}
-	if value, ok := pvu.mutation.Qualifiers(); ok {
-		_spec.SetField(packageversion.FieldQualifiers, field.TypeJSON, value)
-	}
-	if value, ok := pvu.mutation.AppendedQualifiers(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, packageversion.FieldQualifiers, value)
-		})
-	}
-	if pvu.mutation.QualifiersCleared() {
-		_spec.ClearField(packageversion.FieldQualifiers, field.TypeJSON)
-	}
-	if value, ok := pvu.mutation.Hash(); ok {
-		_spec.SetField(packageversion.FieldHash, field.TypeString, value)
-	}
-	if pvu.mutation.NameCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packageversion.NameTable,
-			Columns: []string{packageversion.NameColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.NameIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packageversion.NameTable,
-			Columns: []string{packageversion.NameColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pvu.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.OccurrencesTable,
-			Columns: []string{packageversion.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.RemovedOccurrencesIDs(); len(nodes) > 0 && !pvu.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.OccurrencesTable,
-			Columns: []string{packageversion.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.OccurrencesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.OccurrencesTable,
-			Columns: []string{packageversion.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pvu.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.SbomTable,
-			Columns: []string{packageversion.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.RemovedSbomIDs(); len(nodes) > 0 && !pvu.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.SbomTable,
-			Columns: []string{packageversion.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.SbomIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.SbomTable,
-			Columns: []string{packageversion.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pvu.mutation.EqualPackagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   packageversion.EqualPackagesTable,
-			Columns: packageversion.EqualPackagesPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.RemovedEqualPackagesIDs(); len(nodes) > 0 && !pvu.mutation.EqualPackagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   packageversion.EqualPackagesTable,
-			Columns: packageversion.EqualPackagesPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvu.mutation.EqualPackagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   packageversion.EqualPackagesTable,
-			Columns: packageversion.EqualPackagesPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, pvu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{packageversion.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	pvu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (pvu *PackageVersionUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V().HasLabel(packageversion.Label)
+	for _, p := range pvu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := pvu.mutation.Version(); ok {
+		v.Property(dsl.Single, packageversion.FieldVersion, value)
+	}
+	if value, ok := pvu.mutation.Subpath(); ok {
+		v.Property(dsl.Single, packageversion.FieldSubpath, value)
+	}
+	if value, ok := pvu.mutation.Qualifiers(); ok {
+		v.Property(dsl.Single, packageversion.FieldQualifiers, value)
+	}
+	if value, ok := pvu.mutation.Hash(); ok {
+		v.Property(dsl.Single, packageversion.FieldHash, value)
+	}
+	var properties []any
+	if pvu.mutation.QualifiersCleared() {
+		properties = append(properties, packageversion.FieldQualifiers)
+	}
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if pvu.mutation.NameCleared() {
+		tr := rv.Clone().InE(packagename.VersionsLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvu.mutation.NameIDs() {
+		v.AddE(packagename.VersionsLabel).From(g.V(id)).InV()
+	}
+	for _, id := range pvu.mutation.RemovedOccurrencesIDs() {
+		tr := rv.Clone().InE(occurrence.PackageLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvu.mutation.OccurrencesIDs() {
+		v.AddE(occurrence.PackageLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(occurrence.PackageLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(packageversion.Label, occurrence.PackageLabel, id)),
+		})
+	}
+	for _, id := range pvu.mutation.RemovedSbomIDs() {
+		tr := rv.Clone().InE(billofmaterials.PackageLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvu.mutation.SbomIDs() {
+		v.AddE(billofmaterials.PackageLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(billofmaterials.PackageLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(packageversion.Label, billofmaterials.PackageLabel, id)),
+		})
+	}
+	for _, id := range pvu.mutation.RemovedEqualPackagesIDs() {
+		tr := rv.Clone().InE(pkgequal.PackagesLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvu.mutation.EqualPackagesIDs() {
+		v.AddE(pkgequal.PackagesLabel).From(g.V(id)).InV()
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // PackageVersionUpdateOne is the builder for updating a single PackageVersion entity.
@@ -663,7 +557,7 @@ func (pvuo *PackageVersionUpdateOne) Select(field string, fields ...string) *Pac
 
 // Save executes the query and returns the updated PackageVersion entity.
 func (pvuo *PackageVersionUpdateOne) Save(ctx context.Context) (*PackageVersion, error) {
-	return withHooks(ctx, pvuo.sqlSave, pvuo.mutation, pvuo.hooks)
+	return withHooks(ctx, pvuo.gremlinSave, pvuo.mutation, pvuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -696,230 +590,114 @@ func (pvuo *PackageVersionUpdateOne) check() error {
 	return nil
 }
 
-func (pvuo *PackageVersionUpdateOne) sqlSave(ctx context.Context) (_node *PackageVersion, err error) {
+func (pvuo *PackageVersionUpdateOne) gremlinSave(ctx context.Context) (*PackageVersion, error) {
 	if err := pvuo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(packageversion.Table, packageversion.Columns, sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := pvuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "PackageVersion.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := pvuo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, packageversion.FieldID)
-		for _, f := range fields {
-			if !packageversion.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != packageversion.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := pvuo.gremlin(id).Query()
+	if err := pvuo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := pvuo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := pvuo.mutation.Version(); ok {
-		_spec.SetField(packageversion.FieldVersion, field.TypeString, value)
-	}
-	if value, ok := pvuo.mutation.Subpath(); ok {
-		_spec.SetField(packageversion.FieldSubpath, field.TypeString, value)
-	}
-	if value, ok := pvuo.mutation.Qualifiers(); ok {
-		_spec.SetField(packageversion.FieldQualifiers, field.TypeJSON, value)
-	}
-	if value, ok := pvuo.mutation.AppendedQualifiers(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, packageversion.FieldQualifiers, value)
-		})
-	}
-	if pvuo.mutation.QualifiersCleared() {
-		_spec.ClearField(packageversion.FieldQualifiers, field.TypeJSON)
-	}
-	if value, ok := pvuo.mutation.Hash(); ok {
-		_spec.SetField(packageversion.FieldHash, field.TypeString, value)
-	}
-	if pvuo.mutation.NameCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packageversion.NameTable,
-			Columns: []string{packageversion.NameColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.NameIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packageversion.NameTable,
-			Columns: []string{packageversion.NameColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pvuo.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.OccurrencesTable,
-			Columns: []string{packageversion.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.RemovedOccurrencesIDs(); len(nodes) > 0 && !pvuo.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.OccurrencesTable,
-			Columns: []string{packageversion.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.OccurrencesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.OccurrencesTable,
-			Columns: []string{packageversion.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pvuo.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.SbomTable,
-			Columns: []string{packageversion.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.RemovedSbomIDs(); len(nodes) > 0 && !pvuo.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.SbomTable,
-			Columns: []string{packageversion.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.SbomIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   packageversion.SbomTable,
-			Columns: []string{packageversion.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pvuo.mutation.EqualPackagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   packageversion.EqualPackagesTable,
-			Columns: packageversion.EqualPackagesPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.RemovedEqualPackagesIDs(); len(nodes) > 0 && !pvuo.mutation.EqualPackagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   packageversion.EqualPackagesTable,
-			Columns: packageversion.EqualPackagesPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pvuo.mutation.EqualPackagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   packageversion.EqualPackagesTable,
-			Columns: packageversion.EqualPackagesPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &PackageVersion{config: pvuo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, pvuo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{packageversion.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	pvuo.mutation.done = true
-	return _node, nil
+	pv := &PackageVersion{config: pvuo.config}
+	if err := pv.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return pv, nil
+}
+
+func (pvuo *PackageVersionUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := pvuo.mutation.Version(); ok {
+		v.Property(dsl.Single, packageversion.FieldVersion, value)
+	}
+	if value, ok := pvuo.mutation.Subpath(); ok {
+		v.Property(dsl.Single, packageversion.FieldSubpath, value)
+	}
+	if value, ok := pvuo.mutation.Qualifiers(); ok {
+		v.Property(dsl.Single, packageversion.FieldQualifiers, value)
+	}
+	if value, ok := pvuo.mutation.Hash(); ok {
+		v.Property(dsl.Single, packageversion.FieldHash, value)
+	}
+	var properties []any
+	if pvuo.mutation.QualifiersCleared() {
+		properties = append(properties, packageversion.FieldQualifiers)
+	}
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if pvuo.mutation.NameCleared() {
+		tr := rv.Clone().InE(packagename.VersionsLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvuo.mutation.NameIDs() {
+		v.AddE(packagename.VersionsLabel).From(g.V(id)).InV()
+	}
+	for _, id := range pvuo.mutation.RemovedOccurrencesIDs() {
+		tr := rv.Clone().InE(occurrence.PackageLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvuo.mutation.OccurrencesIDs() {
+		v.AddE(occurrence.PackageLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(occurrence.PackageLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(packageversion.Label, occurrence.PackageLabel, id)),
+		})
+	}
+	for _, id := range pvuo.mutation.RemovedSbomIDs() {
+		tr := rv.Clone().InE(billofmaterials.PackageLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvuo.mutation.SbomIDs() {
+		v.AddE(billofmaterials.PackageLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(billofmaterials.PackageLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(packageversion.Label, billofmaterials.PackageLabel, id)),
+		})
+	}
+	for _, id := range pvuo.mutation.RemovedEqualPackagesIDs() {
+		tr := rv.Clone().InE(pkgequal.PackagesLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pvuo.mutation.EqualPackagesIDs() {
+		v.AddE(pkgequal.PackagesLabel).From(g.V(id)).InV()
+	}
+	if len(pvuo.fields) > 0 {
+		fields := make([]any, 0, len(pvuo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range pvuo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

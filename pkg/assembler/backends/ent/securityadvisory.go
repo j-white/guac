@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
+	"entgo.io/ent/dialect/gremlin"
 )
 
 // SecurityAdvisory is the model entity for the SecurityAdvisory schema.
@@ -23,79 +21,31 @@ type SecurityAdvisory struct {
 	// CVE year
 	CveYear *int `json:"cve_year,omitempty"`
 	// OSV represents Open Source Vulnerabilities
-	OsvID        *string `json:"osv_id,omitempty"`
-	selectValues sql.SelectValues
+	OsvID *string `json:"osv_id,omitempty"`
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*SecurityAdvisory) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case securityadvisory.FieldID, securityadvisory.FieldCveYear:
-			values[i] = new(sql.NullInt64)
-		case securityadvisory.FieldGhsaID, securityadvisory.FieldCveID, securityadvisory.FieldOsvID:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into SecurityAdvisory.
+func (sa *SecurityAdvisory) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the SecurityAdvisory fields.
-func (sa *SecurityAdvisory) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scansa struct {
+		ID      int     `json:"id,omitempty"`
+		GhsaID  *string `json:"ghsa_id,omitempty"`
+		CveID   *string `json:"cve_id,omitempty"`
+		CveYear *int    `json:"cve_year,omitempty"`
+		OsvID   *string `json:"osv_id,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case securityadvisory.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			sa.ID = int(value.Int64)
-		case securityadvisory.FieldGhsaID:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field ghsa_id", values[i])
-			} else if value.Valid {
-				sa.GhsaID = new(string)
-				*sa.GhsaID = value.String
-			}
-		case securityadvisory.FieldCveID:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field cve_id", values[i])
-			} else if value.Valid {
-				sa.CveID = new(string)
-				*sa.CveID = value.String
-			}
-		case securityadvisory.FieldCveYear:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field cve_year", values[i])
-			} else if value.Valid {
-				sa.CveYear = new(int)
-				*sa.CveYear = int(value.Int64)
-			}
-		case securityadvisory.FieldOsvID:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field osv_id", values[i])
-			} else if value.Valid {
-				sa.OsvID = new(string)
-				*sa.OsvID = value.String
-			}
-		default:
-			sa.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scansa); err != nil {
+		return err
 	}
+	sa.ID = scansa.ID
+	sa.GhsaID = scansa.GhsaID
+	sa.CveID = scansa.CveID
+	sa.CveYear = scansa.CveYear
+	sa.OsvID = scansa.OsvID
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the SecurityAdvisory.
-// This includes values selected through modifiers, order, etc.
-func (sa *SecurityAdvisory) Value(name string) (ent.Value, error) {
-	return sa.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this SecurityAdvisory.
@@ -146,3 +96,30 @@ func (sa *SecurityAdvisory) String() string {
 
 // SecurityAdvisories is a parsable slice of SecurityAdvisory.
 type SecurityAdvisories []*SecurityAdvisory
+
+// FromResponse scans the gremlin response data into SecurityAdvisories.
+func (sa *SecurityAdvisories) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scansa []struct {
+		ID      int     `json:"id,omitempty"`
+		GhsaID  *string `json:"ghsa_id,omitempty"`
+		CveID   *string `json:"cve_id,omitempty"`
+		CveYear *int    `json:"cve_year,omitempty"`
+		OsvID   *string `json:"osv_id,omitempty"`
+	}
+	if err := vmap.Decode(&scansa); err != nil {
+		return err
+	}
+	for _, v := range scansa {
+		node := &SecurityAdvisory{ID: v.ID}
+		node.GhsaID = v.GhsaID
+		node.CveID = v.CveID
+		node.CveYear = v.CveYear
+		node.OsvID = v.OsvID
+		*sa = append(*sa, node)
+	}
+	return nil
+}

@@ -5,11 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
@@ -22,7 +23,6 @@ type ArtifactCreate struct {
 	config
 	mutation *ArtifactMutation
 	hooks    []Hook
-	conflict []sql.ConflictOption
 }
 
 // SetAlgorithm sets the "algorithm" field.
@@ -104,7 +104,7 @@ func (ac *ArtifactCreate) Mutation() *ArtifactMutation {
 
 // Save creates the Artifact in the database.
 func (ac *ArtifactCreate) Save(ctx context.Context) (*Artifact, error) {
-	return withHooks(ctx, ac.sqlSave, ac.mutation, ac.hooks)
+	return withHooks(ctx, ac.gremlinSave, ac.mutation, ac.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -140,489 +140,72 @@ func (ac *ArtifactCreate) check() error {
 	return nil
 }
 
-func (ac *ArtifactCreate) sqlSave(ctx context.Context) (*Artifact, error) {
+func (ac *ArtifactCreate) gremlinSave(ctx context.Context) (*Artifact, error) {
 	if err := ac.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := ac.createSpec()
-	if err := sqlgraph.CreateNode(ctx, ac.driver, _spec); err != nil {
-		if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	res := &gremlin.Response{}
+	query, bindings := ac.gremlin().Query()
+	if err := ac.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
-	ac.mutation.id = &_node.ID
+	if err, ok := isConstantError(res); ok {
+		return nil, err
+	}
+	rnode := &Artifact{config: ac.config}
+	if err := rnode.FromResponse(res); err != nil {
+		return nil, err
+	}
+	ac.mutation.id = &rnode.ID
 	ac.mutation.done = true
-	return _node, nil
+	return rnode, nil
 }
 
-func (ac *ArtifactCreate) createSpec() (*Artifact, *sqlgraph.CreateSpec) {
-	var (
-		_node = &Artifact{config: ac.config}
-		_spec = sqlgraph.NewCreateSpec(artifact.Table, sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt))
-	)
-	_spec.OnConflict = ac.conflict
+func (ac *ArtifactCreate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.AddV(artifact.Label)
 	if value, ok := ac.mutation.Algorithm(); ok {
-		_spec.SetField(artifact.FieldAlgorithm, field.TypeString, value)
-		_node.Algorithm = value
+		v.Property(dsl.Single, artifact.FieldAlgorithm, value)
 	}
 	if value, ok := ac.mutation.Digest(); ok {
-		_spec.SetField(artifact.FieldDigest, field.TypeString, value)
-		_node.Digest = value
+		v.Property(dsl.Single, artifact.FieldDigest, value)
 	}
-	if nodes := ac.mutation.OccurrencesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range ac.mutation.OccurrencesIDs() {
+		v.AddE(occurrence.ArtifactLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(occurrence.ArtifactLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(artifact.Label, occurrence.ArtifactLabel, id)),
+		})
 	}
-	if nodes := ac.mutation.SbomIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range ac.mutation.SbomIDs() {
+		v.AddE(billofmaterials.ArtifactLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(billofmaterials.ArtifactLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(artifact.Label, billofmaterials.ArtifactLabel, id)),
+		})
 	}
-	if nodes := ac.mutation.AttestationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range ac.mutation.AttestationsIDs() {
+		v.AddE(slsaattestation.BuiltFromLabel).From(g.V(id)).InV()
 	}
-	if nodes := ac.mutation.SameIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range ac.mutation.SameIDs() {
+		v.AddE(hashequal.ArtifactsLabel).From(g.V(id)).InV()
 	}
-	return _node, _spec
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.Artifact.Create().
-//		SetAlgorithm(v).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.ArtifactUpsert) {
-//			SetAlgorithm(v+v).
-//		}).
-//		Exec(ctx)
-func (ac *ArtifactCreate) OnConflict(opts ...sql.ConflictOption) *ArtifactUpsertOne {
-	ac.conflict = opts
-	return &ArtifactUpsertOne{
-		create: ac,
+	if len(constraints) == 0 {
+		return v.ValueMap(true)
 	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.Artifact.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (ac *ArtifactCreate) OnConflictColumns(columns ...string) *ArtifactUpsertOne {
-	ac.conflict = append(ac.conflict, sql.ConflictColumns(columns...))
-	return &ArtifactUpsertOne{
-		create: ac,
+	tr := constraints[0].pred.Coalesce(constraints[0].test, v.ValueMap(true))
+	for _, cr := range constraints[1:] {
+		tr = cr.pred.Coalesce(cr.test, tr)
 	}
-}
-
-type (
-	// ArtifactUpsertOne is the builder for "upsert"-ing
-	//  one Artifact node.
-	ArtifactUpsertOne struct {
-		create *ArtifactCreate
-	}
-
-	// ArtifactUpsert is the "OnConflict" setter.
-	ArtifactUpsert struct {
-		*sql.UpdateSet
-	}
-)
-
-// SetAlgorithm sets the "algorithm" field.
-func (u *ArtifactUpsert) SetAlgorithm(v string) *ArtifactUpsert {
-	u.Set(artifact.FieldAlgorithm, v)
-	return u
-}
-
-// UpdateAlgorithm sets the "algorithm" field to the value that was provided on create.
-func (u *ArtifactUpsert) UpdateAlgorithm() *ArtifactUpsert {
-	u.SetExcluded(artifact.FieldAlgorithm)
-	return u
-}
-
-// SetDigest sets the "digest" field.
-func (u *ArtifactUpsert) SetDigest(v string) *ArtifactUpsert {
-	u.Set(artifact.FieldDigest, v)
-	return u
-}
-
-// UpdateDigest sets the "digest" field to the value that was provided on create.
-func (u *ArtifactUpsert) UpdateDigest() *ArtifactUpsert {
-	u.SetExcluded(artifact.FieldDigest)
-	return u
-}
-
-// UpdateNewValues updates the mutable fields using the new values that were set on create.
-// Using this option is equivalent to using:
-//
-//	client.Artifact.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *ArtifactUpsertOne) UpdateNewValues() *ArtifactUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.Artifact.Create().
-//	    OnConflict(sql.ResolveWithIgnore()).
-//	    Exec(ctx)
-func (u *ArtifactUpsertOne) Ignore() *ArtifactUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *ArtifactUpsertOne) DoNothing() *ArtifactUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the ArtifactCreate.OnConflict
-// documentation for more info.
-func (u *ArtifactUpsertOne) Update(set func(*ArtifactUpsert)) *ArtifactUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&ArtifactUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetAlgorithm sets the "algorithm" field.
-func (u *ArtifactUpsertOne) SetAlgorithm(v string) *ArtifactUpsertOne {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.SetAlgorithm(v)
-	})
-}
-
-// UpdateAlgorithm sets the "algorithm" field to the value that was provided on create.
-func (u *ArtifactUpsertOne) UpdateAlgorithm() *ArtifactUpsertOne {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.UpdateAlgorithm()
-	})
-}
-
-// SetDigest sets the "digest" field.
-func (u *ArtifactUpsertOne) SetDigest(v string) *ArtifactUpsertOne {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.SetDigest(v)
-	})
-}
-
-// UpdateDigest sets the "digest" field to the value that was provided on create.
-func (u *ArtifactUpsertOne) UpdateDigest() *ArtifactUpsertOne {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.UpdateDigest()
-	})
-}
-
-// Exec executes the query.
-func (u *ArtifactUpsertOne) Exec(ctx context.Context) error {
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for ArtifactCreate.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *ArtifactUpsertOne) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// Exec executes the UPSERT query and returns the inserted/updated ID.
-func (u *ArtifactUpsertOne) ID(ctx context.Context) (id int, err error) {
-	node, err := u.create.Save(ctx)
-	if err != nil {
-		return id, err
-	}
-	return node.ID, nil
-}
-
-// IDX is like ID, but panics if an error occurs.
-func (u *ArtifactUpsertOne) IDX(ctx context.Context) int {
-	id, err := u.ID(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return id
+	return tr
 }
 
 // ArtifactCreateBulk is the builder for creating many Artifact entities in bulk.
 type ArtifactCreateBulk struct {
 	config
 	builders []*ArtifactCreate
-	conflict []sql.ConflictOption
-}
-
-// Save creates the Artifact entities in the database.
-func (acb *ArtifactCreateBulk) Save(ctx context.Context) ([]*Artifact, error) {
-	specs := make([]*sqlgraph.CreateSpec, len(acb.builders))
-	nodes := make([]*Artifact, len(acb.builders))
-	mutators := make([]Mutator, len(acb.builders))
-	for i := range acb.builders {
-		func(i int, root context.Context) {
-			builder := acb.builders[i]
-			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-				mutation, ok := m.(*ArtifactMutation)
-				if !ok {
-					return nil, fmt.Errorf("unexpected mutation type %T", m)
-				}
-				if err := builder.check(); err != nil {
-					return nil, err
-				}
-				builder.mutation = mutation
-				var err error
-				nodes[i], specs[i] = builder.createSpec()
-				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, acb.builders[i+1].mutation)
-				} else {
-					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
-					spec.OnConflict = acb.conflict
-					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, acb.driver, spec); err != nil {
-						if sqlgraph.IsConstraintError(err) {
-							err = &ConstraintError{msg: err.Error(), wrap: err}
-						}
-					}
-				}
-				if err != nil {
-					return nil, err
-				}
-				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
-				mutation.done = true
-				return nodes[i], nil
-			})
-			for i := len(builder.hooks) - 1; i >= 0; i-- {
-				mut = builder.hooks[i](mut)
-			}
-			mutators[i] = mut
-		}(i, ctx)
-	}
-	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, acb.builders[0].mutation); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
-}
-
-// SaveX is like Save, but panics if an error occurs.
-func (acb *ArtifactCreateBulk) SaveX(ctx context.Context) []*Artifact {
-	v, err := acb.Save(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-// Exec executes the query.
-func (acb *ArtifactCreateBulk) Exec(ctx context.Context) error {
-	_, err := acb.Save(ctx)
-	return err
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (acb *ArtifactCreateBulk) ExecX(ctx context.Context) {
-	if err := acb.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.Artifact.CreateBulk(builders...).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.ArtifactUpsert) {
-//			SetAlgorithm(v+v).
-//		}).
-//		Exec(ctx)
-func (acb *ArtifactCreateBulk) OnConflict(opts ...sql.ConflictOption) *ArtifactUpsertBulk {
-	acb.conflict = opts
-	return &ArtifactUpsertBulk{
-		create: acb,
-	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.Artifact.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (acb *ArtifactCreateBulk) OnConflictColumns(columns ...string) *ArtifactUpsertBulk {
-	acb.conflict = append(acb.conflict, sql.ConflictColumns(columns...))
-	return &ArtifactUpsertBulk{
-		create: acb,
-	}
-}
-
-// ArtifactUpsertBulk is the builder for "upsert"-ing
-// a bulk of Artifact nodes.
-type ArtifactUpsertBulk struct {
-	create *ArtifactCreateBulk
-}
-
-// UpdateNewValues updates the mutable fields using the new values that
-// were set on create. Using this option is equivalent to using:
-//
-//	client.Artifact.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *ArtifactUpsertBulk) UpdateNewValues() *ArtifactUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.Artifact.Create().
-//		OnConflict(sql.ResolveWithIgnore()).
-//		Exec(ctx)
-func (u *ArtifactUpsertBulk) Ignore() *ArtifactUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *ArtifactUpsertBulk) DoNothing() *ArtifactUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the ArtifactCreateBulk.OnConflict
-// documentation for more info.
-func (u *ArtifactUpsertBulk) Update(set func(*ArtifactUpsert)) *ArtifactUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&ArtifactUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetAlgorithm sets the "algorithm" field.
-func (u *ArtifactUpsertBulk) SetAlgorithm(v string) *ArtifactUpsertBulk {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.SetAlgorithm(v)
-	})
-}
-
-// UpdateAlgorithm sets the "algorithm" field to the value that was provided on create.
-func (u *ArtifactUpsertBulk) UpdateAlgorithm() *ArtifactUpsertBulk {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.UpdateAlgorithm()
-	})
-}
-
-// SetDigest sets the "digest" field.
-func (u *ArtifactUpsertBulk) SetDigest(v string) *ArtifactUpsertBulk {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.SetDigest(v)
-	})
-}
-
-// UpdateDigest sets the "digest" field to the value that was provided on create.
-func (u *ArtifactUpsertBulk) UpdateDigest() *ArtifactUpsertBulk {
-	return u.Update(func(s *ArtifactUpsert) {
-		s.UpdateDigest()
-	})
-}
-
-// Exec executes the query.
-func (u *ArtifactUpsertBulk) Exec(ctx context.Context) error {
-	for i, b := range u.create.builders {
-		if len(b.conflict) != 0 {
-			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the ArtifactCreateBulk instead", i)
-		}
-	}
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for ArtifactCreateBulk.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *ArtifactUpsertBulk) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
 }

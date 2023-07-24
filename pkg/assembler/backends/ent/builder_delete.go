@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (bd *BuilderDelete) Where(ps ...predicate.Builder) *BuilderDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (bd *BuilderDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, bd.sqlExec, bd.mutation, bd.hooks)
+	return withHooks(ctx, bd.gremlinExec, bd.mutation, bd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (bd *BuilderDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (bd *BuilderDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(builder.Table, sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt))
-	if ps := bd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, bd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (bd *BuilderDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := bd.gremlin().Query()
+	if err := bd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	bd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (bd *BuilderDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(builder.Label)
+	for _, p := range bd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // BuilderDeleteOne is the builder for deleting a single Builder entity.

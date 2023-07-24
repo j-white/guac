@@ -3,160 +3,216 @@
 package sourcetype
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldEQ(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldEQ(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldNEQ(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldIn(FieldID, ids...))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldNotIn(FieldID, ids...))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldGT(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldGTE(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldLT(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.SourceType {
-	return predicate.SourceType(sql.FieldLTE(FieldID, id))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // Type applies equality check predicate on the "type" field. It's identical to TypeEQ.
 func Type(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldEQ(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.EQ(v))
+	})
 }
 
 // TypeEQ applies the EQ predicate on the "type" field.
 func TypeEQ(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldEQ(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.EQ(v))
+	})
 }
 
 // TypeNEQ applies the NEQ predicate on the "type" field.
 func TypeNEQ(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldNEQ(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.NEQ(v))
+	})
 }
 
 // TypeIn applies the In predicate on the "type" field.
 func TypeIn(vs ...string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldIn(FieldType, vs...))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.Within(vs...))
+	})
 }
 
 // TypeNotIn applies the NotIn predicate on the "type" field.
 func TypeNotIn(vs ...string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldNotIn(FieldType, vs...))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.Without(vs...))
+	})
 }
 
 // TypeGT applies the GT predicate on the "type" field.
 func TypeGT(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldGT(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.GT(v))
+	})
 }
 
 // TypeGTE applies the GTE predicate on the "type" field.
 func TypeGTE(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldGTE(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.GTE(v))
+	})
 }
 
 // TypeLT applies the LT predicate on the "type" field.
 func TypeLT(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldLT(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.LT(v))
+	})
 }
 
 // TypeLTE applies the LTE predicate on the "type" field.
 func TypeLTE(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldLTE(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.LTE(v))
+	})
 }
 
 // TypeContains applies the Contains predicate on the "type" field.
 func TypeContains(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldContains(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.Containing(v))
+	})
 }
 
 // TypeHasPrefix applies the HasPrefix predicate on the "type" field.
 func TypeHasPrefix(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldHasPrefix(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.StartingWith(v))
+	})
 }
 
 // TypeHasSuffix applies the HasSuffix predicate on the "type" field.
 func TypeHasSuffix(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldHasSuffix(FieldType, v))
-}
-
-// TypeEqualFold applies the EqualFold predicate on the "type" field.
-func TypeEqualFold(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldEqualFold(FieldType, v))
-}
-
-// TypeContainsFold applies the ContainsFold predicate on the "type" field.
-func TypeContainsFold(v string) predicate.SourceType {
-	return predicate.SourceType(sql.FieldContainsFold(FieldType, v))
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.EndingWith(v))
+	})
 }
 
 // HasNamespaces applies the HasEdge predicate on the "namespaces" edge.
 func HasNamespaces() predicate.SourceType {
-	return predicate.SourceType(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, NamespacesTable, NamespacesColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		t.InE(NamespacesInverseLabel).InV()
 	})
 }
 
 // HasNamespacesWith applies the HasEdge predicate on the "namespaces" edge with a given conditions (other predicates).
 func HasNamespacesWith(preds ...predicate.SourceNamespace) predicate.SourceType {
-	return predicate.SourceType(func(s *sql.Selector) {
-		step := newNamespacesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.SourceType(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(NamespacesInverseLabel).Where(tr).InV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.SourceType) predicate.SourceType {
-	return predicate.SourceType(sql.AndPredicates(predicates...))
+	return predicate.SourceType(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.SourceType) predicate.SourceType {
-	return predicate.SourceType(sql.OrPredicates(predicates...))
+	return predicate.SourceType(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.SourceType) predicate.SourceType {
-	return predicate.SourceType(sql.NotPredicates(p))
+	return predicate.SourceType(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

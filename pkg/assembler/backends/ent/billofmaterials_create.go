@@ -5,14 +5,11 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 )
 
 // BillOfMaterialsCreate is the builder for creating a BillOfMaterials entity.
@@ -20,7 +17,6 @@ type BillOfMaterialsCreate struct {
 	config
 	mutation *BillOfMaterialsMutation
 	hooks    []Hook
-	conflict []sql.ConflictOption
 }
 
 // SetPackageID sets the "package_id" field.
@@ -104,7 +100,7 @@ func (bomc *BillOfMaterialsCreate) Mutation() *BillOfMaterialsMutation {
 
 // Save creates the BillOfMaterials in the database.
 func (bomc *BillOfMaterialsCreate) Save(ctx context.Context) (*BillOfMaterials, error) {
-	return withHooks(ctx, bomc.sqlSave, bomc.mutation, bomc.hooks)
+	return withHooks(ctx, bomc.gremlinSave, bomc.mutation, bomc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -152,755 +148,58 @@ func (bomc *BillOfMaterialsCreate) check() error {
 	return nil
 }
 
-func (bomc *BillOfMaterialsCreate) sqlSave(ctx context.Context) (*BillOfMaterials, error) {
+func (bomc *BillOfMaterialsCreate) gremlinSave(ctx context.Context) (*BillOfMaterials, error) {
 	if err := bomc.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := bomc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, bomc.driver, _spec); err != nil {
-		if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	res := &gremlin.Response{}
+	query, bindings := bomc.gremlin().Query()
+	if err := bomc.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
-	bomc.mutation.id = &_node.ID
+	if err, ok := isConstantError(res); ok {
+		return nil, err
+	}
+	rnode := &BillOfMaterials{config: bomc.config}
+	if err := rnode.FromResponse(res); err != nil {
+		return nil, err
+	}
+	bomc.mutation.id = &rnode.ID
 	bomc.mutation.done = true
-	return _node, nil
+	return rnode, nil
 }
 
-func (bomc *BillOfMaterialsCreate) createSpec() (*BillOfMaterials, *sqlgraph.CreateSpec) {
-	var (
-		_node = &BillOfMaterials{config: bomc.config}
-		_spec = sqlgraph.NewCreateSpec(billofmaterials.Table, sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt))
-	)
-	_spec.OnConflict = bomc.conflict
+func (bomc *BillOfMaterialsCreate) gremlin() *dsl.Traversal {
+	v := g.AddV(billofmaterials.Label)
 	if value, ok := bomc.mutation.URI(); ok {
-		_spec.SetField(billofmaterials.FieldURI, field.TypeString, value)
-		_node.URI = value
+		v.Property(dsl.Single, billofmaterials.FieldURI, value)
 	}
 	if value, ok := bomc.mutation.Algorithm(); ok {
-		_spec.SetField(billofmaterials.FieldAlgorithm, field.TypeString, value)
-		_node.Algorithm = value
+		v.Property(dsl.Single, billofmaterials.FieldAlgorithm, value)
 	}
 	if value, ok := bomc.mutation.Digest(); ok {
-		_spec.SetField(billofmaterials.FieldDigest, field.TypeString, value)
-		_node.Digest = value
+		v.Property(dsl.Single, billofmaterials.FieldDigest, value)
 	}
 	if value, ok := bomc.mutation.DownloadLocation(); ok {
-		_spec.SetField(billofmaterials.FieldDownloadLocation, field.TypeString, value)
-		_node.DownloadLocation = value
+		v.Property(dsl.Single, billofmaterials.FieldDownloadLocation, value)
 	}
 	if value, ok := bomc.mutation.Origin(); ok {
-		_spec.SetField(billofmaterials.FieldOrigin, field.TypeString, value)
-		_node.Origin = value
+		v.Property(dsl.Single, billofmaterials.FieldOrigin, value)
 	}
 	if value, ok := bomc.mutation.Collector(); ok {
-		_spec.SetField(billofmaterials.FieldCollector, field.TypeString, value)
-		_node.Collector = value
+		v.Property(dsl.Single, billofmaterials.FieldCollector, value)
 	}
-	if nodes := bomc.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.PackageTable,
-			Columns: []string{billofmaterials.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_node.PackageID = &nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range bomc.mutation.PackageIDs() {
+		v.AddE(billofmaterials.PackageLabel).To(g.V(id)).OutV()
 	}
-	if nodes := bomc.mutation.ArtifactIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.ArtifactTable,
-			Columns: []string{billofmaterials.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_node.ArtifactID = &nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range bomc.mutation.ArtifactIDs() {
+		v.AddE(billofmaterials.ArtifactLabel).To(g.V(id)).OutV()
 	}
-	return _node, _spec
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.BillOfMaterials.Create().
-//		SetPackageID(v).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.BillOfMaterialsUpsert) {
-//			SetPackageID(v+v).
-//		}).
-//		Exec(ctx)
-func (bomc *BillOfMaterialsCreate) OnConflict(opts ...sql.ConflictOption) *BillOfMaterialsUpsertOne {
-	bomc.conflict = opts
-	return &BillOfMaterialsUpsertOne{
-		create: bomc,
-	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.BillOfMaterials.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (bomc *BillOfMaterialsCreate) OnConflictColumns(columns ...string) *BillOfMaterialsUpsertOne {
-	bomc.conflict = append(bomc.conflict, sql.ConflictColumns(columns...))
-	return &BillOfMaterialsUpsertOne{
-		create: bomc,
-	}
-}
-
-type (
-	// BillOfMaterialsUpsertOne is the builder for "upsert"-ing
-	//  one BillOfMaterials node.
-	BillOfMaterialsUpsertOne struct {
-		create *BillOfMaterialsCreate
-	}
-
-	// BillOfMaterialsUpsert is the "OnConflict" setter.
-	BillOfMaterialsUpsert struct {
-		*sql.UpdateSet
-	}
-)
-
-// SetPackageID sets the "package_id" field.
-func (u *BillOfMaterialsUpsert) SetPackageID(v int) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldPackageID, v)
-	return u
-}
-
-// UpdatePackageID sets the "package_id" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdatePackageID() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldPackageID)
-	return u
-}
-
-// ClearPackageID clears the value of the "package_id" field.
-func (u *BillOfMaterialsUpsert) ClearPackageID() *BillOfMaterialsUpsert {
-	u.SetNull(billofmaterials.FieldPackageID)
-	return u
-}
-
-// SetArtifactID sets the "artifact_id" field.
-func (u *BillOfMaterialsUpsert) SetArtifactID(v int) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldArtifactID, v)
-	return u
-}
-
-// UpdateArtifactID sets the "artifact_id" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateArtifactID() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldArtifactID)
-	return u
-}
-
-// ClearArtifactID clears the value of the "artifact_id" field.
-func (u *BillOfMaterialsUpsert) ClearArtifactID() *BillOfMaterialsUpsert {
-	u.SetNull(billofmaterials.FieldArtifactID)
-	return u
-}
-
-// SetURI sets the "uri" field.
-func (u *BillOfMaterialsUpsert) SetURI(v string) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldURI, v)
-	return u
-}
-
-// UpdateURI sets the "uri" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateURI() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldURI)
-	return u
-}
-
-// SetAlgorithm sets the "algorithm" field.
-func (u *BillOfMaterialsUpsert) SetAlgorithm(v string) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldAlgorithm, v)
-	return u
-}
-
-// UpdateAlgorithm sets the "algorithm" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateAlgorithm() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldAlgorithm)
-	return u
-}
-
-// SetDigest sets the "digest" field.
-func (u *BillOfMaterialsUpsert) SetDigest(v string) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldDigest, v)
-	return u
-}
-
-// UpdateDigest sets the "digest" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateDigest() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldDigest)
-	return u
-}
-
-// SetDownloadLocation sets the "download_location" field.
-func (u *BillOfMaterialsUpsert) SetDownloadLocation(v string) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldDownloadLocation, v)
-	return u
-}
-
-// UpdateDownloadLocation sets the "download_location" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateDownloadLocation() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldDownloadLocation)
-	return u
-}
-
-// SetOrigin sets the "origin" field.
-func (u *BillOfMaterialsUpsert) SetOrigin(v string) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldOrigin, v)
-	return u
-}
-
-// UpdateOrigin sets the "origin" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateOrigin() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldOrigin)
-	return u
-}
-
-// SetCollector sets the "collector" field.
-func (u *BillOfMaterialsUpsert) SetCollector(v string) *BillOfMaterialsUpsert {
-	u.Set(billofmaterials.FieldCollector, v)
-	return u
-}
-
-// UpdateCollector sets the "collector" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsert) UpdateCollector() *BillOfMaterialsUpsert {
-	u.SetExcluded(billofmaterials.FieldCollector)
-	return u
-}
-
-// UpdateNewValues updates the mutable fields using the new values that were set on create.
-// Using this option is equivalent to using:
-//
-//	client.BillOfMaterials.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *BillOfMaterialsUpsertOne) UpdateNewValues() *BillOfMaterialsUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.BillOfMaterials.Create().
-//	    OnConflict(sql.ResolveWithIgnore()).
-//	    Exec(ctx)
-func (u *BillOfMaterialsUpsertOne) Ignore() *BillOfMaterialsUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *BillOfMaterialsUpsertOne) DoNothing() *BillOfMaterialsUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the BillOfMaterialsCreate.OnConflict
-// documentation for more info.
-func (u *BillOfMaterialsUpsertOne) Update(set func(*BillOfMaterialsUpsert)) *BillOfMaterialsUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&BillOfMaterialsUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetPackageID sets the "package_id" field.
-func (u *BillOfMaterialsUpsertOne) SetPackageID(v int) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetPackageID(v)
-	})
-}
-
-// UpdatePackageID sets the "package_id" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdatePackageID() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdatePackageID()
-	})
-}
-
-// ClearPackageID clears the value of the "package_id" field.
-func (u *BillOfMaterialsUpsertOne) ClearPackageID() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.ClearPackageID()
-	})
-}
-
-// SetArtifactID sets the "artifact_id" field.
-func (u *BillOfMaterialsUpsertOne) SetArtifactID(v int) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetArtifactID(v)
-	})
-}
-
-// UpdateArtifactID sets the "artifact_id" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateArtifactID() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateArtifactID()
-	})
-}
-
-// ClearArtifactID clears the value of the "artifact_id" field.
-func (u *BillOfMaterialsUpsertOne) ClearArtifactID() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.ClearArtifactID()
-	})
-}
-
-// SetURI sets the "uri" field.
-func (u *BillOfMaterialsUpsertOne) SetURI(v string) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetURI(v)
-	})
-}
-
-// UpdateURI sets the "uri" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateURI() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateURI()
-	})
-}
-
-// SetAlgorithm sets the "algorithm" field.
-func (u *BillOfMaterialsUpsertOne) SetAlgorithm(v string) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetAlgorithm(v)
-	})
-}
-
-// UpdateAlgorithm sets the "algorithm" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateAlgorithm() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateAlgorithm()
-	})
-}
-
-// SetDigest sets the "digest" field.
-func (u *BillOfMaterialsUpsertOne) SetDigest(v string) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetDigest(v)
-	})
-}
-
-// UpdateDigest sets the "digest" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateDigest() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateDigest()
-	})
-}
-
-// SetDownloadLocation sets the "download_location" field.
-func (u *BillOfMaterialsUpsertOne) SetDownloadLocation(v string) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetDownloadLocation(v)
-	})
-}
-
-// UpdateDownloadLocation sets the "download_location" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateDownloadLocation() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateDownloadLocation()
-	})
-}
-
-// SetOrigin sets the "origin" field.
-func (u *BillOfMaterialsUpsertOne) SetOrigin(v string) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetOrigin(v)
-	})
-}
-
-// UpdateOrigin sets the "origin" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateOrigin() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateOrigin()
-	})
-}
-
-// SetCollector sets the "collector" field.
-func (u *BillOfMaterialsUpsertOne) SetCollector(v string) *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetCollector(v)
-	})
-}
-
-// UpdateCollector sets the "collector" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertOne) UpdateCollector() *BillOfMaterialsUpsertOne {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateCollector()
-	})
-}
-
-// Exec executes the query.
-func (u *BillOfMaterialsUpsertOne) Exec(ctx context.Context) error {
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for BillOfMaterialsCreate.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *BillOfMaterialsUpsertOne) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// Exec executes the UPSERT query and returns the inserted/updated ID.
-func (u *BillOfMaterialsUpsertOne) ID(ctx context.Context) (id int, err error) {
-	node, err := u.create.Save(ctx)
-	if err != nil {
-		return id, err
-	}
-	return node.ID, nil
-}
-
-// IDX is like ID, but panics if an error occurs.
-func (u *BillOfMaterialsUpsertOne) IDX(ctx context.Context) int {
-	id, err := u.ID(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return id
+	return v.ValueMap(true)
 }
 
 // BillOfMaterialsCreateBulk is the builder for creating many BillOfMaterials entities in bulk.
 type BillOfMaterialsCreateBulk struct {
 	config
 	builders []*BillOfMaterialsCreate
-	conflict []sql.ConflictOption
-}
-
-// Save creates the BillOfMaterials entities in the database.
-func (bomcb *BillOfMaterialsCreateBulk) Save(ctx context.Context) ([]*BillOfMaterials, error) {
-	specs := make([]*sqlgraph.CreateSpec, len(bomcb.builders))
-	nodes := make([]*BillOfMaterials, len(bomcb.builders))
-	mutators := make([]Mutator, len(bomcb.builders))
-	for i := range bomcb.builders {
-		func(i int, root context.Context) {
-			builder := bomcb.builders[i]
-			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-				mutation, ok := m.(*BillOfMaterialsMutation)
-				if !ok {
-					return nil, fmt.Errorf("unexpected mutation type %T", m)
-				}
-				if err := builder.check(); err != nil {
-					return nil, err
-				}
-				builder.mutation = mutation
-				var err error
-				nodes[i], specs[i] = builder.createSpec()
-				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, bomcb.builders[i+1].mutation)
-				} else {
-					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
-					spec.OnConflict = bomcb.conflict
-					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, bomcb.driver, spec); err != nil {
-						if sqlgraph.IsConstraintError(err) {
-							err = &ConstraintError{msg: err.Error(), wrap: err}
-						}
-					}
-				}
-				if err != nil {
-					return nil, err
-				}
-				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
-				mutation.done = true
-				return nodes[i], nil
-			})
-			for i := len(builder.hooks) - 1; i >= 0; i-- {
-				mut = builder.hooks[i](mut)
-			}
-			mutators[i] = mut
-		}(i, ctx)
-	}
-	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, bomcb.builders[0].mutation); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
-}
-
-// SaveX is like Save, but panics if an error occurs.
-func (bomcb *BillOfMaterialsCreateBulk) SaveX(ctx context.Context) []*BillOfMaterials {
-	v, err := bomcb.Save(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-// Exec executes the query.
-func (bomcb *BillOfMaterialsCreateBulk) Exec(ctx context.Context) error {
-	_, err := bomcb.Save(ctx)
-	return err
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (bomcb *BillOfMaterialsCreateBulk) ExecX(ctx context.Context) {
-	if err := bomcb.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.BillOfMaterials.CreateBulk(builders...).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.BillOfMaterialsUpsert) {
-//			SetPackageID(v+v).
-//		}).
-//		Exec(ctx)
-func (bomcb *BillOfMaterialsCreateBulk) OnConflict(opts ...sql.ConflictOption) *BillOfMaterialsUpsertBulk {
-	bomcb.conflict = opts
-	return &BillOfMaterialsUpsertBulk{
-		create: bomcb,
-	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.BillOfMaterials.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (bomcb *BillOfMaterialsCreateBulk) OnConflictColumns(columns ...string) *BillOfMaterialsUpsertBulk {
-	bomcb.conflict = append(bomcb.conflict, sql.ConflictColumns(columns...))
-	return &BillOfMaterialsUpsertBulk{
-		create: bomcb,
-	}
-}
-
-// BillOfMaterialsUpsertBulk is the builder for "upsert"-ing
-// a bulk of BillOfMaterials nodes.
-type BillOfMaterialsUpsertBulk struct {
-	create *BillOfMaterialsCreateBulk
-}
-
-// UpdateNewValues updates the mutable fields using the new values that
-// were set on create. Using this option is equivalent to using:
-//
-//	client.BillOfMaterials.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *BillOfMaterialsUpsertBulk) UpdateNewValues() *BillOfMaterialsUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.BillOfMaterials.Create().
-//		OnConflict(sql.ResolveWithIgnore()).
-//		Exec(ctx)
-func (u *BillOfMaterialsUpsertBulk) Ignore() *BillOfMaterialsUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *BillOfMaterialsUpsertBulk) DoNothing() *BillOfMaterialsUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the BillOfMaterialsCreateBulk.OnConflict
-// documentation for more info.
-func (u *BillOfMaterialsUpsertBulk) Update(set func(*BillOfMaterialsUpsert)) *BillOfMaterialsUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&BillOfMaterialsUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetPackageID sets the "package_id" field.
-func (u *BillOfMaterialsUpsertBulk) SetPackageID(v int) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetPackageID(v)
-	})
-}
-
-// UpdatePackageID sets the "package_id" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdatePackageID() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdatePackageID()
-	})
-}
-
-// ClearPackageID clears the value of the "package_id" field.
-func (u *BillOfMaterialsUpsertBulk) ClearPackageID() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.ClearPackageID()
-	})
-}
-
-// SetArtifactID sets the "artifact_id" field.
-func (u *BillOfMaterialsUpsertBulk) SetArtifactID(v int) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetArtifactID(v)
-	})
-}
-
-// UpdateArtifactID sets the "artifact_id" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateArtifactID() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateArtifactID()
-	})
-}
-
-// ClearArtifactID clears the value of the "artifact_id" field.
-func (u *BillOfMaterialsUpsertBulk) ClearArtifactID() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.ClearArtifactID()
-	})
-}
-
-// SetURI sets the "uri" field.
-func (u *BillOfMaterialsUpsertBulk) SetURI(v string) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetURI(v)
-	})
-}
-
-// UpdateURI sets the "uri" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateURI() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateURI()
-	})
-}
-
-// SetAlgorithm sets the "algorithm" field.
-func (u *BillOfMaterialsUpsertBulk) SetAlgorithm(v string) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetAlgorithm(v)
-	})
-}
-
-// UpdateAlgorithm sets the "algorithm" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateAlgorithm() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateAlgorithm()
-	})
-}
-
-// SetDigest sets the "digest" field.
-func (u *BillOfMaterialsUpsertBulk) SetDigest(v string) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetDigest(v)
-	})
-}
-
-// UpdateDigest sets the "digest" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateDigest() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateDigest()
-	})
-}
-
-// SetDownloadLocation sets the "download_location" field.
-func (u *BillOfMaterialsUpsertBulk) SetDownloadLocation(v string) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetDownloadLocation(v)
-	})
-}
-
-// UpdateDownloadLocation sets the "download_location" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateDownloadLocation() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateDownloadLocation()
-	})
-}
-
-// SetOrigin sets the "origin" field.
-func (u *BillOfMaterialsUpsertBulk) SetOrigin(v string) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetOrigin(v)
-	})
-}
-
-// UpdateOrigin sets the "origin" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateOrigin() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateOrigin()
-	})
-}
-
-// SetCollector sets the "collector" field.
-func (u *BillOfMaterialsUpsertBulk) SetCollector(v string) *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.SetCollector(v)
-	})
-}
-
-// UpdateCollector sets the "collector" field to the value that was provided on create.
-func (u *BillOfMaterialsUpsertBulk) UpdateCollector() *BillOfMaterialsUpsertBulk {
-	return u.Update(func(s *BillOfMaterialsUpsert) {
-		s.UpdateCollector()
-	})
-}
-
-// Exec executes the query.
-func (u *BillOfMaterialsUpsertBulk) Exec(ctx context.Context) error {
-	for i, b := range u.create.builders {
-		if len(b.conflict) != 0 {
-			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the BillOfMaterialsCreateBulk instead", i)
-		}
-	}
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for BillOfMaterialsCreateBulk.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *BillOfMaterialsUpsertBulk) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
 }

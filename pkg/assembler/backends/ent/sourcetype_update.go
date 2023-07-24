@@ -5,11 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
@@ -77,7 +78,7 @@ func (stu *SourceTypeUpdate) RemoveNamespaces(s ...*SourceNamespace) *SourceType
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (stu *SourceTypeUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, stu.sqlSave, stu.mutation, stu.hooks)
+	return withHooks(ctx, stu.gremlinSave, stu.mutation, stu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -102,73 +103,66 @@ func (stu *SourceTypeUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-func (stu *SourceTypeUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(sourcetype.Table, sourcetype.Columns, sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt))
-	if ps := stu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+func (stu *SourceTypeUpdate) gremlinSave(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := stu.gremlin().Query()
+	if err := stu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := stu.mutation.GetType(); ok {
-		_spec.SetField(sourcetype.FieldType, field.TypeString, value)
-	}
-	if stu.mutation.NamespacesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := stu.mutation.RemovedNamespacesIDs(); len(nodes) > 0 && !stu.mutation.NamespacesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := stu.mutation.NamespacesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, stu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{sourcetype.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	stu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (stu *SourceTypeUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V().HasLabel(sourcetype.Label)
+	for _, p := range stu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := stu.mutation.GetType(); ok {
+		constraints = append(constraints, &constraint{
+			pred: g.V().Has(sourcetype.Label, sourcetype.FieldType, value).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueField(sourcetype.Label, sourcetype.FieldType, value)),
+		})
+		v.Property(dsl.Single, sourcetype.FieldType, value)
+	}
+	for _, id := range stu.mutation.RemovedNamespacesIDs() {
+		tr := rv.Clone().InE(sourcenamespace.SourceTypeLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range stu.mutation.NamespacesIDs() {
+		v.AddE(sourcenamespace.SourceTypeLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(sourcenamespace.SourceTypeLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(sourcetype.Label, sourcenamespace.SourceTypeLabel, id)),
+		})
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // SourceTypeUpdateOne is the builder for updating a single SourceType entity.
@@ -241,7 +235,7 @@ func (stuo *SourceTypeUpdateOne) Select(field string, fields ...string) *SourceT
 
 // Save executes the query and returns the updated SourceType entity.
 func (stuo *SourceTypeUpdateOne) Save(ctx context.Context) (*SourceType, error) {
-	return withHooks(ctx, stuo.sqlSave, stuo.mutation, stuo.hooks)
+	return withHooks(ctx, stuo.gremlinSave, stuo.mutation, stuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -266,91 +260,74 @@ func (stuo *SourceTypeUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-func (stuo *SourceTypeUpdateOne) sqlSave(ctx context.Context) (_node *SourceType, err error) {
-	_spec := sqlgraph.NewUpdateSpec(sourcetype.Table, sourcetype.Columns, sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt))
+func (stuo *SourceTypeUpdateOne) gremlinSave(ctx context.Context) (*SourceType, error) {
+	res := &gremlin.Response{}
 	id, ok := stuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "SourceType.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := stuo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, sourcetype.FieldID)
-		for _, f := range fields {
-			if !sourcetype.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != sourcetype.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := stuo.gremlin(id).Query()
+	if err := stuo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := stuo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := stuo.mutation.GetType(); ok {
-		_spec.SetField(sourcetype.FieldType, field.TypeString, value)
-	}
-	if stuo.mutation.NamespacesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := stuo.mutation.RemovedNamespacesIDs(); len(nodes) > 0 && !stuo.mutation.NamespacesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := stuo.mutation.NamespacesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &SourceType{config: stuo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, stuo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{sourcetype.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	stuo.mutation.done = true
-	return _node, nil
+	st := &SourceType{config: stuo.config}
+	if err := st.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
+func (stuo *SourceTypeUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := stuo.mutation.GetType(); ok {
+		constraints = append(constraints, &constraint{
+			pred: g.V().Has(sourcetype.Label, sourcetype.FieldType, value).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueField(sourcetype.Label, sourcetype.FieldType, value)),
+		})
+		v.Property(dsl.Single, sourcetype.FieldType, value)
+	}
+	for _, id := range stuo.mutation.RemovedNamespacesIDs() {
+		tr := rv.Clone().InE(sourcenamespace.SourceTypeLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range stuo.mutation.NamespacesIDs() {
+		v.AddE(sourcenamespace.SourceTypeLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(sourcenamespace.SourceTypeLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(sourcetype.Label, sourcenamespace.SourceTypeLabel, id)),
+		})
+	}
+	if len(stuo.fields) > 0 {
+		fields := make([]any, 0, len(stuo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range stuo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

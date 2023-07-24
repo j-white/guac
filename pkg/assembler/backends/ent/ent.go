@@ -7,33 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sync"
+	"strconv"
+	"strings"
 
 	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certification"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyscorecard"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyvuln"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/dependency"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/hassourceat"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/isvulnerability"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagenamespace"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagetype"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/pkgequal"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/encoding/graphson"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -81,72 +62,31 @@ func NewTxContext(parent context.Context, tx *Tx) context.Context {
 	return context.WithValue(parent, txCtxKey{}, tx)
 }
 
-// OrderFunc applies an ordering on the sql selector.
-// Deprecated: Use Asc/Desc functions or the package builders instead.
-type OrderFunc func(*sql.Selector)
-
-var (
-	initCheck   sync.Once
-	columnCheck sql.ColumnCheck
-)
-
-// columnChecker checks if the column exists in the given table.
-func checkColumn(table, column string) error {
-	initCheck.Do(func() {
-		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			artifact.Table:         artifact.ValidColumn,
-			billofmaterials.Table:  billofmaterials.ValidColumn,
-			builder.Table:          builder.ValidColumn,
-			certification.Table:    certification.ValidColumn,
-			certifyscorecard.Table: certifyscorecard.ValidColumn,
-			certifyvuln.Table:      certifyvuln.ValidColumn,
-			dependency.Table:       dependency.ValidColumn,
-			hassourceat.Table:      hassourceat.ValidColumn,
-			hashequal.Table:        hashequal.ValidColumn,
-			isvulnerability.Table:  isvulnerability.ValidColumn,
-			occurrence.Table:       occurrence.ValidColumn,
-			packagename.Table:      packagename.ValidColumn,
-			packagenamespace.Table: packagenamespace.ValidColumn,
-			packagetype.Table:      packagetype.ValidColumn,
-			packageversion.Table:   packageversion.ValidColumn,
-			pkgequal.Table:         pkgequal.ValidColumn,
-			slsaattestation.Table:  slsaattestation.ValidColumn,
-			scorecard.Table:        scorecard.ValidColumn,
-			securityadvisory.Table: securityadvisory.ValidColumn,
-			sourcename.Table:       sourcename.ValidColumn,
-			sourcenamespace.Table:  sourcenamespace.ValidColumn,
-			sourcetype.Table:       sourcetype.ValidColumn,
-		})
-	})
-	return columnCheck(table, column)
-}
+// OrderFunc applies an ordering on the graph traversal.
+type OrderFunc func(*dsl.Traversal)
 
 // Asc applies the given fields in ASC order.
-func Asc(fields ...string) func(*sql.Selector) {
-	return func(s *sql.Selector) {
+func Asc(fields ...string) func(*dsl.Traversal) {
+	return func(tr *dsl.Traversal) {
 		for _, f := range fields {
-			if err := checkColumn(s.TableName(), f); err != nil {
-				s.AddError(&ValidationError{Name: f, err: fmt.Errorf("ent: %w", err)})
-			}
-			s.OrderBy(sql.Asc(s.C(f)))
+			tr.By(f, dsl.Incr)
 		}
 	}
 }
 
 // Desc applies the given fields in DESC order.
-func Desc(fields ...string) func(*sql.Selector) {
-	return func(s *sql.Selector) {
+func Desc(fields ...string) func(*dsl.Traversal) {
+	return func(tr *dsl.Traversal) {
 		for _, f := range fields {
-			if err := checkColumn(s.TableName(), f); err != nil {
-				s.AddError(&ValidationError{Name: f, err: fmt.Errorf("ent: %w", err)})
-			}
-			s.OrderBy(sql.Desc(s.C(f)))
+			tr.By(f, dsl.Decr)
 		}
 	}
 }
 
 // AggregateFunc applies an aggregation step on the group-by traversal/selector.
-type AggregateFunc func(*sql.Selector) string
+// It gets two labels as parameters. The first used in the `As` step for the predicate,
+// and the second is an optional name for the next predicates (or for later usage).
+type AggregateFunc func(string, string) (string, *dsl.Traversal)
 
 // As is a pseudo aggregation function for renaming another other functions with custom names. For example:
 //
@@ -154,59 +94,88 @@ type AggregateFunc func(*sql.Selector) string
 //	Aggregate(ent.As(ent.Sum(field1), "sum_field1"), (ent.As(ent.Sum(field2), "sum_field2")).
 //	Scan(ctx, &v)
 func As(fn AggregateFunc, end string) AggregateFunc {
-	return func(s *sql.Selector) string {
-		return sql.As(fn(s), end)
+	return func(start, _ string) (string, *dsl.Traversal) {
+		return fn(start, end)
 	}
 }
+
+// DefaultCountLabel is the default label name for the Count aggregation function.
+// It should be used as the struct-tag for decoding, or a map key for interaction with the returned response.
+// In order to "count" 2 or more fields and avoid conflicting, use the `ent.As(ent.Count(field), "custom_name")`
+// function with custom name in order to override it.
+const DefaultCountLabel = "count"
 
 // Count applies the "count" aggregation function on each group.
 func Count() AggregateFunc {
-	return func(s *sql.Selector) string {
-		return sql.Count("*")
+	return func(start, end string) (string, *dsl.Traversal) {
+		if end == "" {
+			end = DefaultCountLabel
+		}
+		return end, __.As(start).Count(dsl.Local).As(end)
 	}
 }
+
+// DefaultMaxLabel is the default label name for the Max aggregation function.
+// It should be used as the struct-tag for decoding, or a map key for interaction with the returned response.
+// In order to "max" 2 or more fields and avoid conflicting, use the `ent.As(ent.Max(field), "custom_name")`
+// function with custom name in order to override it.
+const DefaultMaxLabel = "max"
 
 // Max applies the "max" aggregation function on the given field of each group.
 func Max(field string) AggregateFunc {
-	return func(s *sql.Selector) string {
-		if err := checkColumn(s.TableName(), field); err != nil {
-			s.AddError(&ValidationError{Name: field, err: fmt.Errorf("ent: %w", err)})
-			return ""
+	return func(start, end string) (string, *dsl.Traversal) {
+		if end == "" {
+			end = DefaultMaxLabel
 		}
-		return sql.Max(s.C(field))
+		return end, __.As(start).Unfold().Values(field).Max().As(end)
 	}
 }
+
+// DefaultMeanLabel is the default label name for the Mean aggregation function.
+// It should be used as the struct-tag for decoding, or a map key for interaction with the returned response.
+// In order to "mean" 2 or more fields and avoid conflicting, use the `ent.As(ent.Mean(field), "custom_name")`
+// function with custom name in order to override it.
+const DefaultMeanLabel = "mean"
 
 // Mean applies the "mean" aggregation function on the given field of each group.
 func Mean(field string) AggregateFunc {
-	return func(s *sql.Selector) string {
-		if err := checkColumn(s.TableName(), field); err != nil {
-			s.AddError(&ValidationError{Name: field, err: fmt.Errorf("ent: %w", err)})
-			return ""
+	return func(start, end string) (string, *dsl.Traversal) {
+		if end == "" {
+			end = DefaultMeanLabel
 		}
-		return sql.Avg(s.C(field))
+		return end, __.As(start).Unfold().Values(field).Mean().As(end)
 	}
 }
+
+// DefaultMinLabel is the default label name for the Min aggregation function.
+// It should be used as the struct-tag for decoding, or a map key for interaction with the returned response.
+// In order to "min" 2 or more fields and avoid conflicting, use the `ent.As(ent.Min(field), "custom_name")`
+// function with custom name in order to override it.
+const DefaultMinLabel = "min"
 
 // Min applies the "min" aggregation function on the given field of each group.
 func Min(field string) AggregateFunc {
-	return func(s *sql.Selector) string {
-		if err := checkColumn(s.TableName(), field); err != nil {
-			s.AddError(&ValidationError{Name: field, err: fmt.Errorf("ent: %w", err)})
-			return ""
+	return func(start, end string) (string, *dsl.Traversal) {
+		if end == "" {
+			end = DefaultMinLabel
 		}
-		return sql.Min(s.C(field))
+		return end, __.As(start).Unfold().Values(field).Min().As(end)
 	}
 }
 
+// DefaultSumLabel is the default label name for the Sum aggregation function.
+// It should be used as the struct-tag for decoding, or a map key for interaction with the returned response.
+// In order to "sum" 2 or more fields and avoid conflicting, use the `ent.As(ent.Sum(field), "custom_name")`
+// function with custom name in order to override it.
+const DefaultSumLabel = "sum"
+
 // Sum applies the "sum" aggregation function on the given field of each group.
 func Sum(field string) AggregateFunc {
-	return func(s *sql.Selector) string {
-		if err := checkColumn(s.TableName(), field); err != nil {
-			s.AddError(&ValidationError{Name: field, err: fmt.Errorf("ent: %w", err)})
-			return ""
+	return func(start, end string) (string, *dsl.Traversal) {
+		if end == "" {
+			end = DefaultSumLabel
 		}
-		return sql.Sum(s.C(field))
+		return end, __.As(start).Unfold().Values(field).Sum().As(end)
 	}
 }
 
@@ -574,26 +543,26 @@ func setContextOp(ctx context.Context, qc *QueryContext, op string) context.Cont
 }
 
 func querierAll[V Value, Q interface {
-	sqlAll(context.Context, ...queryHook) (V, error)
+	gremlinAll(context.Context, ...queryHook) (V, error)
 }]() Querier {
 	return QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
 		query, ok := q.(Q)
 		if !ok {
 			return nil, fmt.Errorf("unexpected query type %T", q)
 		}
-		return query.sqlAll(ctx)
+		return query.gremlinAll(ctx)
 	})
 }
 
 func querierCount[Q interface {
-	sqlCount(context.Context) (int, error)
+	gremlinCount(context.Context) (int, error)
 }]() Querier {
 	return QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
 		query, ok := q.(Q)
 		if !ok {
 			return nil, fmt.Errorf("unexpected query type %T", q)
 		}
-		return query.sqlCount(ctx)
+		return query.gremlinCount(ctx)
 	})
 }
 
@@ -613,7 +582,7 @@ func withInterceptors[V Value](ctx context.Context, q Query, qr Querier, inters 
 }
 
 func scanWithInterceptors[Q1 ent.Query, Q2 interface {
-	sqlScan(context.Context, Q1, any) error
+	gremlinScan(context.Context, Q1, any) error
 }](ctx context.Context, rootQuery Q1, selectOrGroup Q2, inters []Interceptor, v any) error {
 	rv := reflect.ValueOf(v)
 	var qr Querier = QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
@@ -621,7 +590,7 @@ func scanWithInterceptors[Q1 ent.Query, Q2 interface {
 		if !ok {
 			return nil, fmt.Errorf("unexpected query type %T", q)
 		}
-		if err := selectOrGroup.sqlScan(ctx, query, v); err != nil {
+		if err := selectOrGroup.gremlinScan(ctx, query, v); err != nil {
 			return nil, err
 		}
 		if k := rv.Kind(); k == reflect.Pointer && rv.Elem().CanInterface() {
@@ -646,5 +615,47 @@ func scanWithInterceptors[Q1 ent.Query, Q2 interface {
 	return nil
 }
 
-// queryHook describes an internal hook for the different sqlAll methods.
-type queryHook func(context.Context, *sqlgraph.QuerySpec)
+// Code implements the dsl.Node interface.
+func (e ConstraintError) Code() (string, []any) {
+	return strconv.Quote(e.prefix() + e.msg), nil
+}
+
+func (e *ConstraintError) UnmarshalGraphson(b []byte) error {
+	var v [1]*string
+	if err := graphson.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	if v[0] == nil {
+		return fmt.Errorf("ent: missing string value")
+	}
+	if !strings.HasPrefix(*v[0], e.prefix()) {
+		return fmt.Errorf("ent: invalid string for error: %s", *v[0])
+	}
+	e.msg = strings.TrimPrefix(*v[0], e.prefix())
+	return nil
+}
+
+// prefix returns the prefix used for gremlin constants.
+func (ConstraintError) prefix() string { return "Error: " }
+
+// NewErrUniqueField creates a constraint error for unique fields.
+func NewErrUniqueField(label, field string, v any) *ConstraintError {
+	return &ConstraintError{msg: fmt.Sprintf("field %s.%s with value: %#v", label, field, v)}
+}
+
+// NewErrUniqueEdge creates a constraint error for unique edges.
+func NewErrUniqueEdge(label, edge, id any) *ConstraintError {
+	return &ConstraintError{msg: fmt.Sprintf("edge %s.%s with id: %#v", label, edge, id)}
+}
+
+// isConstantError indicates if the given response holds a gremlin constant containing an error.
+func isConstantError(r *gremlin.Response) (*ConstraintError, bool) {
+	e := &ConstraintError{}
+	if err := graphson.Unmarshal(r.Result.Data, e); err != nil {
+		return nil, false
+	}
+	return e, true
+}
+
+// queryHook describes an internal hook for the different gremlinAll methods.
+type queryHook func(context.Context)

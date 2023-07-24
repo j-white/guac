@@ -3,603 +3,752 @@
 package billofmaterials
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldID, ids...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldID, ids...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldID, id))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // PackageID applies equality check predicate on the "package_id" field. It's identical to PackageIDEQ.
 func PackageID(v int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldPackageID, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // ArtifactID applies equality check predicate on the "artifact_id" field. It's identical to ArtifactIDEQ.
 func ArtifactID(v int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldArtifactID, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.EQ(v))
+	})
 }
 
 // URI applies equality check predicate on the "uri" field. It's identical to URIEQ.
 func URI(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.EQ(v))
+	})
 }
 
 // Algorithm applies equality check predicate on the "algorithm" field. It's identical to AlgorithmEQ.
 func Algorithm(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.EQ(v))
+	})
 }
 
 // Digest applies equality check predicate on the "digest" field. It's identical to DigestEQ.
 func Digest(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.EQ(v))
+	})
 }
 
 // DownloadLocation applies equality check predicate on the "download_location" field. It's identical to DownloadLocationEQ.
 func DownloadLocation(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // PackageIDEQ applies the EQ predicate on the "package_id" field.
 func PackageIDEQ(v int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldPackageID, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // PackageIDNEQ applies the NEQ predicate on the "package_id" field.
 func PackageIDNEQ(v int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldPackageID, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.NEQ(v))
+	})
 }
 
 // PackageIDIn applies the In predicate on the "package_id" field.
 func PackageIDIn(vs ...int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldPackageID, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Within(vs...))
+	})
 }
 
 // PackageIDNotIn applies the NotIn predicate on the "package_id" field.
 func PackageIDNotIn(vs ...int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldPackageID, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Without(vs...))
+	})
 }
 
 // PackageIDIsNil applies the IsNil predicate on the "package_id" field.
 func PackageIDIsNil() predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIsNull(FieldPackageID))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldPackageID)
+	})
 }
 
 // PackageIDNotNil applies the NotNil predicate on the "package_id" field.
 func PackageIDNotNil() predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotNull(FieldPackageID))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldPackageID)
+	})
 }
 
 // ArtifactIDEQ applies the EQ predicate on the "artifact_id" field.
 func ArtifactIDEQ(v int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldArtifactID, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.EQ(v))
+	})
 }
 
 // ArtifactIDNEQ applies the NEQ predicate on the "artifact_id" field.
 func ArtifactIDNEQ(v int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldArtifactID, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.NEQ(v))
+	})
 }
 
 // ArtifactIDIn applies the In predicate on the "artifact_id" field.
 func ArtifactIDIn(vs ...int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldArtifactID, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.Within(vs...))
+	})
 }
 
 // ArtifactIDNotIn applies the NotIn predicate on the "artifact_id" field.
 func ArtifactIDNotIn(vs ...int) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldArtifactID, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.Without(vs...))
+	})
 }
 
 // ArtifactIDIsNil applies the IsNil predicate on the "artifact_id" field.
 func ArtifactIDIsNil() predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIsNull(FieldArtifactID))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldArtifactID)
+	})
 }
 
 // ArtifactIDNotNil applies the NotNil predicate on the "artifact_id" field.
 func ArtifactIDNotNil() predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotNull(FieldArtifactID))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldArtifactID)
+	})
 }
 
 // URIEQ applies the EQ predicate on the "uri" field.
 func URIEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.EQ(v))
+	})
 }
 
 // URINEQ applies the NEQ predicate on the "uri" field.
 func URINEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.NEQ(v))
+	})
 }
 
 // URIIn applies the In predicate on the "uri" field.
 func URIIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldURI, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.Within(vs...))
+	})
 }
 
 // URINotIn applies the NotIn predicate on the "uri" field.
 func URINotIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldURI, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.Without(vs...))
+	})
 }
 
 // URIGT applies the GT predicate on the "uri" field.
 func URIGT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.GT(v))
+	})
 }
 
 // URIGTE applies the GTE predicate on the "uri" field.
 func URIGTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.GTE(v))
+	})
 }
 
 // URILT applies the LT predicate on the "uri" field.
 func URILT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.LT(v))
+	})
 }
 
 // URILTE applies the LTE predicate on the "uri" field.
 func URILTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.LTE(v))
+	})
 }
 
 // URIContains applies the Contains predicate on the "uri" field.
 func URIContains(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContains(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.Containing(v))
+	})
 }
 
 // URIHasPrefix applies the HasPrefix predicate on the "uri" field.
 func URIHasPrefix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasPrefix(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.StartingWith(v))
+	})
 }
 
 // URIHasSuffix applies the HasSuffix predicate on the "uri" field.
 func URIHasSuffix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasSuffix(FieldURI, v))
-}
-
-// URIEqualFold applies the EqualFold predicate on the "uri" field.
-func URIEqualFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEqualFold(FieldURI, v))
-}
-
-// URIContainsFold applies the ContainsFold predicate on the "uri" field.
-func URIContainsFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContainsFold(FieldURI, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.EndingWith(v))
+	})
 }
 
 // AlgorithmEQ applies the EQ predicate on the "algorithm" field.
 func AlgorithmEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.EQ(v))
+	})
 }
 
 // AlgorithmNEQ applies the NEQ predicate on the "algorithm" field.
 func AlgorithmNEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.NEQ(v))
+	})
 }
 
 // AlgorithmIn applies the In predicate on the "algorithm" field.
 func AlgorithmIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldAlgorithm, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.Within(vs...))
+	})
 }
 
 // AlgorithmNotIn applies the NotIn predicate on the "algorithm" field.
 func AlgorithmNotIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldAlgorithm, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.Without(vs...))
+	})
 }
 
 // AlgorithmGT applies the GT predicate on the "algorithm" field.
 func AlgorithmGT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.GT(v))
+	})
 }
 
 // AlgorithmGTE applies the GTE predicate on the "algorithm" field.
 func AlgorithmGTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.GTE(v))
+	})
 }
 
 // AlgorithmLT applies the LT predicate on the "algorithm" field.
 func AlgorithmLT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.LT(v))
+	})
 }
 
 // AlgorithmLTE applies the LTE predicate on the "algorithm" field.
 func AlgorithmLTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.LTE(v))
+	})
 }
 
 // AlgorithmContains applies the Contains predicate on the "algorithm" field.
 func AlgorithmContains(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContains(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.Containing(v))
+	})
 }
 
 // AlgorithmHasPrefix applies the HasPrefix predicate on the "algorithm" field.
 func AlgorithmHasPrefix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasPrefix(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.StartingWith(v))
+	})
 }
 
 // AlgorithmHasSuffix applies the HasSuffix predicate on the "algorithm" field.
 func AlgorithmHasSuffix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasSuffix(FieldAlgorithm, v))
-}
-
-// AlgorithmEqualFold applies the EqualFold predicate on the "algorithm" field.
-func AlgorithmEqualFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEqualFold(FieldAlgorithm, v))
-}
-
-// AlgorithmContainsFold applies the ContainsFold predicate on the "algorithm" field.
-func AlgorithmContainsFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContainsFold(FieldAlgorithm, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.EndingWith(v))
+	})
 }
 
 // DigestEQ applies the EQ predicate on the "digest" field.
 func DigestEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.EQ(v))
+	})
 }
 
 // DigestNEQ applies the NEQ predicate on the "digest" field.
 func DigestNEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.NEQ(v))
+	})
 }
 
 // DigestIn applies the In predicate on the "digest" field.
 func DigestIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldDigest, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.Within(vs...))
+	})
 }
 
 // DigestNotIn applies the NotIn predicate on the "digest" field.
 func DigestNotIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldDigest, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.Without(vs...))
+	})
 }
 
 // DigestGT applies the GT predicate on the "digest" field.
 func DigestGT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.GT(v))
+	})
 }
 
 // DigestGTE applies the GTE predicate on the "digest" field.
 func DigestGTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.GTE(v))
+	})
 }
 
 // DigestLT applies the LT predicate on the "digest" field.
 func DigestLT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.LT(v))
+	})
 }
 
 // DigestLTE applies the LTE predicate on the "digest" field.
 func DigestLTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.LTE(v))
+	})
 }
 
 // DigestContains applies the Contains predicate on the "digest" field.
 func DigestContains(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContains(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.Containing(v))
+	})
 }
 
 // DigestHasPrefix applies the HasPrefix predicate on the "digest" field.
 func DigestHasPrefix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasPrefix(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.StartingWith(v))
+	})
 }
 
 // DigestHasSuffix applies the HasSuffix predicate on the "digest" field.
 func DigestHasSuffix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasSuffix(FieldDigest, v))
-}
-
-// DigestEqualFold applies the EqualFold predicate on the "digest" field.
-func DigestEqualFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEqualFold(FieldDigest, v))
-}
-
-// DigestContainsFold applies the ContainsFold predicate on the "digest" field.
-func DigestContainsFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContainsFold(FieldDigest, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.EndingWith(v))
+	})
 }
 
 // DownloadLocationEQ applies the EQ predicate on the "download_location" field.
 func DownloadLocationEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.EQ(v))
+	})
 }
 
 // DownloadLocationNEQ applies the NEQ predicate on the "download_location" field.
 func DownloadLocationNEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.NEQ(v))
+	})
 }
 
 // DownloadLocationIn applies the In predicate on the "download_location" field.
 func DownloadLocationIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldDownloadLocation, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.Within(vs...))
+	})
 }
 
 // DownloadLocationNotIn applies the NotIn predicate on the "download_location" field.
 func DownloadLocationNotIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldDownloadLocation, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.Without(vs...))
+	})
 }
 
 // DownloadLocationGT applies the GT predicate on the "download_location" field.
 func DownloadLocationGT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.GT(v))
+	})
 }
 
 // DownloadLocationGTE applies the GTE predicate on the "download_location" field.
 func DownloadLocationGTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.GTE(v))
+	})
 }
 
 // DownloadLocationLT applies the LT predicate on the "download_location" field.
 func DownloadLocationLT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.LT(v))
+	})
 }
 
 // DownloadLocationLTE applies the LTE predicate on the "download_location" field.
 func DownloadLocationLTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.LTE(v))
+	})
 }
 
 // DownloadLocationContains applies the Contains predicate on the "download_location" field.
 func DownloadLocationContains(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContains(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.Containing(v))
+	})
 }
 
 // DownloadLocationHasPrefix applies the HasPrefix predicate on the "download_location" field.
 func DownloadLocationHasPrefix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasPrefix(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.StartingWith(v))
+	})
 }
 
 // DownloadLocationHasSuffix applies the HasSuffix predicate on the "download_location" field.
 func DownloadLocationHasSuffix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasSuffix(FieldDownloadLocation, v))
-}
-
-// DownloadLocationEqualFold applies the EqualFold predicate on the "download_location" field.
-func DownloadLocationEqualFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEqualFold(FieldDownloadLocation, v))
-}
-
-// DownloadLocationContainsFold applies the ContainsFold predicate on the "download_location" field.
-func DownloadLocationContainsFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContainsFold(FieldDownloadLocation, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDownloadLocation, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContains(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEQ(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNEQ(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldIn(FieldCollector, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGT(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldGTE(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLT(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldLTE(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContains(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // HasPackage applies the HasEdge predicate on the "package" edge.
 func HasPackage() predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.OutE(PackageLabel).OutV()
 	})
 }
 
 // HasPackageWith applies the HasEdge predicate on the "package" edge with a given conditions (other predicates).
 func HasPackageWith(preds ...predicate.PackageVersion) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(func(s *sql.Selector) {
-		step := newPackageStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackageLabel).Where(tr).OutV()
 	})
 }
 
 // HasArtifact applies the HasEdge predicate on the "artifact" edge.
 func HasArtifact() predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, ArtifactTable, ArtifactColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		t.OutE(ArtifactLabel).OutV()
 	})
 }
 
 // HasArtifactWith applies the HasEdge predicate on the "artifact" edge with a given conditions (other predicates).
 func HasArtifactWith(preds ...predicate.Artifact) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(func(s *sql.Selector) {
-		step := newArtifactStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.BillOfMaterials(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(ArtifactLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.BillOfMaterials) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.AndPredicates(predicates...))
+	return predicate.BillOfMaterials(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.BillOfMaterials) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.OrPredicates(predicates...))
+	return predicate.BillOfMaterials(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.BillOfMaterials) predicate.BillOfMaterials {
-	return predicate.BillOfMaterials(sql.NotPredicates(p))
+	return predicate.BillOfMaterials(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

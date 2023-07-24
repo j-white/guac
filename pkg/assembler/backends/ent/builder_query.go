@@ -4,13 +4,13 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
@@ -19,17 +19,14 @@ import (
 // BuilderQuery is the builder for querying Builder entities.
 type BuilderQuery struct {
 	config
-	ctx                       *QueryContext
-	order                     []builder.OrderOption
-	inters                    []Interceptor
-	predicates                []predicate.Builder
-	withSlsaAttestations      *SLSAAttestationQuery
-	modifiers                 []func(*sql.Selector)
-	loadTotal                 []func(context.Context, []*Builder) error
-	withNamedSlsaAttestations map[string]*SLSAAttestationQuery
+	ctx                  *QueryContext
+	order                []builder.OrderOption
+	inters               []Interceptor
+	predicates           []predicate.Builder
+	withSlsaAttestations *SLSAAttestationQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the BuilderQuery builder.
@@ -66,20 +63,12 @@ func (bq *BuilderQuery) Order(o ...builder.OrderOption) *BuilderQuery {
 // QuerySlsaAttestations chains the current query on the "slsa_attestations" edge.
 func (bq *BuilderQuery) QuerySlsaAttestations() *SLSAAttestationQuery {
 	query := (&SLSAAttestationClient{config: bq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := bq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := bq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(builder.Table, builder.FieldID, selector),
-			sqlgraph.To(slsaattestation.Table, slsaattestation.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, builder.SlsaAttestationsTable, builder.SlsaAttestationsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(bq.driver.Dialect(), step)
+		gremlin := bq.gremlinQuery(ctx)
+		fromU = gremlin.InE(slsaattestation.BuiltByLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -279,8 +268,8 @@ func (bq *BuilderQuery) Clone() *BuilderQuery {
 		predicates:           append([]predicate.Builder{}, bq.predicates...),
 		withSlsaAttestations: bq.withSlsaAttestations.Clone(),
 		// clone intermediate query.
-		sql:  bq.sql.Clone(),
-		path: bq.path,
+		gremlin: bq.gremlin.Clone(),
+		path:    bq.path,
 	}
 }
 
@@ -354,199 +343,77 @@ func (bq *BuilderQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range bq.ctx.Fields {
-		if !builder.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if bq.path != nil {
 		prev, err := bq.path(ctx)
 		if err != nil {
 			return err
 		}
-		bq.sql = prev
+		bq.gremlin = prev
 	}
 	return nil
 }
 
-func (bq *BuilderQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Builder, error) {
-	var (
-		nodes       = []*Builder{}
-		_spec       = bq.querySpec()
-		loadedTypes = [1]bool{
-			bq.withSlsaAttestations != nil,
+func (bq *BuilderQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*Builder, error) {
+	res := &gremlin.Response{}
+	traversal := bq.gremlinQuery(ctx)
+	if len(bq.ctx.Fields) > 0 {
+		fields := make([]any, len(bq.ctx.Fields))
+		for i, f := range bq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*Builder).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &Builder{config: bq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(bq.modifiers) > 0 {
-		_spec.Modifiers = bq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, bq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := bq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var bs Builders
+	if err := bs.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := bq.withSlsaAttestations; query != nil {
-		if err := bq.loadSlsaAttestations(ctx, query, nodes,
-			func(n *Builder) { n.Edges.SlsaAttestations = []*SLSAAttestation{} },
-			func(n *Builder, e *SLSAAttestation) { n.Edges.SlsaAttestations = append(n.Edges.SlsaAttestations, e) }); err != nil {
-			return nil, err
-		}
+	for i := range bs {
+		bs[i].config = bq.config
 	}
-	for name, query := range bq.withNamedSlsaAttestations {
-		if err := bq.loadSlsaAttestations(ctx, query, nodes,
-			func(n *Builder) { n.appendNamedSlsaAttestations(name) },
-			func(n *Builder, e *SLSAAttestation) { n.appendNamedSlsaAttestations(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range bq.loadTotal {
-		if err := bq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return bs, nil
 }
 
-func (bq *BuilderQuery) loadSlsaAttestations(ctx context.Context, query *SLSAAttestationQuery, nodes []*Builder, init func(*Builder), assign func(*Builder, *SLSAAttestation)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int]*Builder)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
+func (bq *BuilderQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := bq.gremlinQuery(ctx).Count().Query()
+	if err := bq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(slsaattestation.FieldBuiltByID)
-	}
-	query.Where(predicate.SLSAAttestation(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(builder.SlsaAttestationsColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.BuiltByID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "built_by_id" returned %v for node %v`, fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (bq *BuilderQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := bq.querySpec()
-	if len(bq.modifiers) > 0 {
-		_spec.Modifiers = bq.modifiers
-	}
-	_spec.Node.Columns = bq.ctx.Fields
-	if len(bq.ctx.Fields) > 0 {
-		_spec.Unique = bq.ctx.Unique != nil && *bq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, bq.driver, _spec)
-}
-
-func (bq *BuilderQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(builder.Table, builder.Columns, sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt))
-	_spec.From = bq.sql
-	if unique := bq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if bq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := bq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, builder.FieldID)
-		for i := range fields {
-			if fields[i] != builder.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-	}
-	if ps := bq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := bq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := bq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := bq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (bq *BuilderQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builderC := sql.Dialect(bq.driver.Dialect())
-	t1 := builderC.Table(builder.Table)
-	columns := bq.ctx.Fields
-	if len(columns) == 0 {
-		columns = builder.Columns
-	}
-	selector := builderC.Select(t1.Columns(columns...)...).From(t1)
-	if bq.sql != nil {
-		selector = bq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if bq.ctx.Unique != nil && *bq.ctx.Unique {
-		selector.Distinct()
+func (bq *BuilderQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(builder.Label)
+	if bq.gremlin != nil {
+		v = bq.gremlin.Clone()
 	}
 	for _, p := range bq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range bq.order {
-		p(selector)
+	if len(bq.order) > 0 {
+		v.Order()
+		for _, p := range bq.order {
+			p(v)
+		}
 	}
-	if offset := bq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := bq.ctx.Limit, bq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := bq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := bq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedSlsaAttestations tells the query-builder to eager-load the nodes that are connected to the "slsa_attestations"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (bq *BuilderQuery) WithNamedSlsaAttestations(name string, opts ...func(*SLSAAttestationQuery)) *BuilderQuery {
-	query := (&SLSAAttestationClient{config: bq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if bq.withNamedSlsaAttestations == nil {
-		bq.withNamedSlsaAttestations = make(map[string]*SLSAAttestationQuery)
-	}
-	bq.withNamedSlsaAttestations[name] = query
-	return bq
+	return v
 }
 
 // BuilderGroupBy is the group-by builder for Builder entities.
@@ -570,31 +437,38 @@ func (bgb *BuilderGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*BuilderQuery, *BuilderGroupBy](ctx, bgb.build, bgb, bgb.build.inters, v)
 }
 
-func (bgb *BuilderGroupBy) sqlScan(ctx context.Context, root *BuilderQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(bgb.fns))
+func (bgb *BuilderGroupBy) gremlinScan(ctx context.Context, root *BuilderQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range bgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*bgb.flds)+len(bgb.fns))
-		for _, f := range *bgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *bgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*bgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*bgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := bgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := bgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*bgb.flds)+len(bgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // BuilderSelect is the builder for selecting fields of Builder entities.
@@ -618,23 +492,34 @@ func (bs *BuilderSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*BuilderQuery, *BuilderSelect](ctx, bs.BuilderQuery, bs, bs.inters, v)
 }
 
-func (bs *BuilderSelect) sqlScan(ctx context.Context, root *BuilderQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(bs.fns))
-	for _, fn := range bs.fns {
-		aggregation = append(aggregation, fn(selector))
+func (bs *BuilderSelect) gremlinScan(ctx context.Context, root *BuilderQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := bs.ctx.Fields; len(fields) == 1 {
+		if fields[0] != builder.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(bs.ctx.Fields))
+		for i, f := range bs.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*bs.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := bs.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := bs.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

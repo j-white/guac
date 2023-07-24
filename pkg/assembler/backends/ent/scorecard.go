@@ -3,14 +3,11 @@
 package ent
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -35,8 +32,7 @@ type Scorecard struct {
 	Collector string `json:"collector,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ScorecardQuery when eager-loading is set.
-	Edges        ScorecardEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges ScorecardEdges `json:"edges"`
 }
 
 // ScorecardEdges holds the relations/edges for other nodes in the graph.
@@ -46,10 +42,6 @@ type ScorecardEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
-	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
-
-	namedCertifications map[string][]*CertifyScorecard
 }
 
 // CertificationsOrErr returns the Certifications value or an error if the edge
@@ -61,97 +53,34 @@ func (e ScorecardEdges) CertificationsOrErr() ([]*CertifyScorecard, error) {
 	return nil, &NotLoadedError{edge: "certifications"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*Scorecard) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case scorecard.FieldChecks:
-			values[i] = new([]byte)
-		case scorecard.FieldAggregateScore:
-			values[i] = new(sql.NullFloat64)
-		case scorecard.FieldID:
-			values[i] = new(sql.NullInt64)
-		case scorecard.FieldScorecardVersion, scorecard.FieldScorecardCommit, scorecard.FieldOrigin, scorecard.FieldCollector:
-			values[i] = new(sql.NullString)
-		case scorecard.FieldTimeScanned:
-			values[i] = new(sql.NullTime)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into Scorecard.
+func (s *Scorecard) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Scorecard fields.
-func (s *Scorecard) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scans struct {
+		ID               int                     `json:"id,omitempty"`
+		Checks           []*model.ScorecardCheck `json:"checks,omitempty"`
+		AggregateScore   float64                 `json:"aggregate_score,omitempty"`
+		TimeScanned      int64                   `json:"time_scanned,omitempty"`
+		ScorecardVersion string                  `json:"scorecard_version,omitempty"`
+		ScorecardCommit  string                  `json:"scorecard_commit,omitempty"`
+		Origin           string                  `json:"origin,omitempty"`
+		Collector        string                  `json:"collector,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case scorecard.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			s.ID = int(value.Int64)
-		case scorecard.FieldChecks:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field checks", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &s.Checks); err != nil {
-					return fmt.Errorf("unmarshal field checks: %w", err)
-				}
-			}
-		case scorecard.FieldAggregateScore:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field aggregate_score", values[i])
-			} else if value.Valid {
-				s.AggregateScore = value.Float64
-			}
-		case scorecard.FieldTimeScanned:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field time_scanned", values[i])
-			} else if value.Valid {
-				s.TimeScanned = value.Time
-			}
-		case scorecard.FieldScorecardVersion:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field scorecard_version", values[i])
-			} else if value.Valid {
-				s.ScorecardVersion = value.String
-			}
-		case scorecard.FieldScorecardCommit:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field scorecard_commit", values[i])
-			} else if value.Valid {
-				s.ScorecardCommit = value.String
-			}
-		case scorecard.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				s.Origin = value.String
-			}
-		case scorecard.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				s.Collector = value.String
-			}
-		default:
-			s.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scans); err != nil {
+		return err
 	}
+	s.ID = scans.ID
+	s.Checks = scans.Checks
+	s.AggregateScore = scans.AggregateScore
+	s.TimeScanned = time.Unix(0, scans.TimeScanned)
+	s.ScorecardVersion = scans.ScorecardVersion
+	s.ScorecardCommit = scans.ScorecardCommit
+	s.Origin = scans.Origin
+	s.Collector = scans.Collector
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the Scorecard.
-// This includes values selected through modifiers, order, etc.
-func (s *Scorecard) Value(name string) (ent.Value, error) {
-	return s.selectValues.Get(name)
 }
 
 // QueryCertifications queries the "certifications" edge of the Scorecard entity.
@@ -206,29 +135,38 @@ func (s *Scorecard) String() string {
 	return builder.String()
 }
 
-// NamedCertifications returns the Certifications named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (s *Scorecard) NamedCertifications(name string) ([]*CertifyScorecard, error) {
-	if s.Edges.namedCertifications == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := s.Edges.namedCertifications[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (s *Scorecard) appendNamedCertifications(name string, edges ...*CertifyScorecard) {
-	if s.Edges.namedCertifications == nil {
-		s.Edges.namedCertifications = make(map[string][]*CertifyScorecard)
-	}
-	if len(edges) == 0 {
-		s.Edges.namedCertifications[name] = []*CertifyScorecard{}
-	} else {
-		s.Edges.namedCertifications[name] = append(s.Edges.namedCertifications[name], edges...)
-	}
-}
-
 // Scorecards is a parsable slice of Scorecard.
 type Scorecards []*Scorecard
+
+// FromResponse scans the gremlin response data into Scorecards.
+func (s *Scorecards) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scans []struct {
+		ID               int                     `json:"id,omitempty"`
+		Checks           []*model.ScorecardCheck `json:"checks,omitempty"`
+		AggregateScore   float64                 `json:"aggregate_score,omitempty"`
+		TimeScanned      int64                   `json:"time_scanned,omitempty"`
+		ScorecardVersion string                  `json:"scorecard_version,omitempty"`
+		ScorecardCommit  string                  `json:"scorecard_commit,omitempty"`
+		Origin           string                  `json:"origin,omitempty"`
+		Collector        string                  `json:"collector,omitempty"`
+	}
+	if err := vmap.Decode(&scans); err != nil {
+		return err
+	}
+	for _, v := range scans {
+		node := &Scorecard{ID: v.ID}
+		node.Checks = v.Checks
+		node.AggregateScore = v.AggregateScore
+		node.TimeScanned = time.Unix(0, v.TimeScanned)
+		node.ScorecardVersion = v.ScorecardVersion
+		node.ScorecardCommit = v.ScorecardCommit
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		*s = append(*s, node)
+	}
+	return nil
+}

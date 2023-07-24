@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (ad *ArtifactDelete) Where(ps ...predicate.Artifact) *ArtifactDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (ad *ArtifactDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, ad.sqlExec, ad.mutation, ad.hooks)
+	return withHooks(ctx, ad.gremlinExec, ad.mutation, ad.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (ad *ArtifactDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (ad *ArtifactDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(artifact.Table, sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt))
-	if ps := ad.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, ad.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (ad *ArtifactDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := ad.gremlin().Query()
+	if err := ad.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	ad.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (ad *ArtifactDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(artifact.Label)
+	for _, p := range ad.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // ArtifactDeleteOne is the builder for deleting a single Artifact entity.

@@ -7,15 +7,12 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certification"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
 
 // CertificationQuery is the builder for querying Certification entities.
@@ -29,11 +26,9 @@ type CertificationQuery struct {
 	withPackageVersion *PackageVersionQuery
 	withAllVersions    *PackageNameQuery
 	withArtifact       *ArtifactQuery
-	modifiers          []func(*sql.Selector)
-	loadTotal          []func(context.Context, []*Certification) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the CertificationQuery builder.
@@ -70,20 +65,12 @@ func (cq *CertificationQuery) Order(o ...certification.OrderOption) *Certificati
 // QuerySource chains the current query on the "source" edge.
 func (cq *CertificationQuery) QuerySource() *SourceNameQuery {
 	query := (&SourceNameClient{config: cq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := cq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := cq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, selector),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.SourceTable, certification.SourceColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(cq.driver.Dialect(), step)
+		gremlin := cq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certification.SourceLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -92,20 +79,12 @@ func (cq *CertificationQuery) QuerySource() *SourceNameQuery {
 // QueryPackageVersion chains the current query on the "package_version" edge.
 func (cq *CertificationQuery) QueryPackageVersion() *PackageVersionQuery {
 	query := (&PackageVersionClient{config: cq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := cq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := cq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, selector),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.PackageVersionTable, certification.PackageVersionColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(cq.driver.Dialect(), step)
+		gremlin := cq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certification.PackageVersionLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -114,20 +93,12 @@ func (cq *CertificationQuery) QueryPackageVersion() *PackageVersionQuery {
 // QueryAllVersions chains the current query on the "all_versions" edge.
 func (cq *CertificationQuery) QueryAllVersions() *PackageNameQuery {
 	query := (&PackageNameClient{config: cq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := cq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := cq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, selector),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.AllVersionsTable, certification.AllVersionsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(cq.driver.Dialect(), step)
+		gremlin := cq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certification.AllVersionsLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -136,20 +107,12 @@ func (cq *CertificationQuery) QueryAllVersions() *PackageNameQuery {
 // QueryArtifact chains the current query on the "artifact" edge.
 func (cq *CertificationQuery) QueryArtifact() *ArtifactQuery {
 	query := (&ArtifactClient{config: cq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := cq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := cq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, selector),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.ArtifactTable, certification.ArtifactColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(cq.driver.Dialect(), step)
+		gremlin := cq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certification.ArtifactLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -352,8 +315,8 @@ func (cq *CertificationQuery) Clone() *CertificationQuery {
 		withAllVersions:    cq.withAllVersions.Clone(),
 		withArtifact:       cq.withArtifact.Clone(),
 		// clone intermediate query.
-		sql:  cq.sql.Clone(),
-		path: cq.path,
+		gremlin: cq.gremlin.Clone(),
+		path:    cq.path,
 	}
 }
 
@@ -460,308 +423,77 @@ func (cq *CertificationQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range cq.ctx.Fields {
-		if !certification.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if cq.path != nil {
 		prev, err := cq.path(ctx)
 		if err != nil {
 			return err
 		}
-		cq.sql = prev
+		cq.gremlin = prev
 	}
 	return nil
 }
 
-func (cq *CertificationQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Certification, error) {
-	var (
-		nodes       = []*Certification{}
-		_spec       = cq.querySpec()
-		loadedTypes = [4]bool{
-			cq.withSource != nil,
-			cq.withPackageVersion != nil,
-			cq.withAllVersions != nil,
-			cq.withArtifact != nil,
+func (cq *CertificationQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*Certification, error) {
+	res := &gremlin.Response{}
+	traversal := cq.gremlinQuery(ctx)
+	if len(cq.ctx.Fields) > 0 {
+		fields := make([]any, len(cq.ctx.Fields))
+		for i, f := range cq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*Certification).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &Certification{config: cq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(cq.modifiers) > 0 {
-		_spec.Modifiers = cq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, cq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := cq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var cs Certifications
+	if err := cs.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := cq.withSource; query != nil {
-		if err := cq.loadSource(ctx, query, nodes, nil,
-			func(n *Certification, e *SourceName) { n.Edges.Source = e }); err != nil {
-			return nil, err
-		}
+	for i := range cs {
+		cs[i].config = cq.config
 	}
-	if query := cq.withPackageVersion; query != nil {
-		if err := cq.loadPackageVersion(ctx, query, nodes, nil,
-			func(n *Certification, e *PackageVersion) { n.Edges.PackageVersion = e }); err != nil {
-			return nil, err
-		}
-	}
-	if query := cq.withAllVersions; query != nil {
-		if err := cq.loadAllVersions(ctx, query, nodes, nil,
-			func(n *Certification, e *PackageName) { n.Edges.AllVersions = e }); err != nil {
-			return nil, err
-		}
-	}
-	if query := cq.withArtifact; query != nil {
-		if err := cq.loadArtifact(ctx, query, nodes, nil,
-			func(n *Certification, e *Artifact) { n.Edges.Artifact = e }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range cq.loadTotal {
-		if err := cq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return cs, nil
 }
 
-func (cq *CertificationQuery) loadSource(ctx context.Context, query *SourceNameQuery, nodes []*Certification, init func(*Certification), assign func(*Certification, *SourceName)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Certification)
-	for i := range nodes {
-		if nodes[i].SourceID == nil {
-			continue
-		}
-		fk := *nodes[i].SourceID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (cq *CertificationQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := cq.gremlinQuery(ctx).Count().Query()
+	if err := cq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(sourcename.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "source_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (cq *CertificationQuery) loadPackageVersion(ctx context.Context, query *PackageVersionQuery, nodes []*Certification, init func(*Certification), assign func(*Certification, *PackageVersion)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Certification)
-	for i := range nodes {
-		if nodes[i].PackageVersionID == nil {
-			continue
-		}
-		fk := *nodes[i].PackageVersionID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packageversion.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "package_version_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (cq *CertificationQuery) loadAllVersions(ctx context.Context, query *PackageNameQuery, nodes []*Certification, init func(*Certification), assign func(*Certification, *PackageName)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Certification)
-	for i := range nodes {
-		if nodes[i].PackageNameID == nil {
-			continue
-		}
-		fk := *nodes[i].PackageNameID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packagename.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "package_name_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (cq *CertificationQuery) loadArtifact(ctx context.Context, query *ArtifactQuery, nodes []*Certification, init func(*Certification), assign func(*Certification, *Artifact)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Certification)
-	for i := range nodes {
-		if nodes[i].ArtifactID == nil {
-			continue
-		}
-		fk := *nodes[i].ArtifactID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(artifact.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "artifact_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (cq *CertificationQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := cq.querySpec()
-	if len(cq.modifiers) > 0 {
-		_spec.Modifiers = cq.modifiers
-	}
-	_spec.Node.Columns = cq.ctx.Fields
-	if len(cq.ctx.Fields) > 0 {
-		_spec.Unique = cq.ctx.Unique != nil && *cq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, cq.driver, _spec)
-}
-
-func (cq *CertificationQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(certification.Table, certification.Columns, sqlgraph.NewFieldSpec(certification.FieldID, field.TypeInt))
-	_spec.From = cq.sql
-	if unique := cq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if cq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := cq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, certification.FieldID)
-		for i := range fields {
-			if fields[i] != certification.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if cq.withSource != nil {
-			_spec.Node.AddColumnOnce(certification.FieldSourceID)
-		}
-		if cq.withPackageVersion != nil {
-			_spec.Node.AddColumnOnce(certification.FieldPackageVersionID)
-		}
-		if cq.withAllVersions != nil {
-			_spec.Node.AddColumnOnce(certification.FieldPackageNameID)
-		}
-		if cq.withArtifact != nil {
-			_spec.Node.AddColumnOnce(certification.FieldArtifactID)
-		}
-	}
-	if ps := cq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := cq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := cq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := cq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (cq *CertificationQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(cq.driver.Dialect())
-	t1 := builder.Table(certification.Table)
-	columns := cq.ctx.Fields
-	if len(columns) == 0 {
-		columns = certification.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if cq.sql != nil {
-		selector = cq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if cq.ctx.Unique != nil && *cq.ctx.Unique {
-		selector.Distinct()
+func (cq *CertificationQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(certification.Label)
+	if cq.gremlin != nil {
+		v = cq.gremlin.Clone()
 	}
 	for _, p := range cq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range cq.order {
-		p(selector)
+	if len(cq.order) > 0 {
+		v.Order()
+		for _, p := range cq.order {
+			p(v)
+		}
 	}
-	if offset := cq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := cq.ctx.Limit, cq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := cq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := cq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // CertificationGroupBy is the group-by builder for Certification entities.
@@ -785,31 +517,38 @@ func (cgb *CertificationGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*CertificationQuery, *CertificationGroupBy](ctx, cgb.build, cgb, cgb.build.inters, v)
 }
 
-func (cgb *CertificationGroupBy) sqlScan(ctx context.Context, root *CertificationQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(cgb.fns))
+func (cgb *CertificationGroupBy) gremlinScan(ctx context.Context, root *CertificationQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range cgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*cgb.flds)+len(cgb.fns))
-		for _, f := range *cgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *cgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*cgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*cgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := cgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := cgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*cgb.flds)+len(cgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // CertificationSelect is the builder for selecting fields of Certification entities.
@@ -833,23 +572,34 @@ func (cs *CertificationSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*CertificationQuery, *CertificationSelect](ctx, cs.CertificationQuery, cs, cs.inters, v)
 }
 
-func (cs *CertificationSelect) sqlScan(ctx context.Context, root *CertificationQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(cs.fns))
-	for _, fn := range cs.fns {
-		aggregation = append(aggregation, fn(selector))
+func (cs *CertificationSelect) gremlinScan(ctx context.Context, root *CertificationQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := cs.ctx.Fields; len(fields) == 1 {
+		if fields[0] != certification.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(cs.ctx.Fields))
+		for i, f := range cs.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*cs.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := cs.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := cs.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

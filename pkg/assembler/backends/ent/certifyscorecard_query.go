@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyscorecard"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
 
 // CertifyScorecardQuery is the builder for querying CertifyScorecard entities.
@@ -25,11 +25,9 @@ type CertifyScorecardQuery struct {
 	predicates    []predicate.CertifyScorecard
 	withScorecard *ScorecardQuery
 	withSource    *SourceNameQuery
-	modifiers     []func(*sql.Selector)
-	loadTotal     []func(context.Context, []*CertifyScorecard) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the CertifyScorecardQuery builder.
@@ -66,20 +64,12 @@ func (csq *CertifyScorecardQuery) Order(o ...certifyscorecard.OrderOption) *Cert
 // QueryScorecard chains the current query on the "scorecard" edge.
 func (csq *CertifyScorecardQuery) QueryScorecard() *ScorecardQuery {
 	query := (&ScorecardClient{config: csq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := csq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := csq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyscorecard.Table, certifyscorecard.FieldID, selector),
-			sqlgraph.To(scorecard.Table, scorecard.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, certifyscorecard.ScorecardTable, certifyscorecard.ScorecardColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(csq.driver.Dialect(), step)
+		gremlin := csq.gremlinQuery(ctx)
+		fromU = gremlin.InE(scorecard.CertificationsLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -88,20 +78,12 @@ func (csq *CertifyScorecardQuery) QueryScorecard() *ScorecardQuery {
 // QuerySource chains the current query on the "source" edge.
 func (csq *CertifyScorecardQuery) QuerySource() *SourceNameQuery {
 	query := (&SourceNameClient{config: csq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := csq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := csq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyscorecard.Table, certifyscorecard.FieldID, selector),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certifyscorecard.SourceTable, certifyscorecard.SourceColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(csq.driver.Dialect(), step)
+		gremlin := csq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certifyscorecard.SourceLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -302,8 +284,8 @@ func (csq *CertifyScorecardQuery) Clone() *CertifyScorecardQuery {
 		withScorecard: csq.withScorecard.Clone(),
 		withSource:    csq.withSource.Clone(),
 		// clone intermediate query.
-		sql:  csq.sql.Clone(),
-		path: csq.path,
+		gremlin: csq.gremlin.Clone(),
+		path:    csq.path,
 	}
 }
 
@@ -388,218 +370,77 @@ func (csq *CertifyScorecardQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range csq.ctx.Fields {
-		if !certifyscorecard.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if csq.path != nil {
 		prev, err := csq.path(ctx)
 		if err != nil {
 			return err
 		}
-		csq.sql = prev
+		csq.gremlin = prev
 	}
 	return nil
 }
 
-func (csq *CertifyScorecardQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*CertifyScorecard, error) {
-	var (
-		nodes       = []*CertifyScorecard{}
-		_spec       = csq.querySpec()
-		loadedTypes = [2]bool{
-			csq.withScorecard != nil,
-			csq.withSource != nil,
+func (csq *CertifyScorecardQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*CertifyScorecard, error) {
+	res := &gremlin.Response{}
+	traversal := csq.gremlinQuery(ctx)
+	if len(csq.ctx.Fields) > 0 {
+		fields := make([]any, len(csq.ctx.Fields))
+		for i, f := range csq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*CertifyScorecard).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &CertifyScorecard{config: csq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(csq.modifiers) > 0 {
-		_spec.Modifiers = csq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, csq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := csq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var csSlice CertifyScorecards
+	if err := csSlice.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := csq.withScorecard; query != nil {
-		if err := csq.loadScorecard(ctx, query, nodes, nil,
-			func(n *CertifyScorecard, e *Scorecard) { n.Edges.Scorecard = e }); err != nil {
-			return nil, err
-		}
+	for i := range csSlice {
+		csSlice[i].config = csq.config
 	}
-	if query := csq.withSource; query != nil {
-		if err := csq.loadSource(ctx, query, nodes, nil,
-			func(n *CertifyScorecard, e *SourceName) { n.Edges.Source = e }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range csq.loadTotal {
-		if err := csq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return csSlice, nil
 }
 
-func (csq *CertifyScorecardQuery) loadScorecard(ctx context.Context, query *ScorecardQuery, nodes []*CertifyScorecard, init func(*CertifyScorecard), assign func(*CertifyScorecard, *Scorecard)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*CertifyScorecard)
-	for i := range nodes {
-		fk := nodes[i].ScorecardID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (csq *CertifyScorecardQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := csq.gremlinQuery(ctx).Count().Query()
+	if err := csq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(scorecard.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "scorecard_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (csq *CertifyScorecardQuery) loadSource(ctx context.Context, query *SourceNameQuery, nodes []*CertifyScorecard, init func(*CertifyScorecard), assign func(*CertifyScorecard, *SourceName)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*CertifyScorecard)
-	for i := range nodes {
-		fk := nodes[i].SourceID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(sourcename.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "source_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (csq *CertifyScorecardQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := csq.querySpec()
-	if len(csq.modifiers) > 0 {
-		_spec.Modifiers = csq.modifiers
-	}
-	_spec.Node.Columns = csq.ctx.Fields
-	if len(csq.ctx.Fields) > 0 {
-		_spec.Unique = csq.ctx.Unique != nil && *csq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, csq.driver, _spec)
-}
-
-func (csq *CertifyScorecardQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(certifyscorecard.Table, certifyscorecard.Columns, sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt))
-	_spec.From = csq.sql
-	if unique := csq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if csq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := csq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, certifyscorecard.FieldID)
-		for i := range fields {
-			if fields[i] != certifyscorecard.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if csq.withScorecard != nil {
-			_spec.Node.AddColumnOnce(certifyscorecard.FieldScorecardID)
-		}
-		if csq.withSource != nil {
-			_spec.Node.AddColumnOnce(certifyscorecard.FieldSourceID)
-		}
-	}
-	if ps := csq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := csq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := csq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := csq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (csq *CertifyScorecardQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(csq.driver.Dialect())
-	t1 := builder.Table(certifyscorecard.Table)
-	columns := csq.ctx.Fields
-	if len(columns) == 0 {
-		columns = certifyscorecard.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if csq.sql != nil {
-		selector = csq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if csq.ctx.Unique != nil && *csq.ctx.Unique {
-		selector.Distinct()
+func (csq *CertifyScorecardQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(certifyscorecard.Label)
+	if csq.gremlin != nil {
+		v = csq.gremlin.Clone()
 	}
 	for _, p := range csq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range csq.order {
-		p(selector)
+	if len(csq.order) > 0 {
+		v.Order()
+		for _, p := range csq.order {
+			p(v)
+		}
 	}
-	if offset := csq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := csq.ctx.Limit, csq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := csq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := csq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // CertifyScorecardGroupBy is the group-by builder for CertifyScorecard entities.
@@ -623,31 +464,38 @@ func (csgb *CertifyScorecardGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*CertifyScorecardQuery, *CertifyScorecardGroupBy](ctx, csgb.build, csgb, csgb.build.inters, v)
 }
 
-func (csgb *CertifyScorecardGroupBy) sqlScan(ctx context.Context, root *CertifyScorecardQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(csgb.fns))
+func (csgb *CertifyScorecardGroupBy) gremlinScan(ctx context.Context, root *CertifyScorecardQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range csgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*csgb.flds)+len(csgb.fns))
-		for _, f := range *csgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *csgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*csgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*csgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := csgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := csgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*csgb.flds)+len(csgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // CertifyScorecardSelect is the builder for selecting fields of CertifyScorecard entities.
@@ -671,23 +519,34 @@ func (css *CertifyScorecardSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*CertifyScorecardQuery, *CertifyScorecardSelect](ctx, css.CertifyScorecardQuery, css, css.inters, v)
 }
 
-func (css *CertifyScorecardSelect) sqlScan(ctx context.Context, root *CertifyScorecardQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(css.fns))
-	for _, fn := range css.fns {
-		aggregation = append(aggregation, fn(selector))
+func (css *CertifyScorecardSelect) gremlinScan(ctx context.Context, root *CertifyScorecardQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := css.ctx.Fields; len(fields) == 1 {
+		if fields[0] != certifyscorecard.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(css.ctx.Fields))
+		for i, f := range css.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*css.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := css.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := css.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

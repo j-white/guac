@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagenamespace"
 )
 
@@ -23,8 +21,7 @@ type PackageName struct {
 	Name string `json:"name,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the PackageNameQuery when eager-loading is set.
-	Edges        PackageNameEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges PackageNameEdges `json:"edges"`
 }
 
 // PackageNameEdges holds the relations/edges for other nodes in the graph.
@@ -36,10 +33,6 @@ type PackageNameEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
-	// totalCount holds the count of the edges above.
-	totalCount [2]map[string]int
-
-	namedVersions map[string][]*PackageVersion
 }
 
 // NamespaceOrErr returns the Namespace value or an error if the edge
@@ -64,59 +57,24 @@ func (e PackageNameEdges) VersionsOrErr() ([]*PackageVersion, error) {
 	return nil, &NotLoadedError{edge: "versions"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*PackageName) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case packagename.FieldID, packagename.FieldNamespaceID:
-			values[i] = new(sql.NullInt64)
-		case packagename.FieldName:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into PackageName.
+func (pn *PackageName) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the PackageName fields.
-func (pn *PackageName) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanpn struct {
+		ID          int    `json:"id,omitempty"`
+		NamespaceID int    `json:"namespace_id,omitempty"`
+		Name        string `json:"name,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case packagename.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			pn.ID = int(value.Int64)
-		case packagename.FieldNamespaceID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field namespace_id", values[i])
-			} else if value.Valid {
-				pn.NamespaceID = int(value.Int64)
-			}
-		case packagename.FieldName:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field name", values[i])
-			} else if value.Valid {
-				pn.Name = value.String
-			}
-		default:
-			pn.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanpn); err != nil {
+		return err
 	}
+	pn.ID = scanpn.ID
+	pn.NamespaceID = scanpn.NamespaceID
+	pn.Name = scanpn.Name
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the PackageName.
-// This includes values selected through modifiers, order, etc.
-func (pn *PackageName) Value(name string) (ent.Value, error) {
-	return pn.selectValues.Get(name)
 }
 
 // QueryNamespace queries the "namespace" edge of the PackageName entity.
@@ -161,29 +119,28 @@ func (pn *PackageName) String() string {
 	return builder.String()
 }
 
-// NamedVersions returns the Versions named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (pn *PackageName) NamedVersions(name string) ([]*PackageVersion, error) {
-	if pn.Edges.namedVersions == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := pn.Edges.namedVersions[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (pn *PackageName) appendNamedVersions(name string, edges ...*PackageVersion) {
-	if pn.Edges.namedVersions == nil {
-		pn.Edges.namedVersions = make(map[string][]*PackageVersion)
-	}
-	if len(edges) == 0 {
-		pn.Edges.namedVersions[name] = []*PackageVersion{}
-	} else {
-		pn.Edges.namedVersions[name] = append(pn.Edges.namedVersions[name], edges...)
-	}
-}
-
 // PackageNames is a parsable slice of PackageName.
 type PackageNames []*PackageName
+
+// FromResponse scans the gremlin response data into PackageNames.
+func (pn *PackageNames) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanpn []struct {
+		ID          int    `json:"id,omitempty"`
+		NamespaceID int    `json:"namespace_id,omitempty"`
+		Name        string `json:"name,omitempty"`
+	}
+	if err := vmap.Decode(&scanpn); err != nil {
+		return err
+	}
+	for _, v := range scanpn {
+		node := &PackageName{ID: v.ID}
+		node.NamespaceID = v.NamespaceID
+		node.Name = v.Name
+		*pn = append(*pn, node)
+	}
+	return nil
+}

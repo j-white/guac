@@ -7,13 +7,12 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyvuln"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
 )
 
 // CertifyVulnQuery is the builder for querying CertifyVuln entities.
@@ -25,11 +24,9 @@ type CertifyVulnQuery struct {
 	predicates        []predicate.CertifyVuln
 	withVulnerability *SecurityAdvisoryQuery
 	withPackage       *PackageVersionQuery
-	modifiers         []func(*sql.Selector)
-	loadTotal         []func(context.Context, []*CertifyVuln) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the CertifyVulnQuery builder.
@@ -66,20 +63,12 @@ func (cvq *CertifyVulnQuery) Order(o ...certifyvuln.OrderOption) *CertifyVulnQue
 // QueryVulnerability chains the current query on the "vulnerability" edge.
 func (cvq *CertifyVulnQuery) QueryVulnerability() *SecurityAdvisoryQuery {
 	query := (&SecurityAdvisoryClient{config: cvq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := cvq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := cvq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyvuln.Table, certifyvuln.FieldID, selector),
-			sqlgraph.To(securityadvisory.Table, securityadvisory.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certifyvuln.VulnerabilityTable, certifyvuln.VulnerabilityColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(cvq.driver.Dialect(), step)
+		gremlin := cvq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certifyvuln.VulnerabilityLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -88,20 +77,12 @@ func (cvq *CertifyVulnQuery) QueryVulnerability() *SecurityAdvisoryQuery {
 // QueryPackage chains the current query on the "package" edge.
 func (cvq *CertifyVulnQuery) QueryPackage() *PackageVersionQuery {
 	query := (&PackageVersionClient{config: cvq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := cvq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := cvq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyvuln.Table, certifyvuln.FieldID, selector),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certifyvuln.PackageTable, certifyvuln.PackageColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(cvq.driver.Dialect(), step)
+		gremlin := cvq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(certifyvuln.PackageLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -302,8 +283,8 @@ func (cvq *CertifyVulnQuery) Clone() *CertifyVulnQuery {
 		withVulnerability: cvq.withVulnerability.Clone(),
 		withPackage:       cvq.withPackage.Clone(),
 		// clone intermediate query.
-		sql:  cvq.sql.Clone(),
-		path: cvq.path,
+		gremlin: cvq.gremlin.Clone(),
+		path:    cvq.path,
 	}
 }
 
@@ -388,221 +369,77 @@ func (cvq *CertifyVulnQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range cvq.ctx.Fields {
-		if !certifyvuln.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if cvq.path != nil {
 		prev, err := cvq.path(ctx)
 		if err != nil {
 			return err
 		}
-		cvq.sql = prev
+		cvq.gremlin = prev
 	}
 	return nil
 }
 
-func (cvq *CertifyVulnQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*CertifyVuln, error) {
-	var (
-		nodes       = []*CertifyVuln{}
-		_spec       = cvq.querySpec()
-		loadedTypes = [2]bool{
-			cvq.withVulnerability != nil,
-			cvq.withPackage != nil,
+func (cvq *CertifyVulnQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*CertifyVuln, error) {
+	res := &gremlin.Response{}
+	traversal := cvq.gremlinQuery(ctx)
+	if len(cvq.ctx.Fields) > 0 {
+		fields := make([]any, len(cvq.ctx.Fields))
+		for i, f := range cvq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*CertifyVuln).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &CertifyVuln{config: cvq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(cvq.modifiers) > 0 {
-		_spec.Modifiers = cvq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, cvq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := cvq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var cvs CertifyVulns
+	if err := cvs.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := cvq.withVulnerability; query != nil {
-		if err := cvq.loadVulnerability(ctx, query, nodes, nil,
-			func(n *CertifyVuln, e *SecurityAdvisory) { n.Edges.Vulnerability = e }); err != nil {
-			return nil, err
-		}
+	for i := range cvs {
+		cvs[i].config = cvq.config
 	}
-	if query := cvq.withPackage; query != nil {
-		if err := cvq.loadPackage(ctx, query, nodes, nil,
-			func(n *CertifyVuln, e *PackageVersion) { n.Edges.Package = e }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range cvq.loadTotal {
-		if err := cvq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return cvs, nil
 }
 
-func (cvq *CertifyVulnQuery) loadVulnerability(ctx context.Context, query *SecurityAdvisoryQuery, nodes []*CertifyVuln, init func(*CertifyVuln), assign func(*CertifyVuln, *SecurityAdvisory)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*CertifyVuln)
-	for i := range nodes {
-		if nodes[i].VulnerabilityID == nil {
-			continue
-		}
-		fk := *nodes[i].VulnerabilityID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (cvq *CertifyVulnQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := cvq.gremlinQuery(ctx).Count().Query()
+	if err := cvq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(securityadvisory.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "vulnerability_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (cvq *CertifyVulnQuery) loadPackage(ctx context.Context, query *PackageVersionQuery, nodes []*CertifyVuln, init func(*CertifyVuln), assign func(*CertifyVuln, *PackageVersion)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*CertifyVuln)
-	for i := range nodes {
-		fk := nodes[i].PackageID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packageversion.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "package_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (cvq *CertifyVulnQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := cvq.querySpec()
-	if len(cvq.modifiers) > 0 {
-		_spec.Modifiers = cvq.modifiers
-	}
-	_spec.Node.Columns = cvq.ctx.Fields
-	if len(cvq.ctx.Fields) > 0 {
-		_spec.Unique = cvq.ctx.Unique != nil && *cvq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, cvq.driver, _spec)
-}
-
-func (cvq *CertifyVulnQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(certifyvuln.Table, certifyvuln.Columns, sqlgraph.NewFieldSpec(certifyvuln.FieldID, field.TypeInt))
-	_spec.From = cvq.sql
-	if unique := cvq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if cvq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := cvq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, certifyvuln.FieldID)
-		for i := range fields {
-			if fields[i] != certifyvuln.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if cvq.withVulnerability != nil {
-			_spec.Node.AddColumnOnce(certifyvuln.FieldVulnerabilityID)
-		}
-		if cvq.withPackage != nil {
-			_spec.Node.AddColumnOnce(certifyvuln.FieldPackageID)
-		}
-	}
-	if ps := cvq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := cvq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := cvq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := cvq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (cvq *CertifyVulnQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(cvq.driver.Dialect())
-	t1 := builder.Table(certifyvuln.Table)
-	columns := cvq.ctx.Fields
-	if len(columns) == 0 {
-		columns = certifyvuln.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if cvq.sql != nil {
-		selector = cvq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if cvq.ctx.Unique != nil && *cvq.ctx.Unique {
-		selector.Distinct()
+func (cvq *CertifyVulnQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(certifyvuln.Label)
+	if cvq.gremlin != nil {
+		v = cvq.gremlin.Clone()
 	}
 	for _, p := range cvq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range cvq.order {
-		p(selector)
+	if len(cvq.order) > 0 {
+		v.Order()
+		for _, p := range cvq.order {
+			p(v)
+		}
 	}
-	if offset := cvq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := cvq.ctx.Limit, cvq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := cvq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := cvq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // CertifyVulnGroupBy is the group-by builder for CertifyVuln entities.
@@ -626,31 +463,38 @@ func (cvgb *CertifyVulnGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*CertifyVulnQuery, *CertifyVulnGroupBy](ctx, cvgb.build, cvgb, cvgb.build.inters, v)
 }
 
-func (cvgb *CertifyVulnGroupBy) sqlScan(ctx context.Context, root *CertifyVulnQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(cvgb.fns))
+func (cvgb *CertifyVulnGroupBy) gremlinScan(ctx context.Context, root *CertifyVulnQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range cvgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*cvgb.flds)+len(cvgb.fns))
-		for _, f := range *cvgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *cvgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*cvgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*cvgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := cvgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := cvgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*cvgb.flds)+len(cvgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // CertifyVulnSelect is the builder for selecting fields of CertifyVuln entities.
@@ -674,23 +518,34 @@ func (cvs *CertifyVulnSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*CertifyVulnQuery, *CertifyVulnSelect](ctx, cvs.CertifyVulnQuery, cvs, cvs.inters, v)
 }
 
-func (cvs *CertifyVulnSelect) sqlScan(ctx context.Context, root *CertifyVulnQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(cvs.fns))
-	for _, fn := range cvs.fns {
-		aggregation = append(aggregation, fn(selector))
+func (cvs *CertifyVulnSelect) gremlinScan(ctx context.Context, root *CertifyVulnQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := cvs.ctx.Fields; len(fields) == 1 {
+		if fields[0] != certifyvuln.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(cvs.ctx.Fields))
+		for i, f := range cvs.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*cvs.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := cvs.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := cvs.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

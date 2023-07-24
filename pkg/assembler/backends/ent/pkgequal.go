@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/pkgequal"
+	"entgo.io/ent/dialect/gremlin"
 )
 
 // PkgEqual is the model entity for the PkgEqual schema.
@@ -26,8 +24,7 @@ type PkgEqual struct {
 	PackagesHash string `json:"packages_hash,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the PkgEqualQuery when eager-loading is set.
-	Edges        PkgEqualEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges PkgEqualEdges `json:"edges"`
 }
 
 // PkgEqualEdges holds the relations/edges for other nodes in the graph.
@@ -37,10 +34,6 @@ type PkgEqualEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
-	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
-
-	namedPackages map[string][]*PackageVersion
 }
 
 // PackagesOrErr returns the Packages value or an error if the edge
@@ -52,71 +45,28 @@ func (e PkgEqualEdges) PackagesOrErr() ([]*PackageVersion, error) {
 	return nil, &NotLoadedError{edge: "packages"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*PkgEqual) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case pkgequal.FieldID:
-			values[i] = new(sql.NullInt64)
-		case pkgequal.FieldOrigin, pkgequal.FieldCollector, pkgequal.FieldJustification, pkgequal.FieldPackagesHash:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into PkgEqual.
+func (pe *PkgEqual) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the PkgEqual fields.
-func (pe *PkgEqual) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanpe struct {
+		ID            int    `json:"id,omitempty"`
+		Origin        string `json:"origin,omitempty"`
+		Collector     string `json:"collector,omitempty"`
+		Justification string `json:"justification,omitempty"`
+		PackagesHash  string `json:"packages_hash,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case pkgequal.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			pe.ID = int(value.Int64)
-		case pkgequal.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				pe.Origin = value.String
-			}
-		case pkgequal.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				pe.Collector = value.String
-			}
-		case pkgequal.FieldJustification:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field justification", values[i])
-			} else if value.Valid {
-				pe.Justification = value.String
-			}
-		case pkgequal.FieldPackagesHash:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field packages_hash", values[i])
-			} else if value.Valid {
-				pe.PackagesHash = value.String
-			}
-		default:
-			pe.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanpe); err != nil {
+		return err
 	}
+	pe.ID = scanpe.ID
+	pe.Origin = scanpe.Origin
+	pe.Collector = scanpe.Collector
+	pe.Justification = scanpe.Justification
+	pe.PackagesHash = scanpe.PackagesHash
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the PkgEqual.
-// This includes values selected through modifiers, order, etc.
-func (pe *PkgEqual) Value(name string) (ent.Value, error) {
-	return pe.selectValues.Get(name)
 }
 
 // QueryPackages queries the "packages" edge of the PkgEqual entity.
@@ -162,29 +112,32 @@ func (pe *PkgEqual) String() string {
 	return builder.String()
 }
 
-// NamedPackages returns the Packages named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (pe *PkgEqual) NamedPackages(name string) ([]*PackageVersion, error) {
-	if pe.Edges.namedPackages == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := pe.Edges.namedPackages[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (pe *PkgEqual) appendNamedPackages(name string, edges ...*PackageVersion) {
-	if pe.Edges.namedPackages == nil {
-		pe.Edges.namedPackages = make(map[string][]*PackageVersion)
-	}
-	if len(edges) == 0 {
-		pe.Edges.namedPackages[name] = []*PackageVersion{}
-	} else {
-		pe.Edges.namedPackages[name] = append(pe.Edges.namedPackages[name], edges...)
-	}
-}
-
 // PkgEquals is a parsable slice of PkgEqual.
 type PkgEquals []*PkgEqual
+
+// FromResponse scans the gremlin response data into PkgEquals.
+func (pe *PkgEquals) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanpe []struct {
+		ID            int    `json:"id,omitempty"`
+		Origin        string `json:"origin,omitempty"`
+		Collector     string `json:"collector,omitempty"`
+		Justification string `json:"justification,omitempty"`
+		PackagesHash  string `json:"packages_hash,omitempty"`
+	}
+	if err := vmap.Decode(&scanpe); err != nil {
+		return err
+	}
+	for _, v := range scanpe {
+		node := &PkgEqual{ID: v.ID}
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		node.Justification = v.Justification
+		node.PackagesHash = v.PackagesHash
+		*pe = append(*pe, node)
+	}
+	return nil
+}

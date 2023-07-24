@@ -3,160 +3,216 @@
 package builder
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldEQ(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldEQ(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldNEQ(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.Builder {
-	return predicate.Builder(sql.FieldIn(FieldID, ids...))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.Builder {
-	return predicate.Builder(sql.FieldNotIn(FieldID, ids...))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldGT(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldGTE(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldLT(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.Builder {
-	return predicate.Builder(sql.FieldLTE(FieldID, id))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // URI applies equality check predicate on the "uri" field. It's identical to URIEQ.
 func URI(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldEQ(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.EQ(v))
+	})
 }
 
 // URIEQ applies the EQ predicate on the "uri" field.
 func URIEQ(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldEQ(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.EQ(v))
+	})
 }
 
 // URINEQ applies the NEQ predicate on the "uri" field.
 func URINEQ(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldNEQ(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.NEQ(v))
+	})
 }
 
 // URIIn applies the In predicate on the "uri" field.
 func URIIn(vs ...string) predicate.Builder {
-	return predicate.Builder(sql.FieldIn(FieldURI, vs...))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.Within(vs...))
+	})
 }
 
 // URINotIn applies the NotIn predicate on the "uri" field.
 func URINotIn(vs ...string) predicate.Builder {
-	return predicate.Builder(sql.FieldNotIn(FieldURI, vs...))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.Without(vs...))
+	})
 }
 
 // URIGT applies the GT predicate on the "uri" field.
 func URIGT(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldGT(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.GT(v))
+	})
 }
 
 // URIGTE applies the GTE predicate on the "uri" field.
 func URIGTE(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldGTE(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.GTE(v))
+	})
 }
 
 // URILT applies the LT predicate on the "uri" field.
 func URILT(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldLT(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.LT(v))
+	})
 }
 
 // URILTE applies the LTE predicate on the "uri" field.
 func URILTE(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldLTE(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.LTE(v))
+	})
 }
 
 // URIContains applies the Contains predicate on the "uri" field.
 func URIContains(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldContains(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.Containing(v))
+	})
 }
 
 // URIHasPrefix applies the HasPrefix predicate on the "uri" field.
 func URIHasPrefix(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldHasPrefix(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.StartingWith(v))
+	})
 }
 
 // URIHasSuffix applies the HasSuffix predicate on the "uri" field.
 func URIHasSuffix(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldHasSuffix(FieldURI, v))
-}
-
-// URIEqualFold applies the EqualFold predicate on the "uri" field.
-func URIEqualFold(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldEqualFold(FieldURI, v))
-}
-
-// URIContainsFold applies the ContainsFold predicate on the "uri" field.
-func URIContainsFold(v string) predicate.Builder {
-	return predicate.Builder(sql.FieldContainsFold(FieldURI, v))
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.Has(Label, FieldURI, p.EndingWith(v))
+	})
 }
 
 // HasSlsaAttestations applies the HasEdge predicate on the "slsa_attestations" edge.
 func HasSlsaAttestations() predicate.Builder {
-	return predicate.Builder(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, SlsaAttestationsTable, SlsaAttestationsColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Builder(func(t *dsl.Traversal) {
+		t.InE(SlsaAttestationsInverseLabel).InV()
 	})
 }
 
 // HasSlsaAttestationsWith applies the HasEdge predicate on the "slsa_attestations" edge with a given conditions (other predicates).
 func HasSlsaAttestationsWith(preds ...predicate.SLSAAttestation) predicate.Builder {
-	return predicate.Builder(func(s *sql.Selector) {
-		step := newSlsaAttestationsStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Builder(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(SlsaAttestationsInverseLabel).Where(tr).InV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Builder) predicate.Builder {
-	return predicate.Builder(sql.AndPredicates(predicates...))
+	return predicate.Builder(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Builder) predicate.Builder {
-	return predicate.Builder(sql.OrPredicates(predicates...))
+	return predicate.Builder(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.Builder) predicate.Builder {
-	return predicate.Builder(sql.NotPredicates(p))
+	return predicate.Builder(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

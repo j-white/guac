@@ -4,13 +4,13 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
@@ -22,23 +22,17 @@ import (
 // ArtifactQuery is the builder for querying Artifact entities.
 type ArtifactQuery struct {
 	config
-	ctx                   *QueryContext
-	order                 []artifact.OrderOption
-	inters                []Interceptor
-	predicates            []predicate.Artifact
-	withOccurrences       *OccurrenceQuery
-	withSbom              *BillOfMaterialsQuery
-	withAttestations      *SLSAAttestationQuery
-	withSame              *HashEqualQuery
-	modifiers             []func(*sql.Selector)
-	loadTotal             []func(context.Context, []*Artifact) error
-	withNamedOccurrences  map[string]*OccurrenceQuery
-	withNamedSbom         map[string]*BillOfMaterialsQuery
-	withNamedAttestations map[string]*SLSAAttestationQuery
-	withNamedSame         map[string]*HashEqualQuery
+	ctx              *QueryContext
+	order            []artifact.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.Artifact
+	withOccurrences  *OccurrenceQuery
+	withSbom         *BillOfMaterialsQuery
+	withAttestations *SLSAAttestationQuery
+	withSame         *HashEqualQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the ArtifactQuery builder.
@@ -75,20 +69,12 @@ func (aq *ArtifactQuery) Order(o ...artifact.OrderOption) *ArtifactQuery {
 // QueryOccurrences chains the current query on the "occurrences" edge.
 func (aq *ArtifactQuery) QueryOccurrences() *OccurrenceQuery {
 	query := (&OccurrenceClient{config: aq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := aq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := aq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, selector),
-			sqlgraph.To(occurrence.Table, occurrence.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, artifact.OccurrencesTable, artifact.OccurrencesColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(aq.driver.Dialect(), step)
+		gremlin := aq.gremlinQuery(ctx)
+		fromU = gremlin.InE(occurrence.ArtifactLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -97,20 +83,12 @@ func (aq *ArtifactQuery) QueryOccurrences() *OccurrenceQuery {
 // QuerySbom chains the current query on the "sbom" edge.
 func (aq *ArtifactQuery) QuerySbom() *BillOfMaterialsQuery {
 	query := (&BillOfMaterialsClient{config: aq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := aq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := aq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, selector),
-			sqlgraph.To(billofmaterials.Table, billofmaterials.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, artifact.SbomTable, artifact.SbomColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(aq.driver.Dialect(), step)
+		gremlin := aq.gremlinQuery(ctx)
+		fromU = gremlin.InE(billofmaterials.ArtifactLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -119,20 +97,12 @@ func (aq *ArtifactQuery) QuerySbom() *BillOfMaterialsQuery {
 // QueryAttestations chains the current query on the "attestations" edge.
 func (aq *ArtifactQuery) QueryAttestations() *SLSAAttestationQuery {
 	query := (&SLSAAttestationClient{config: aq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := aq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := aq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, selector),
-			sqlgraph.To(slsaattestation.Table, slsaattestation.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, artifact.AttestationsTable, artifact.AttestationsPrimaryKey...),
-		)
-		fromU = sqlgraph.SetNeighbors(aq.driver.Dialect(), step)
+		gremlin := aq.gremlinQuery(ctx)
+		fromU = gremlin.InE(slsaattestation.BuiltFromLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -141,20 +111,12 @@ func (aq *ArtifactQuery) QueryAttestations() *SLSAAttestationQuery {
 // QuerySame chains the current query on the "same" edge.
 func (aq *ArtifactQuery) QuerySame() *HashEqualQuery {
 	query := (&HashEqualClient{config: aq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := aq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := aq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, selector),
-			sqlgraph.To(hashequal.Table, hashequal.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, artifact.SameTable, artifact.SamePrimaryKey...),
-		)
-		fromU = sqlgraph.SetNeighbors(aq.driver.Dialect(), step)
+		gremlin := aq.gremlinQuery(ctx)
+		fromU = gremlin.InE(hashequal.ArtifactsLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -357,8 +319,8 @@ func (aq *ArtifactQuery) Clone() *ArtifactQuery {
 		withAttestations: aq.withAttestations.Clone(),
 		withSame:         aq.withSame.Clone(),
 		// clone intermediate query.
-		sql:  aq.sql.Clone(),
-		path: aq.path,
+		gremlin: aq.gremlin.Clone(),
+		path:    aq.path,
 	}
 }
 
@@ -465,441 +427,77 @@ func (aq *ArtifactQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range aq.ctx.Fields {
-		if !artifact.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if aq.path != nil {
 		prev, err := aq.path(ctx)
 		if err != nil {
 			return err
 		}
-		aq.sql = prev
+		aq.gremlin = prev
 	}
 	return nil
 }
 
-func (aq *ArtifactQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Artifact, error) {
-	var (
-		nodes       = []*Artifact{}
-		_spec       = aq.querySpec()
-		loadedTypes = [4]bool{
-			aq.withOccurrences != nil,
-			aq.withSbom != nil,
-			aq.withAttestations != nil,
-			aq.withSame != nil,
+func (aq *ArtifactQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*Artifact, error) {
+	res := &gremlin.Response{}
+	traversal := aq.gremlinQuery(ctx)
+	if len(aq.ctx.Fields) > 0 {
+		fields := make([]any, len(aq.ctx.Fields))
+		for i, f := range aq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*Artifact).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &Artifact{config: aq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(aq.modifiers) > 0 {
-		_spec.Modifiers = aq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, aq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := aq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var as Artifacts
+	if err := as.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := aq.withOccurrences; query != nil {
-		if err := aq.loadOccurrences(ctx, query, nodes,
-			func(n *Artifact) { n.Edges.Occurrences = []*Occurrence{} },
-			func(n *Artifact, e *Occurrence) { n.Edges.Occurrences = append(n.Edges.Occurrences, e) }); err != nil {
-			return nil, err
-		}
+	for i := range as {
+		as[i].config = aq.config
 	}
-	if query := aq.withSbom; query != nil {
-		if err := aq.loadSbom(ctx, query, nodes,
-			func(n *Artifact) { n.Edges.Sbom = []*BillOfMaterials{} },
-			func(n *Artifact, e *BillOfMaterials) { n.Edges.Sbom = append(n.Edges.Sbom, e) }); err != nil {
-			return nil, err
-		}
-	}
-	if query := aq.withAttestations; query != nil {
-		if err := aq.loadAttestations(ctx, query, nodes,
-			func(n *Artifact) { n.Edges.Attestations = []*SLSAAttestation{} },
-			func(n *Artifact, e *SLSAAttestation) { n.Edges.Attestations = append(n.Edges.Attestations, e) }); err != nil {
-			return nil, err
-		}
-	}
-	if query := aq.withSame; query != nil {
-		if err := aq.loadSame(ctx, query, nodes,
-			func(n *Artifact) { n.Edges.Same = []*HashEqual{} },
-			func(n *Artifact, e *HashEqual) { n.Edges.Same = append(n.Edges.Same, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range aq.withNamedOccurrences {
-		if err := aq.loadOccurrences(ctx, query, nodes,
-			func(n *Artifact) { n.appendNamedOccurrences(name) },
-			func(n *Artifact, e *Occurrence) { n.appendNamedOccurrences(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range aq.withNamedSbom {
-		if err := aq.loadSbom(ctx, query, nodes,
-			func(n *Artifact) { n.appendNamedSbom(name) },
-			func(n *Artifact, e *BillOfMaterials) { n.appendNamedSbom(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range aq.withNamedAttestations {
-		if err := aq.loadAttestations(ctx, query, nodes,
-			func(n *Artifact) { n.appendNamedAttestations(name) },
-			func(n *Artifact, e *SLSAAttestation) { n.appendNamedAttestations(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range aq.withNamedSame {
-		if err := aq.loadSame(ctx, query, nodes,
-			func(n *Artifact) { n.appendNamedSame(name) },
-			func(n *Artifact, e *HashEqual) { n.appendNamedSame(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range aq.loadTotal {
-		if err := aq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return as, nil
 }
 
-func (aq *ArtifactQuery) loadOccurrences(ctx context.Context, query *OccurrenceQuery, nodes []*Artifact, init func(*Artifact), assign func(*Artifact, *Occurrence)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int]*Artifact)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
+func (aq *ArtifactQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := aq.gremlinQuery(ctx).Count().Query()
+	if err := aq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(occurrence.FieldArtifactID)
-	}
-	query.Where(predicate.Occurrence(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(artifact.OccurrencesColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.ArtifactID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "artifact_id" returned %v for node %v`, fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (aq *ArtifactQuery) loadSbom(ctx context.Context, query *BillOfMaterialsQuery, nodes []*Artifact, init func(*Artifact), assign func(*Artifact, *BillOfMaterials)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int]*Artifact)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(billofmaterials.FieldArtifactID)
-	}
-	query.Where(predicate.BillOfMaterials(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(artifact.SbomColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.ArtifactID
-		if fk == nil {
-			return fmt.Errorf(`foreign-key "artifact_id" is nil for node %v`, n.ID)
-		}
-		node, ok := nodeids[*fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "artifact_id" returned %v for node %v`, *fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (aq *ArtifactQuery) loadAttestations(ctx context.Context, query *SLSAAttestationQuery, nodes []*Artifact, init func(*Artifact), assign func(*Artifact, *SLSAAttestation)) error {
-	edgeIDs := make([]driver.Value, len(nodes))
-	byID := make(map[int]*Artifact)
-	nids := make(map[int]map[*Artifact]struct{})
-	for i, node := range nodes {
-		edgeIDs[i] = node.ID
-		byID[node.ID] = node
-		if init != nil {
-			init(node)
-		}
-	}
-	query.Where(func(s *sql.Selector) {
-		joinT := sql.Table(artifact.AttestationsTable)
-		s.Join(joinT).On(s.C(slsaattestation.FieldID), joinT.C(artifact.AttestationsPrimaryKey[0]))
-		s.Where(sql.InValues(joinT.C(artifact.AttestationsPrimaryKey[1]), edgeIDs...))
-		columns := s.SelectedColumns()
-		s.Select(joinT.C(artifact.AttestationsPrimaryKey[1]))
-		s.AppendSelect(columns...)
-		s.SetDistinct(false)
-	})
-	if err := query.prepareQuery(ctx); err != nil {
-		return err
-	}
-	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
-		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
-			assign := spec.Assign
-			values := spec.ScanValues
-			spec.ScanValues = func(columns []string) ([]any, error) {
-				values, err := values(columns[1:])
-				if err != nil {
-					return nil, err
-				}
-				return append([]any{new(sql.NullInt64)}, values...), nil
-			}
-			spec.Assign = func(columns []string, values []any) error {
-				outValue := int(values[0].(*sql.NullInt64).Int64)
-				inValue := int(values[1].(*sql.NullInt64).Int64)
-				if nids[inValue] == nil {
-					nids[inValue] = map[*Artifact]struct{}{byID[outValue]: {}}
-					return assign(columns[1:], values[1:])
-				}
-				nids[inValue][byID[outValue]] = struct{}{}
-				return nil
-			}
-		})
-	})
-	neighbors, err := withInterceptors[[]*SLSAAttestation](ctx, query, qr, query.inters)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected "attestations" node returned %v`, n.ID)
-		}
-		for kn := range nodes {
-			assign(kn, n)
-		}
-	}
-	return nil
-}
-func (aq *ArtifactQuery) loadSame(ctx context.Context, query *HashEqualQuery, nodes []*Artifact, init func(*Artifact), assign func(*Artifact, *HashEqual)) error {
-	edgeIDs := make([]driver.Value, len(nodes))
-	byID := make(map[int]*Artifact)
-	nids := make(map[int]map[*Artifact]struct{})
-	for i, node := range nodes {
-		edgeIDs[i] = node.ID
-		byID[node.ID] = node
-		if init != nil {
-			init(node)
-		}
-	}
-	query.Where(func(s *sql.Selector) {
-		joinT := sql.Table(artifact.SameTable)
-		s.Join(joinT).On(s.C(hashequal.FieldID), joinT.C(artifact.SamePrimaryKey[0]))
-		s.Where(sql.InValues(joinT.C(artifact.SamePrimaryKey[1]), edgeIDs...))
-		columns := s.SelectedColumns()
-		s.Select(joinT.C(artifact.SamePrimaryKey[1]))
-		s.AppendSelect(columns...)
-		s.SetDistinct(false)
-	})
-	if err := query.prepareQuery(ctx); err != nil {
-		return err
-	}
-	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
-		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
-			assign := spec.Assign
-			values := spec.ScanValues
-			spec.ScanValues = func(columns []string) ([]any, error) {
-				values, err := values(columns[1:])
-				if err != nil {
-					return nil, err
-				}
-				return append([]any{new(sql.NullInt64)}, values...), nil
-			}
-			spec.Assign = func(columns []string, values []any) error {
-				outValue := int(values[0].(*sql.NullInt64).Int64)
-				inValue := int(values[1].(*sql.NullInt64).Int64)
-				if nids[inValue] == nil {
-					nids[inValue] = map[*Artifact]struct{}{byID[outValue]: {}}
-					return assign(columns[1:], values[1:])
-				}
-				nids[inValue][byID[outValue]] = struct{}{}
-				return nil
-			}
-		})
-	})
-	neighbors, err := withInterceptors[[]*HashEqual](ctx, query, qr, query.inters)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected "same" node returned %v`, n.ID)
-		}
-		for kn := range nodes {
-			assign(kn, n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (aq *ArtifactQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := aq.querySpec()
-	if len(aq.modifiers) > 0 {
-		_spec.Modifiers = aq.modifiers
-	}
-	_spec.Node.Columns = aq.ctx.Fields
-	if len(aq.ctx.Fields) > 0 {
-		_spec.Unique = aq.ctx.Unique != nil && *aq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, aq.driver, _spec)
-}
-
-func (aq *ArtifactQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(artifact.Table, artifact.Columns, sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt))
-	_spec.From = aq.sql
-	if unique := aq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if aq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := aq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, artifact.FieldID)
-		for i := range fields {
-			if fields[i] != artifact.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-	}
-	if ps := aq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := aq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := aq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := aq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (aq *ArtifactQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(aq.driver.Dialect())
-	t1 := builder.Table(artifact.Table)
-	columns := aq.ctx.Fields
-	if len(columns) == 0 {
-		columns = artifact.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if aq.sql != nil {
-		selector = aq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if aq.ctx.Unique != nil && *aq.ctx.Unique {
-		selector.Distinct()
+func (aq *ArtifactQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(artifact.Label)
+	if aq.gremlin != nil {
+		v = aq.gremlin.Clone()
 	}
 	for _, p := range aq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range aq.order {
-		p(selector)
+	if len(aq.order) > 0 {
+		v.Order()
+		for _, p := range aq.order {
+			p(v)
+		}
 	}
-	if offset := aq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := aq.ctx.Limit, aq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := aq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := aq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedOccurrences tells the query-builder to eager-load the nodes that are connected to the "occurrences"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (aq *ArtifactQuery) WithNamedOccurrences(name string, opts ...func(*OccurrenceQuery)) *ArtifactQuery {
-	query := (&OccurrenceClient{config: aq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if aq.withNamedOccurrences == nil {
-		aq.withNamedOccurrences = make(map[string]*OccurrenceQuery)
-	}
-	aq.withNamedOccurrences[name] = query
-	return aq
-}
-
-// WithNamedSbom tells the query-builder to eager-load the nodes that are connected to the "sbom"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (aq *ArtifactQuery) WithNamedSbom(name string, opts ...func(*BillOfMaterialsQuery)) *ArtifactQuery {
-	query := (&BillOfMaterialsClient{config: aq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if aq.withNamedSbom == nil {
-		aq.withNamedSbom = make(map[string]*BillOfMaterialsQuery)
-	}
-	aq.withNamedSbom[name] = query
-	return aq
-}
-
-// WithNamedAttestations tells the query-builder to eager-load the nodes that are connected to the "attestations"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (aq *ArtifactQuery) WithNamedAttestations(name string, opts ...func(*SLSAAttestationQuery)) *ArtifactQuery {
-	query := (&SLSAAttestationClient{config: aq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if aq.withNamedAttestations == nil {
-		aq.withNamedAttestations = make(map[string]*SLSAAttestationQuery)
-	}
-	aq.withNamedAttestations[name] = query
-	return aq
-}
-
-// WithNamedSame tells the query-builder to eager-load the nodes that are connected to the "same"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (aq *ArtifactQuery) WithNamedSame(name string, opts ...func(*HashEqualQuery)) *ArtifactQuery {
-	query := (&HashEqualClient{config: aq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if aq.withNamedSame == nil {
-		aq.withNamedSame = make(map[string]*HashEqualQuery)
-	}
-	aq.withNamedSame[name] = query
-	return aq
+	return v
 }
 
 // ArtifactGroupBy is the group-by builder for Artifact entities.
@@ -923,31 +521,38 @@ func (agb *ArtifactGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*ArtifactQuery, *ArtifactGroupBy](ctx, agb.build, agb, agb.build.inters, v)
 }
 
-func (agb *ArtifactGroupBy) sqlScan(ctx context.Context, root *ArtifactQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(agb.fns))
+func (agb *ArtifactGroupBy) gremlinScan(ctx context.Context, root *ArtifactQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range agb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*agb.flds)+len(agb.fns))
-		for _, f := range *agb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *agb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*agb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*agb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := agb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := agb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*agb.flds)+len(agb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // ArtifactSelect is the builder for selecting fields of Artifact entities.
@@ -971,23 +576,34 @@ func (as *ArtifactSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*ArtifactQuery, *ArtifactSelect](ctx, as.ArtifactQuery, as, as.inters, v)
 }
 
-func (as *ArtifactSelect) sqlScan(ctx context.Context, root *ArtifactQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(as.fns))
-	for _, fn := range as.fns {
-		aggregation = append(aggregation, fn(selector))
+func (as *ArtifactSelect) gremlinScan(ctx context.Context, root *ArtifactQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := as.ctx.Fields; len(fields) == 1 {
+		if fields[0] != artifact.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(as.ctx.Fields))
+		for i, f := range as.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*as.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := as.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := as.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

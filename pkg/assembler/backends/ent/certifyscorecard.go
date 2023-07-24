@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyscorecard"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
@@ -24,8 +22,7 @@ type CertifyScorecard struct {
 	ScorecardID int `json:"scorecard_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the CertifyScorecardQuery when eager-loading is set.
-	Edges        CertifyScorecardEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges CertifyScorecardEdges `json:"edges"`
 }
 
 // CertifyScorecardEdges holds the relations/edges for other nodes in the graph.
@@ -37,8 +34,6 @@ type CertifyScorecardEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
-	// totalCount holds the count of the edges above.
-	totalCount [2]map[string]int
 }
 
 // ScorecardOrErr returns the Scorecard value or an error if the edge
@@ -67,57 +62,24 @@ func (e CertifyScorecardEdges) SourceOrErr() (*SourceName, error) {
 	return nil, &NotLoadedError{edge: "source"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*CertifyScorecard) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case certifyscorecard.FieldID, certifyscorecard.FieldSourceID, certifyscorecard.FieldScorecardID:
-			values[i] = new(sql.NullInt64)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into CertifyScorecard.
+func (cs *CertifyScorecard) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the CertifyScorecard fields.
-func (cs *CertifyScorecard) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scancs struct {
+		ID          int `json:"id,omitempty"`
+		SourceID    int `json:"source_id,omitempty"`
+		ScorecardID int `json:"scorecard_id,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case certifyscorecard.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			cs.ID = int(value.Int64)
-		case certifyscorecard.FieldSourceID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field source_id", values[i])
-			} else if value.Valid {
-				cs.SourceID = int(value.Int64)
-			}
-		case certifyscorecard.FieldScorecardID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field scorecard_id", values[i])
-			} else if value.Valid {
-				cs.ScorecardID = int(value.Int64)
-			}
-		default:
-			cs.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scancs); err != nil {
+		return err
 	}
+	cs.ID = scancs.ID
+	cs.SourceID = scancs.SourceID
+	cs.ScorecardID = scancs.ScorecardID
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the CertifyScorecard.
-// This includes values selected through modifiers, order, etc.
-func (cs *CertifyScorecard) Value(name string) (ent.Value, error) {
-	return cs.selectValues.Get(name)
 }
 
 // QueryScorecard queries the "scorecard" edge of the CertifyScorecard entity.
@@ -164,3 +126,26 @@ func (cs *CertifyScorecard) String() string {
 
 // CertifyScorecards is a parsable slice of CertifyScorecard.
 type CertifyScorecards []*CertifyScorecard
+
+// FromResponse scans the gremlin response data into CertifyScorecards.
+func (cs *CertifyScorecards) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scancs []struct {
+		ID          int `json:"id,omitempty"`
+		SourceID    int `json:"source_id,omitempty"`
+		ScorecardID int `json:"scorecard_id,omitempty"`
+	}
+	if err := vmap.Decode(&scancs); err != nil {
+		return err
+	}
+	for _, v := range scancs {
+		node := &CertifyScorecard{ID: v.ID}
+		node.SourceID = v.SourceID
+		node.ScorecardID = v.ScorecardID
+		*cs = append(*cs, node)
+	}
+	return nil
+}

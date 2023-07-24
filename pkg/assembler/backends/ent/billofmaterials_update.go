@@ -5,14 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
@@ -134,7 +132,7 @@ func (bomu *BillOfMaterialsUpdate) ClearArtifact() *BillOfMaterialsUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (bomu *BillOfMaterialsUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, bomu.sqlSave, bomu.mutation, bomu.hooks)
+	return withHooks(ctx, bomu.gremlinSave, bomu.mutation, bomu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -159,101 +157,69 @@ func (bomu *BillOfMaterialsUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-func (bomu *BillOfMaterialsUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(billofmaterials.Table, billofmaterials.Columns, sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt))
-	if ps := bomu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+func (bomu *BillOfMaterialsUpdate) gremlinSave(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := bomu.gremlin().Query()
+	if err := bomu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := bomu.mutation.URI(); ok {
-		_spec.SetField(billofmaterials.FieldURI, field.TypeString, value)
-	}
-	if value, ok := bomu.mutation.Algorithm(); ok {
-		_spec.SetField(billofmaterials.FieldAlgorithm, field.TypeString, value)
-	}
-	if value, ok := bomu.mutation.Digest(); ok {
-		_spec.SetField(billofmaterials.FieldDigest, field.TypeString, value)
-	}
-	if value, ok := bomu.mutation.DownloadLocation(); ok {
-		_spec.SetField(billofmaterials.FieldDownloadLocation, field.TypeString, value)
-	}
-	if value, ok := bomu.mutation.Origin(); ok {
-		_spec.SetField(billofmaterials.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := bomu.mutation.Collector(); ok {
-		_spec.SetField(billofmaterials.FieldCollector, field.TypeString, value)
-	}
-	if bomu.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.PackageTable,
-			Columns: []string{billofmaterials.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := bomu.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.PackageTable,
-			Columns: []string{billofmaterials.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if bomu.mutation.ArtifactCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.ArtifactTable,
-			Columns: []string{billofmaterials.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := bomu.mutation.ArtifactIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.ArtifactTable,
-			Columns: []string{billofmaterials.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, bomu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{billofmaterials.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	bomu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (bomu *BillOfMaterialsUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(billofmaterials.Label)
+	for _, p := range bomu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := bomu.mutation.URI(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldURI, value)
+	}
+	if value, ok := bomu.mutation.Algorithm(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldAlgorithm, value)
+	}
+	if value, ok := bomu.mutation.Digest(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldDigest, value)
+	}
+	if value, ok := bomu.mutation.DownloadLocation(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldDownloadLocation, value)
+	}
+	if value, ok := bomu.mutation.Origin(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldOrigin, value)
+	}
+	if value, ok := bomu.mutation.Collector(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if bomu.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(billofmaterials.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range bomu.mutation.PackageIDs() {
+		v.AddE(billofmaterials.PackageLabel).To(g.V(id)).OutV()
+	}
+	if bomu.mutation.ArtifactCleared() {
+		tr := rv.Clone().OutE(billofmaterials.ArtifactLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range bomu.mutation.ArtifactIDs() {
+		v.AddE(billofmaterials.ArtifactLabel).To(g.V(id)).OutV()
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // BillOfMaterialsUpdateOne is the builder for updating a single BillOfMaterials entity.
@@ -382,7 +348,7 @@ func (bomuo *BillOfMaterialsUpdateOne) Select(field string, fields ...string) *B
 
 // Save executes the query and returns the updated BillOfMaterials entity.
 func (bomuo *BillOfMaterialsUpdateOne) Save(ctx context.Context) (*BillOfMaterials, error) {
-	return withHooks(ctx, bomuo.sqlSave, bomuo.mutation, bomuo.hooks)
+	return withHooks(ctx, bomuo.gremlinSave, bomuo.mutation, bomuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -407,119 +373,81 @@ func (bomuo *BillOfMaterialsUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-func (bomuo *BillOfMaterialsUpdateOne) sqlSave(ctx context.Context) (_node *BillOfMaterials, err error) {
-	_spec := sqlgraph.NewUpdateSpec(billofmaterials.Table, billofmaterials.Columns, sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt))
+func (bomuo *BillOfMaterialsUpdateOne) gremlinSave(ctx context.Context) (*BillOfMaterials, error) {
+	res := &gremlin.Response{}
 	id, ok := bomuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "BillOfMaterials.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := bomuo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, billofmaterials.FieldID)
-		for _, f := range fields {
-			if !billofmaterials.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != billofmaterials.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := bomuo.gremlin(id).Query()
+	if err := bomuo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := bomuo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := bomuo.mutation.URI(); ok {
-		_spec.SetField(billofmaterials.FieldURI, field.TypeString, value)
-	}
-	if value, ok := bomuo.mutation.Algorithm(); ok {
-		_spec.SetField(billofmaterials.FieldAlgorithm, field.TypeString, value)
-	}
-	if value, ok := bomuo.mutation.Digest(); ok {
-		_spec.SetField(billofmaterials.FieldDigest, field.TypeString, value)
-	}
-	if value, ok := bomuo.mutation.DownloadLocation(); ok {
-		_spec.SetField(billofmaterials.FieldDownloadLocation, field.TypeString, value)
-	}
-	if value, ok := bomuo.mutation.Origin(); ok {
-		_spec.SetField(billofmaterials.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := bomuo.mutation.Collector(); ok {
-		_spec.SetField(billofmaterials.FieldCollector, field.TypeString, value)
-	}
-	if bomuo.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.PackageTable,
-			Columns: []string{billofmaterials.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := bomuo.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.PackageTable,
-			Columns: []string{billofmaterials.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if bomuo.mutation.ArtifactCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.ArtifactTable,
-			Columns: []string{billofmaterials.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := bomuo.mutation.ArtifactIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   billofmaterials.ArtifactTable,
-			Columns: []string{billofmaterials.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &BillOfMaterials{config: bomuo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, bomuo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{billofmaterials.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	bomuo.mutation.done = true
-	return _node, nil
+	bom := &BillOfMaterials{config: bomuo.config}
+	if err := bom.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return bom, nil
+}
+
+func (bomuo *BillOfMaterialsUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := bomuo.mutation.URI(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldURI, value)
+	}
+	if value, ok := bomuo.mutation.Algorithm(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldAlgorithm, value)
+	}
+	if value, ok := bomuo.mutation.Digest(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldDigest, value)
+	}
+	if value, ok := bomuo.mutation.DownloadLocation(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldDownloadLocation, value)
+	}
+	if value, ok := bomuo.mutation.Origin(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldOrigin, value)
+	}
+	if value, ok := bomuo.mutation.Collector(); ok {
+		v.Property(dsl.Single, billofmaterials.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if bomuo.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(billofmaterials.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range bomuo.mutation.PackageIDs() {
+		v.AddE(billofmaterials.PackageLabel).To(g.V(id)).OutV()
+	}
+	if bomuo.mutation.ArtifactCleared() {
+		tr := rv.Clone().OutE(billofmaterials.ArtifactLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range bomuo.mutation.ArtifactIDs() {
+		v.AddE(billofmaterials.ArtifactLabel).To(g.V(id)).OutV()
+	}
+	if len(bomuo.fields) > 0 {
+		fields := make([]any, 0, len(bomuo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range bomuo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

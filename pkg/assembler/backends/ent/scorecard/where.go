@@ -5,460 +5,594 @@ package scorecard
 import (
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldID, ids...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldID, ids...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldID, id))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // AggregateScore applies equality check predicate on the "aggregate_score" field. It's identical to AggregateScoreEQ.
 func AggregateScore(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.EQ(v))
+	})
 }
 
 // TimeScanned applies equality check predicate on the "time_scanned" field. It's identical to TimeScannedEQ.
 func TimeScanned(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.EQ(v))
+	})
 }
 
 // ScorecardVersion applies equality check predicate on the "scorecard_version" field. It's identical to ScorecardVersionEQ.
 func ScorecardVersion(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.EQ(v))
+	})
 }
 
 // ScorecardCommit applies equality check predicate on the "scorecard_commit" field. It's identical to ScorecardCommitEQ.
 func ScorecardCommit(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // AggregateScoreEQ applies the EQ predicate on the "aggregate_score" field.
 func AggregateScoreEQ(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.EQ(v))
+	})
 }
 
 // AggregateScoreNEQ applies the NEQ predicate on the "aggregate_score" field.
 func AggregateScoreNEQ(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.NEQ(v))
+	})
 }
 
 // AggregateScoreIn applies the In predicate on the "aggregate_score" field.
 func AggregateScoreIn(vs ...float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldAggregateScore, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.Within(vs...))
+	})
 }
 
 // AggregateScoreNotIn applies the NotIn predicate on the "aggregate_score" field.
 func AggregateScoreNotIn(vs ...float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldAggregateScore, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.Without(vs...))
+	})
 }
 
 // AggregateScoreGT applies the GT predicate on the "aggregate_score" field.
 func AggregateScoreGT(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.GT(v))
+	})
 }
 
 // AggregateScoreGTE applies the GTE predicate on the "aggregate_score" field.
 func AggregateScoreGTE(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.GTE(v))
+	})
 }
 
 // AggregateScoreLT applies the LT predicate on the "aggregate_score" field.
 func AggregateScoreLT(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.LT(v))
+	})
 }
 
 // AggregateScoreLTE applies the LTE predicate on the "aggregate_score" field.
 func AggregateScoreLTE(v float64) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldAggregateScore, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAggregateScore, p.LTE(v))
+	})
 }
 
 // TimeScannedEQ applies the EQ predicate on the "time_scanned" field.
 func TimeScannedEQ(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.EQ(v))
+	})
 }
 
 // TimeScannedNEQ applies the NEQ predicate on the "time_scanned" field.
 func TimeScannedNEQ(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.NEQ(v))
+	})
 }
 
 // TimeScannedIn applies the In predicate on the "time_scanned" field.
 func TimeScannedIn(vs ...time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldTimeScanned, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.Within(vs...))
+	})
 }
 
 // TimeScannedNotIn applies the NotIn predicate on the "time_scanned" field.
 func TimeScannedNotIn(vs ...time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldTimeScanned, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.Without(vs...))
+	})
 }
 
 // TimeScannedGT applies the GT predicate on the "time_scanned" field.
 func TimeScannedGT(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.GT(v))
+	})
 }
 
 // TimeScannedGTE applies the GTE predicate on the "time_scanned" field.
 func TimeScannedGTE(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.GTE(v))
+	})
 }
 
 // TimeScannedLT applies the LT predicate on the "time_scanned" field.
 func TimeScannedLT(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.LT(v))
+	})
 }
 
 // TimeScannedLTE applies the LTE predicate on the "time_scanned" field.
 func TimeScannedLTE(v time.Time) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldTimeScanned, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.LTE(v))
+	})
 }
 
 // ScorecardVersionEQ applies the EQ predicate on the "scorecard_version" field.
 func ScorecardVersionEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.EQ(v))
+	})
 }
 
 // ScorecardVersionNEQ applies the NEQ predicate on the "scorecard_version" field.
 func ScorecardVersionNEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.NEQ(v))
+	})
 }
 
 // ScorecardVersionIn applies the In predicate on the "scorecard_version" field.
 func ScorecardVersionIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldScorecardVersion, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.Within(vs...))
+	})
 }
 
 // ScorecardVersionNotIn applies the NotIn predicate on the "scorecard_version" field.
 func ScorecardVersionNotIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldScorecardVersion, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.Without(vs...))
+	})
 }
 
 // ScorecardVersionGT applies the GT predicate on the "scorecard_version" field.
 func ScorecardVersionGT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.GT(v))
+	})
 }
 
 // ScorecardVersionGTE applies the GTE predicate on the "scorecard_version" field.
 func ScorecardVersionGTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.GTE(v))
+	})
 }
 
 // ScorecardVersionLT applies the LT predicate on the "scorecard_version" field.
 func ScorecardVersionLT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.LT(v))
+	})
 }
 
 // ScorecardVersionLTE applies the LTE predicate on the "scorecard_version" field.
 func ScorecardVersionLTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.LTE(v))
+	})
 }
 
 // ScorecardVersionContains applies the Contains predicate on the "scorecard_version" field.
 func ScorecardVersionContains(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContains(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.Containing(v))
+	})
 }
 
 // ScorecardVersionHasPrefix applies the HasPrefix predicate on the "scorecard_version" field.
 func ScorecardVersionHasPrefix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasPrefix(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.StartingWith(v))
+	})
 }
 
 // ScorecardVersionHasSuffix applies the HasSuffix predicate on the "scorecard_version" field.
 func ScorecardVersionHasSuffix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasSuffix(FieldScorecardVersion, v))
-}
-
-// ScorecardVersionEqualFold applies the EqualFold predicate on the "scorecard_version" field.
-func ScorecardVersionEqualFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEqualFold(FieldScorecardVersion, v))
-}
-
-// ScorecardVersionContainsFold applies the ContainsFold predicate on the "scorecard_version" field.
-func ScorecardVersionContainsFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContainsFold(FieldScorecardVersion, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardVersion, p.EndingWith(v))
+	})
 }
 
 // ScorecardCommitEQ applies the EQ predicate on the "scorecard_commit" field.
 func ScorecardCommitEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.EQ(v))
+	})
 }
 
 // ScorecardCommitNEQ applies the NEQ predicate on the "scorecard_commit" field.
 func ScorecardCommitNEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.NEQ(v))
+	})
 }
 
 // ScorecardCommitIn applies the In predicate on the "scorecard_commit" field.
 func ScorecardCommitIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldScorecardCommit, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.Within(vs...))
+	})
 }
 
 // ScorecardCommitNotIn applies the NotIn predicate on the "scorecard_commit" field.
 func ScorecardCommitNotIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldScorecardCommit, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.Without(vs...))
+	})
 }
 
 // ScorecardCommitGT applies the GT predicate on the "scorecard_commit" field.
 func ScorecardCommitGT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.GT(v))
+	})
 }
 
 // ScorecardCommitGTE applies the GTE predicate on the "scorecard_commit" field.
 func ScorecardCommitGTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.GTE(v))
+	})
 }
 
 // ScorecardCommitLT applies the LT predicate on the "scorecard_commit" field.
 func ScorecardCommitLT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.LT(v))
+	})
 }
 
 // ScorecardCommitLTE applies the LTE predicate on the "scorecard_commit" field.
 func ScorecardCommitLTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.LTE(v))
+	})
 }
 
 // ScorecardCommitContains applies the Contains predicate on the "scorecard_commit" field.
 func ScorecardCommitContains(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContains(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.Containing(v))
+	})
 }
 
 // ScorecardCommitHasPrefix applies the HasPrefix predicate on the "scorecard_commit" field.
 func ScorecardCommitHasPrefix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasPrefix(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.StartingWith(v))
+	})
 }
 
 // ScorecardCommitHasSuffix applies the HasSuffix predicate on the "scorecard_commit" field.
 func ScorecardCommitHasSuffix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasSuffix(FieldScorecardCommit, v))
-}
-
-// ScorecardCommitEqualFold applies the EqualFold predicate on the "scorecard_commit" field.
-func ScorecardCommitEqualFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEqualFold(FieldScorecardCommit, v))
-}
-
-// ScorecardCommitContainsFold applies the ContainsFold predicate on the "scorecard_commit" field.
-func ScorecardCommitContainsFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContainsFold(FieldScorecardCommit, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardCommit, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContains(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEQ(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNEQ(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldIn(FieldCollector, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGT(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldGTE(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLT(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldLTE(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContains(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.Scorecard {
-	return predicate.Scorecard(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // HasCertifications applies the HasEdge predicate on the "certifications" edge.
 func HasCertifications() predicate.Scorecard {
-	return predicate.Scorecard(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, CertificationsTable, CertificationsColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		t.OutE(CertificationsLabel).OutV()
 	})
 }
 
 // HasCertificationsWith applies the HasEdge predicate on the "certifications" edge with a given conditions (other predicates).
 func HasCertificationsWith(preds ...predicate.CertifyScorecard) predicate.Scorecard {
-	return predicate.Scorecard(func(s *sql.Selector) {
-		step := newCertificationsStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Scorecard(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(CertificationsLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Scorecard) predicate.Scorecard {
-	return predicate.Scorecard(sql.AndPredicates(predicates...))
+	return predicate.Scorecard(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Scorecard) predicate.Scorecard {
-	return predicate.Scorecard(sql.OrPredicates(predicates...))
+	return predicate.Scorecard(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.Scorecard) predicate.Scorecard {
-	return predicate.Scorecard(sql.NotPredicates(p))
+	return predicate.Scorecard(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

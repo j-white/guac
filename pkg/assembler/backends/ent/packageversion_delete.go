@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (pvd *PackageVersionDelete) Where(ps ...predicate.PackageVersion) *PackageV
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (pvd *PackageVersionDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, pvd.sqlExec, pvd.mutation, pvd.hooks)
+	return withHooks(ctx, pvd.gremlinExec, pvd.mutation, pvd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (pvd *PackageVersionDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (pvd *PackageVersionDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(packageversion.Table, sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt))
-	if ps := pvd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, pvd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (pvd *PackageVersionDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := pvd.gremlin().Query()
+	if err := pvd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	pvd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (pvd *PackageVersionDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(packageversion.Label)
+	for _, p := range pvd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // PackageVersionDeleteOne is the builder for deleting a single PackageVersion entity.

@@ -7,12 +7,13 @@ import (
 	"errors"
 	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagenamespace"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
@@ -95,7 +96,7 @@ func (pnu *PackageNameUpdate) RemoveVersions(p ...*PackageVersion) *PackageNameU
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (pnu *PackageNameUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, pnu.sqlSave, pnu.mutation, pnu.hooks)
+	return withHooks(ctx, pnu.gremlinSave, pnu.mutation, pnu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -133,105 +134,72 @@ func (pnu *PackageNameUpdate) check() error {
 	return nil
 }
 
-func (pnu *PackageNameUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (pnu *PackageNameUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := pnu.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(packagename.Table, packagename.Columns, sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt))
-	if ps := pnu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := pnu.gremlin().Query()
+	if err := pnu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := pnu.mutation.Name(); ok {
-		_spec.SetField(packagename.FieldName, field.TypeString, value)
-	}
-	if pnu.mutation.NamespaceCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packagename.NamespaceTable,
-			Columns: []string{packagename.NamespaceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagenamespace.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pnu.mutation.NamespaceIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packagename.NamespaceTable,
-			Columns: []string{packagename.NamespaceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pnu.mutation.VersionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   packagename.VersionsTable,
-			Columns: []string{packagename.VersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pnu.mutation.RemovedVersionsIDs(); len(nodes) > 0 && !pnu.mutation.VersionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   packagename.VersionsTable,
-			Columns: []string{packagename.VersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pnu.mutation.VersionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   packagename.VersionsTable,
-			Columns: []string{packagename.VersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, pnu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{packagename.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	pnu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (pnu *PackageNameUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.V().HasLabel(packagename.Label)
+	for _, p := range pnu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := pnu.mutation.Name(); ok {
+		v.Property(dsl.Single, packagename.FieldName, value)
+	}
+	if pnu.mutation.NamespaceCleared() {
+		tr := rv.Clone().InE(packagenamespace.NamesLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pnu.mutation.NamespaceIDs() {
+		v.AddE(packagenamespace.NamesLabel).From(g.V(id)).InV()
+	}
+	for _, id := range pnu.mutation.RemovedVersionsIDs() {
+		tr := rv.Clone().OutE(packagename.VersionsLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pnu.mutation.VersionsIDs() {
+		v.AddE(packagename.VersionsLabel).To(g.V(id)).OutV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(packagename.VersionsLabel).InV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(packagename.Label, packagename.VersionsLabel, id)),
+		})
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // PackageNameUpdateOne is the builder for updating a single PackageName entity.
@@ -321,7 +289,7 @@ func (pnuo *PackageNameUpdateOne) Select(field string, fields ...string) *Packag
 
 // Save executes the query and returns the updated PackageName entity.
 func (pnuo *PackageNameUpdateOne) Save(ctx context.Context) (*PackageName, error) {
-	return withHooks(ctx, pnuo.sqlSave, pnuo.mutation, pnuo.hooks)
+	return withHooks(ctx, pnuo.gremlinSave, pnuo.mutation, pnuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -359,123 +327,80 @@ func (pnuo *PackageNameUpdateOne) check() error {
 	return nil
 }
 
-func (pnuo *PackageNameUpdateOne) sqlSave(ctx context.Context) (_node *PackageName, err error) {
+func (pnuo *PackageNameUpdateOne) gremlinSave(ctx context.Context) (*PackageName, error) {
 	if err := pnuo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(packagename.Table, packagename.Columns, sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := pnuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "PackageName.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := pnuo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, packagename.FieldID)
-		for _, f := range fields {
-			if !packagename.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != packagename.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := pnuo.gremlin(id).Query()
+	if err := pnuo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := pnuo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := pnuo.mutation.Name(); ok {
-		_spec.SetField(packagename.FieldName, field.TypeString, value)
-	}
-	if pnuo.mutation.NamespaceCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packagename.NamespaceTable,
-			Columns: []string{packagename.NamespaceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagenamespace.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pnuo.mutation.NamespaceIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   packagename.NamespaceTable,
-			Columns: []string{packagename.NamespaceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if pnuo.mutation.VersionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   packagename.VersionsTable,
-			Columns: []string{packagename.VersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pnuo.mutation.RemovedVersionsIDs(); len(nodes) > 0 && !pnuo.mutation.VersionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   packagename.VersionsTable,
-			Columns: []string{packagename.VersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := pnuo.mutation.VersionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   packagename.VersionsTable,
-			Columns: []string{packagename.VersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &PackageName{config: pnuo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, pnuo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{packagename.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	pnuo.mutation.done = true
-	return _node, nil
+	pn := &PackageName{config: pnuo.config}
+	if err := pn.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return pn, nil
+}
+
+func (pnuo *PackageNameUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := pnuo.mutation.Name(); ok {
+		v.Property(dsl.Single, packagename.FieldName, value)
+	}
+	if pnuo.mutation.NamespaceCleared() {
+		tr := rv.Clone().InE(packagenamespace.NamesLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pnuo.mutation.NamespaceIDs() {
+		v.AddE(packagenamespace.NamesLabel).From(g.V(id)).InV()
+	}
+	for _, id := range pnuo.mutation.RemovedVersionsIDs() {
+		tr := rv.Clone().OutE(packagename.VersionsLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range pnuo.mutation.VersionsIDs() {
+		v.AddE(packagename.VersionsLabel).To(g.V(id)).OutV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(packagename.VersionsLabel).InV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(packagename.Label, packagename.VersionsLabel, id)),
+		})
+	}
+	if len(pnuo.fields) > 0 {
+		fields := make([]any, 0, len(pnuo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range pnuo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

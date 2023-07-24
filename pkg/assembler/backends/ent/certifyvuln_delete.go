@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyvuln"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (cvd *CertifyVulnDelete) Where(ps ...predicate.CertifyVuln) *CertifyVulnDel
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (cvd *CertifyVulnDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, cvd.sqlExec, cvd.mutation, cvd.hooks)
+	return withHooks(ctx, cvd.gremlinExec, cvd.mutation, cvd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (cvd *CertifyVulnDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (cvd *CertifyVulnDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(certifyvuln.Table, sqlgraph.NewFieldSpec(certifyvuln.FieldID, field.TypeInt))
-	if ps := cvd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, cvd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (cvd *CertifyVulnDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := cvd.gremlin().Query()
+	if err := cvd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	cvd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (cvd *CertifyVulnDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(certifyvuln.Label)
+	for _, p := range cvd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // CertifyVulnDeleteOne is the builder for deleting a single CertifyVuln entity.

@@ -3,71 +3,71 @@
 package predicate
 
 import (
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 // Artifact is the predicate function for artifact builders.
-type Artifact func(*sql.Selector)
+type Artifact func(*dsl.Traversal)
 
 // BillOfMaterials is the predicate function for billofmaterials builders.
-type BillOfMaterials func(*sql.Selector)
+type BillOfMaterials func(*dsl.Traversal)
 
 // Builder is the predicate function for builder builders.
-type Builder func(*sql.Selector)
+type Builder func(*dsl.Traversal)
 
 // Certification is the predicate function for certification builders.
-type Certification func(*sql.Selector)
+type Certification func(*dsl.Traversal)
 
 // CertifyScorecard is the predicate function for certifyscorecard builders.
-type CertifyScorecard func(*sql.Selector)
+type CertifyScorecard func(*dsl.Traversal)
 
 // CertifyVuln is the predicate function for certifyvuln builders.
-type CertifyVuln func(*sql.Selector)
+type CertifyVuln func(*dsl.Traversal)
 
 // Dependency is the predicate function for dependency builders.
-type Dependency func(*sql.Selector)
+type Dependency func(*dsl.Traversal)
 
 // HasSourceAt is the predicate function for hassourceat builders.
-type HasSourceAt func(*sql.Selector)
+type HasSourceAt func(*dsl.Traversal)
 
 // HashEqual is the predicate function for hashequal builders.
-type HashEqual func(*sql.Selector)
+type HashEqual func(*dsl.Traversal)
 
 // IsVulnerability is the predicate function for isvulnerability builders.
-type IsVulnerability func(*sql.Selector)
+type IsVulnerability func(*dsl.Traversal)
 
 // Occurrence is the predicate function for occurrence builders.
-type Occurrence func(*sql.Selector)
+type Occurrence func(*dsl.Traversal)
 
 // PackageName is the predicate function for packagename builders.
-type PackageName func(*sql.Selector)
+type PackageName func(*dsl.Traversal)
 
 // PackageNamespace is the predicate function for packagenamespace builders.
-type PackageNamespace func(*sql.Selector)
+type PackageNamespace func(*dsl.Traversal)
 
 // PackageType is the predicate function for packagetype builders.
-type PackageType func(*sql.Selector)
+type PackageType func(*dsl.Traversal)
 
 // PackageVersion is the predicate function for packageversion builders.
-type PackageVersion func(*sql.Selector)
+type PackageVersion func(*dsl.Traversal)
 
 // PkgEqual is the predicate function for pkgequal builders.
-type PkgEqual func(*sql.Selector)
+type PkgEqual func(*dsl.Traversal)
 
 // SLSAAttestation is the predicate function for slsaattestation builders.
-type SLSAAttestation func(*sql.Selector)
+type SLSAAttestation func(*dsl.Traversal)
 
 // Scorecard is the predicate function for scorecard builders.
-type Scorecard func(*sql.Selector)
+type Scorecard func(*dsl.Traversal)
 
 // SecurityAdvisory is the predicate function for securityadvisory builders.
-type SecurityAdvisory func(*sql.Selector)
+type SecurityAdvisory func(*dsl.Traversal)
 
 // SourceName is the predicate function for sourcename builders.
-type SourceName func(*sql.Selector)
+type SourceName func(*dsl.Traversal)
 
 // SourceNamespace is the predicate function for sourcenamespace builders.
-type SourceNamespace func(*sql.Selector)
+type SourceNamespace func(*dsl.Traversal)
 
 // SourceType is the predicate function for sourcetype builders.
-type SourceType func(*sql.Selector)
+type SourceType func(*dsl.Traversal)

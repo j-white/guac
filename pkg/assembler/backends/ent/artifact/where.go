@@ -3,299 +3,354 @@
 package artifact
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEQ(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEQ(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldNEQ(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldIn(FieldID, ids...))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldNotIn(FieldID, ids...))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldGT(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldGTE(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldLT(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.Artifact {
-	return predicate.Artifact(sql.FieldLTE(FieldID, id))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // Algorithm applies equality check predicate on the "algorithm" field. It's identical to AlgorithmEQ.
 func Algorithm(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEQ(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.EQ(v))
+	})
 }
 
 // Digest applies equality check predicate on the "digest" field. It's identical to DigestEQ.
 func Digest(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEQ(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.EQ(v))
+	})
 }
 
 // AlgorithmEQ applies the EQ predicate on the "algorithm" field.
 func AlgorithmEQ(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEQ(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.EQ(v))
+	})
 }
 
 // AlgorithmNEQ applies the NEQ predicate on the "algorithm" field.
 func AlgorithmNEQ(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldNEQ(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.NEQ(v))
+	})
 }
 
 // AlgorithmIn applies the In predicate on the "algorithm" field.
 func AlgorithmIn(vs ...string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldIn(FieldAlgorithm, vs...))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.Within(vs...))
+	})
 }
 
 // AlgorithmNotIn applies the NotIn predicate on the "algorithm" field.
 func AlgorithmNotIn(vs ...string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldNotIn(FieldAlgorithm, vs...))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.Without(vs...))
+	})
 }
 
 // AlgorithmGT applies the GT predicate on the "algorithm" field.
 func AlgorithmGT(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldGT(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.GT(v))
+	})
 }
 
 // AlgorithmGTE applies the GTE predicate on the "algorithm" field.
 func AlgorithmGTE(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldGTE(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.GTE(v))
+	})
 }
 
 // AlgorithmLT applies the LT predicate on the "algorithm" field.
 func AlgorithmLT(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldLT(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.LT(v))
+	})
 }
 
 // AlgorithmLTE applies the LTE predicate on the "algorithm" field.
 func AlgorithmLTE(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldLTE(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.LTE(v))
+	})
 }
 
 // AlgorithmContains applies the Contains predicate on the "algorithm" field.
 func AlgorithmContains(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldContains(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.Containing(v))
+	})
 }
 
 // AlgorithmHasPrefix applies the HasPrefix predicate on the "algorithm" field.
 func AlgorithmHasPrefix(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldHasPrefix(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.StartingWith(v))
+	})
 }
 
 // AlgorithmHasSuffix applies the HasSuffix predicate on the "algorithm" field.
 func AlgorithmHasSuffix(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldHasSuffix(FieldAlgorithm, v))
-}
-
-// AlgorithmEqualFold applies the EqualFold predicate on the "algorithm" field.
-func AlgorithmEqualFold(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEqualFold(FieldAlgorithm, v))
-}
-
-// AlgorithmContainsFold applies the ContainsFold predicate on the "algorithm" field.
-func AlgorithmContainsFold(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldContainsFold(FieldAlgorithm, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldAlgorithm, p.EndingWith(v))
+	})
 }
 
 // DigestEQ applies the EQ predicate on the "digest" field.
 func DigestEQ(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEQ(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.EQ(v))
+	})
 }
 
 // DigestNEQ applies the NEQ predicate on the "digest" field.
 func DigestNEQ(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldNEQ(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.NEQ(v))
+	})
 }
 
 // DigestIn applies the In predicate on the "digest" field.
 func DigestIn(vs ...string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldIn(FieldDigest, vs...))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.Within(vs...))
+	})
 }
 
 // DigestNotIn applies the NotIn predicate on the "digest" field.
 func DigestNotIn(vs ...string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldNotIn(FieldDigest, vs...))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.Without(vs...))
+	})
 }
 
 // DigestGT applies the GT predicate on the "digest" field.
 func DigestGT(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldGT(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.GT(v))
+	})
 }
 
 // DigestGTE applies the GTE predicate on the "digest" field.
 func DigestGTE(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldGTE(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.GTE(v))
+	})
 }
 
 // DigestLT applies the LT predicate on the "digest" field.
 func DigestLT(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldLT(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.LT(v))
+	})
 }
 
 // DigestLTE applies the LTE predicate on the "digest" field.
 func DigestLTE(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldLTE(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.LTE(v))
+	})
 }
 
 // DigestContains applies the Contains predicate on the "digest" field.
 func DigestContains(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldContains(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.Containing(v))
+	})
 }
 
 // DigestHasPrefix applies the HasPrefix predicate on the "digest" field.
 func DigestHasPrefix(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldHasPrefix(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.StartingWith(v))
+	})
 }
 
 // DigestHasSuffix applies the HasSuffix predicate on the "digest" field.
 func DigestHasSuffix(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldHasSuffix(FieldDigest, v))
-}
-
-// DigestEqualFold applies the EqualFold predicate on the "digest" field.
-func DigestEqualFold(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldEqualFold(FieldDigest, v))
-}
-
-// DigestContainsFold applies the ContainsFold predicate on the "digest" field.
-func DigestContainsFold(v string) predicate.Artifact {
-	return predicate.Artifact(sql.FieldContainsFold(FieldDigest, v))
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDigest, p.EndingWith(v))
+	})
 }
 
 // HasOccurrences applies the HasEdge predicate on the "occurrences" edge.
 func HasOccurrences() predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, OccurrencesTable, OccurrencesColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.InE(OccurrencesInverseLabel).InV()
 	})
 }
 
 // HasOccurrencesWith applies the HasEdge predicate on the "occurrences" edge with a given conditions (other predicates).
 func HasOccurrencesWith(preds ...predicate.Occurrence) predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := newOccurrencesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(OccurrencesInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasSbom applies the HasEdge predicate on the "sbom" edge.
 func HasSbom() predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, SbomTable, SbomColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.InE(SbomInverseLabel).InV()
 	})
 }
 
 // HasSbomWith applies the HasEdge predicate on the "sbom" edge with a given conditions (other predicates).
 func HasSbomWith(preds ...predicate.BillOfMaterials) predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := newSbomStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(SbomInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasAttestations applies the HasEdge predicate on the "attestations" edge.
 func HasAttestations() predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, AttestationsTable, AttestationsPrimaryKey...),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.InE(AttestationsInverseLabel).InV()
 	})
 }
 
 // HasAttestationsWith applies the HasEdge predicate on the "attestations" edge with a given conditions (other predicates).
 func HasAttestationsWith(preds ...predicate.SLSAAttestation) predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := newAttestationsStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(AttestationsInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasSame applies the HasEdge predicate on the "same" edge.
 func HasSame() predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, SameTable, SamePrimaryKey...),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		t.InE(SameInverseLabel).InV()
 	})
 }
 
 // HasSameWith applies the HasEdge predicate on the "same" edge with a given conditions (other predicates).
 func HasSameWith(preds ...predicate.HashEqual) predicate.Artifact {
-	return predicate.Artifact(func(s *sql.Selector) {
-		step := newSameStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Artifact(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(SameInverseLabel).Where(tr).InV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Artifact) predicate.Artifact {
-	return predicate.Artifact(sql.AndPredicates(predicates...))
+	return predicate.Artifact(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Artifact) predicate.Artifact {
-	return predicate.Artifact(sql.OrPredicates(predicates...))
+	return predicate.Artifact(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.Artifact) predicate.Artifact {
-	return predicate.Artifact(sql.NotPredicates(p))
+	return predicate.Artifact(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

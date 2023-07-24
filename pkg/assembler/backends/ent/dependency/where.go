@@ -3,463 +3,584 @@
 package dependency
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldID, ids...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldID, ids...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGT(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGTE(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLT(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLTE(FieldID, id))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // PackageID applies equality check predicate on the "package_id" field. It's identical to PackageIDEQ.
 func PackageID(v int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldPackageID, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // DependentPackageID applies equality check predicate on the "dependent_package_id" field. It's identical to DependentPackageIDEQ.
 func DependentPackageID(v int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldDependentPackageID, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependentPackageID, p.EQ(v))
+	})
 }
 
 // VersionRange applies equality check predicate on the "version_range" field. It's identical to VersionRangeEQ.
 func VersionRange(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.EQ(v))
+	})
 }
 
 // Justification applies equality check predicate on the "justification" field. It's identical to JustificationEQ.
 func Justification(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // PackageIDEQ applies the EQ predicate on the "package_id" field.
 func PackageIDEQ(v int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldPackageID, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // PackageIDNEQ applies the NEQ predicate on the "package_id" field.
 func PackageIDNEQ(v int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldPackageID, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.NEQ(v))
+	})
 }
 
 // PackageIDIn applies the In predicate on the "package_id" field.
 func PackageIDIn(vs ...int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldPackageID, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Within(vs...))
+	})
 }
 
 // PackageIDNotIn applies the NotIn predicate on the "package_id" field.
 func PackageIDNotIn(vs ...int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldPackageID, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Without(vs...))
+	})
 }
 
 // DependentPackageIDEQ applies the EQ predicate on the "dependent_package_id" field.
 func DependentPackageIDEQ(v int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldDependentPackageID, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependentPackageID, p.EQ(v))
+	})
 }
 
 // DependentPackageIDNEQ applies the NEQ predicate on the "dependent_package_id" field.
 func DependentPackageIDNEQ(v int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldDependentPackageID, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependentPackageID, p.NEQ(v))
+	})
 }
 
 // DependentPackageIDIn applies the In predicate on the "dependent_package_id" field.
 func DependentPackageIDIn(vs ...int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldDependentPackageID, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependentPackageID, p.Within(vs...))
+	})
 }
 
 // DependentPackageIDNotIn applies the NotIn predicate on the "dependent_package_id" field.
 func DependentPackageIDNotIn(vs ...int) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldDependentPackageID, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependentPackageID, p.Without(vs...))
+	})
 }
 
 // VersionRangeEQ applies the EQ predicate on the "version_range" field.
 func VersionRangeEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.EQ(v))
+	})
 }
 
 // VersionRangeNEQ applies the NEQ predicate on the "version_range" field.
 func VersionRangeNEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.NEQ(v))
+	})
 }
 
 // VersionRangeIn applies the In predicate on the "version_range" field.
 func VersionRangeIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldVersionRange, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.Within(vs...))
+	})
 }
 
 // VersionRangeNotIn applies the NotIn predicate on the "version_range" field.
 func VersionRangeNotIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldVersionRange, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.Without(vs...))
+	})
 }
 
 // VersionRangeGT applies the GT predicate on the "version_range" field.
 func VersionRangeGT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGT(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.GT(v))
+	})
 }
 
 // VersionRangeGTE applies the GTE predicate on the "version_range" field.
 func VersionRangeGTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGTE(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.GTE(v))
+	})
 }
 
 // VersionRangeLT applies the LT predicate on the "version_range" field.
 func VersionRangeLT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLT(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.LT(v))
+	})
 }
 
 // VersionRangeLTE applies the LTE predicate on the "version_range" field.
 func VersionRangeLTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLTE(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.LTE(v))
+	})
 }
 
 // VersionRangeContains applies the Contains predicate on the "version_range" field.
 func VersionRangeContains(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContains(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.Containing(v))
+	})
 }
 
 // VersionRangeHasPrefix applies the HasPrefix predicate on the "version_range" field.
 func VersionRangeHasPrefix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasPrefix(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.StartingWith(v))
+	})
 }
 
 // VersionRangeHasSuffix applies the HasSuffix predicate on the "version_range" field.
 func VersionRangeHasSuffix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasSuffix(FieldVersionRange, v))
-}
-
-// VersionRangeEqualFold applies the EqualFold predicate on the "version_range" field.
-func VersionRangeEqualFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEqualFold(FieldVersionRange, v))
-}
-
-// VersionRangeContainsFold applies the ContainsFold predicate on the "version_range" field.
-func VersionRangeContainsFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContainsFold(FieldVersionRange, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersionRange, p.EndingWith(v))
+	})
 }
 
 // DependencyTypeEQ applies the EQ predicate on the "dependency_type" field.
 func DependencyTypeEQ(v DependencyType) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldDependencyType, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependencyType, p.EQ(v))
+	})
 }
 
 // DependencyTypeNEQ applies the NEQ predicate on the "dependency_type" field.
 func DependencyTypeNEQ(v DependencyType) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldDependencyType, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependencyType, p.NEQ(v))
+	})
 }
 
 // DependencyTypeIn applies the In predicate on the "dependency_type" field.
 func DependencyTypeIn(vs ...DependencyType) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldDependencyType, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependencyType, p.Within(vs...))
+	})
 }
 
 // DependencyTypeNotIn applies the NotIn predicate on the "dependency_type" field.
 func DependencyTypeNotIn(vs ...DependencyType) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldDependencyType, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDependencyType, p.Without(vs...))
+	})
 }
 
 // JustificationEQ applies the EQ predicate on the "justification" field.
 func JustificationEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // JustificationNEQ applies the NEQ predicate on the "justification" field.
 func JustificationNEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.NEQ(v))
+	})
 }
 
 // JustificationIn applies the In predicate on the "justification" field.
 func JustificationIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldJustification, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Within(vs...))
+	})
 }
 
 // JustificationNotIn applies the NotIn predicate on the "justification" field.
 func JustificationNotIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldJustification, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Without(vs...))
+	})
 }
 
 // JustificationGT applies the GT predicate on the "justification" field.
 func JustificationGT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGT(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GT(v))
+	})
 }
 
 // JustificationGTE applies the GTE predicate on the "justification" field.
 func JustificationGTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGTE(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GTE(v))
+	})
 }
 
 // JustificationLT applies the LT predicate on the "justification" field.
 func JustificationLT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLT(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LT(v))
+	})
 }
 
 // JustificationLTE applies the LTE predicate on the "justification" field.
 func JustificationLTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLTE(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LTE(v))
+	})
 }
 
 // JustificationContains applies the Contains predicate on the "justification" field.
 func JustificationContains(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContains(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Containing(v))
+	})
 }
 
 // JustificationHasPrefix applies the HasPrefix predicate on the "justification" field.
 func JustificationHasPrefix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasPrefix(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.StartingWith(v))
+	})
 }
 
 // JustificationHasSuffix applies the HasSuffix predicate on the "justification" field.
 func JustificationHasSuffix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasSuffix(FieldJustification, v))
-}
-
-// JustificationEqualFold applies the EqualFold predicate on the "justification" field.
-func JustificationEqualFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEqualFold(FieldJustification, v))
-}
-
-// JustificationContainsFold applies the ContainsFold predicate on the "justification" field.
-func JustificationContainsFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContainsFold(FieldJustification, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGT(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGTE(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLT(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLTE(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContains(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEQ(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNEQ(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldIn(FieldCollector, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGT(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldGTE(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLT(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldLTE(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContains(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.Dependency {
-	return predicate.Dependency(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // HasPackage applies the HasEdge predicate on the "package" edge.
 func HasPackage() predicate.Dependency {
-	return predicate.Dependency(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.OutE(PackageLabel).OutV()
 	})
 }
 
 // HasPackageWith applies the HasEdge predicate on the "package" edge with a given conditions (other predicates).
 func HasPackageWith(preds ...predicate.PackageVersion) predicate.Dependency {
-	return predicate.Dependency(func(s *sql.Selector) {
-		step := newPackageStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackageLabel).Where(tr).OutV()
 	})
 }
 
 // HasDependentPackage applies the HasEdge predicate on the "dependent_package" edge.
 func HasDependentPackage() predicate.Dependency {
-	return predicate.Dependency(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, DependentPackageTable, DependentPackageColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		t.OutE(DependentPackageLabel).OutV()
 	})
 }
 
 // HasDependentPackageWith applies the HasEdge predicate on the "dependent_package" edge with a given conditions (other predicates).
 func HasDependentPackageWith(preds ...predicate.PackageName) predicate.Dependency {
-	return predicate.Dependency(func(s *sql.Selector) {
-		step := newDependentPackageStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Dependency(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(DependentPackageLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Dependency) predicate.Dependency {
-	return predicate.Dependency(sql.AndPredicates(predicates...))
+	return predicate.Dependency(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Dependency) predicate.Dependency {
-	return predicate.Dependency(sql.OrPredicates(predicates...))
+	return predicate.Dependency(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.Dependency) predicate.Dependency {
-	return predicate.Dependency(sql.NotPredicates(p))
+	return predicate.Dependency(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

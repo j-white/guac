@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
 )
@@ -27,7 +28,7 @@ func (snd *SourceNamespaceDelete) Where(ps ...predicate.SourceNamespace) *Source
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (snd *SourceNamespaceDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, snd.sqlExec, snd.mutation, snd.hooks)
+	return withHooks(ctx, snd.gremlinExec, snd.mutation, snd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (snd *SourceNamespaceDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (snd *SourceNamespaceDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(sourcenamespace.Table, sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt))
-	if ps := snd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, snd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (snd *SourceNamespaceDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := snd.gremlin().Query()
+	if err := snd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	snd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (snd *SourceNamespaceDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(sourcenamespace.Label)
+	for _, p := range snd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // SourceNamespaceDeleteOne is the builder for deleting a single SourceNamespace entity.

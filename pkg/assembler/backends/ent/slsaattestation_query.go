@@ -4,15 +4,13 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
 )
@@ -20,19 +18,16 @@ import (
 // SLSAAttestationQuery is the builder for querying SLSAAttestation entities.
 type SLSAAttestationQuery struct {
 	config
-	ctx                *QueryContext
-	order              []slsaattestation.OrderOption
-	inters             []Interceptor
-	predicates         []predicate.SLSAAttestation
-	withBuiltFrom      *ArtifactQuery
-	withBuiltBy        *BuilderQuery
-	withSubject        *ArtifactQuery
-	modifiers          []func(*sql.Selector)
-	loadTotal          []func(context.Context, []*SLSAAttestation) error
-	withNamedBuiltFrom map[string]*ArtifactQuery
+	ctx           *QueryContext
+	order         []slsaattestation.OrderOption
+	inters        []Interceptor
+	predicates    []predicate.SLSAAttestation
+	withBuiltFrom *ArtifactQuery
+	withBuiltBy   *BuilderQuery
+	withSubject   *ArtifactQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the SLSAAttestationQuery builder.
@@ -69,20 +64,12 @@ func (saq *SLSAAttestationQuery) Order(o ...slsaattestation.OrderOption) *SLSAAt
 // QueryBuiltFrom chains the current query on the "built_from" edge.
 func (saq *SLSAAttestationQuery) QueryBuiltFrom() *ArtifactQuery {
 	query := (&ArtifactClient{config: saq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := saq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := saq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(slsaattestation.Table, slsaattestation.FieldID, selector),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, false, slsaattestation.BuiltFromTable, slsaattestation.BuiltFromPrimaryKey...),
-		)
-		fromU = sqlgraph.SetNeighbors(saq.driver.Dialect(), step)
+		gremlin := saq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(slsaattestation.BuiltFromLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -91,20 +78,12 @@ func (saq *SLSAAttestationQuery) QueryBuiltFrom() *ArtifactQuery {
 // QueryBuiltBy chains the current query on the "built_by" edge.
 func (saq *SLSAAttestationQuery) QueryBuiltBy() *BuilderQuery {
 	query := (&BuilderClient{config: saq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := saq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := saq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(slsaattestation.Table, slsaattestation.FieldID, selector),
-			sqlgraph.To(builder.Table, builder.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, slsaattestation.BuiltByTable, slsaattestation.BuiltByColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(saq.driver.Dialect(), step)
+		gremlin := saq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(slsaattestation.BuiltByLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -113,20 +92,12 @@ func (saq *SLSAAttestationQuery) QueryBuiltBy() *BuilderQuery {
 // QuerySubject chains the current query on the "subject" edge.
 func (saq *SLSAAttestationQuery) QuerySubject() *ArtifactQuery {
 	query := (&ArtifactClient{config: saq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := saq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := saq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(slsaattestation.Table, slsaattestation.FieldID, selector),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, slsaattestation.SubjectTable, slsaattestation.SubjectColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(saq.driver.Dialect(), step)
+		gremlin := saq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(slsaattestation.SubjectLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -328,8 +299,8 @@ func (saq *SLSAAttestationQuery) Clone() *SLSAAttestationQuery {
 		withBuiltBy:   saq.withBuiltBy.Clone(),
 		withSubject:   saq.withSubject.Clone(),
 		// clone intermediate query.
-		sql:  saq.sql.Clone(),
-		path: saq.path,
+		gremlin: saq.gremlin.Clone(),
+		path:    saq.path,
 	}
 }
 
@@ -425,308 +396,77 @@ func (saq *SLSAAttestationQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range saq.ctx.Fields {
-		if !slsaattestation.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if saq.path != nil {
 		prev, err := saq.path(ctx)
 		if err != nil {
 			return err
 		}
-		saq.sql = prev
+		saq.gremlin = prev
 	}
 	return nil
 }
 
-func (saq *SLSAAttestationQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*SLSAAttestation, error) {
-	var (
-		nodes       = []*SLSAAttestation{}
-		_spec       = saq.querySpec()
-		loadedTypes = [3]bool{
-			saq.withBuiltFrom != nil,
-			saq.withBuiltBy != nil,
-			saq.withSubject != nil,
+func (saq *SLSAAttestationQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*SLSAAttestation, error) {
+	res := &gremlin.Response{}
+	traversal := saq.gremlinQuery(ctx)
+	if len(saq.ctx.Fields) > 0 {
+		fields := make([]any, len(saq.ctx.Fields))
+		for i, f := range saq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*SLSAAttestation).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &SLSAAttestation{config: saq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(saq.modifiers) > 0 {
-		_spec.Modifiers = saq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, saq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := saq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var sas SLSAAttestations
+	if err := sas.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := saq.withBuiltFrom; query != nil {
-		if err := saq.loadBuiltFrom(ctx, query, nodes,
-			func(n *SLSAAttestation) { n.Edges.BuiltFrom = []*Artifact{} },
-			func(n *SLSAAttestation, e *Artifact) { n.Edges.BuiltFrom = append(n.Edges.BuiltFrom, e) }); err != nil {
-			return nil, err
-		}
+	for i := range sas {
+		sas[i].config = saq.config
 	}
-	if query := saq.withBuiltBy; query != nil {
-		if err := saq.loadBuiltBy(ctx, query, nodes, nil,
-			func(n *SLSAAttestation, e *Builder) { n.Edges.BuiltBy = e }); err != nil {
-			return nil, err
-		}
-	}
-	if query := saq.withSubject; query != nil {
-		if err := saq.loadSubject(ctx, query, nodes, nil,
-			func(n *SLSAAttestation, e *Artifact) { n.Edges.Subject = e }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range saq.withNamedBuiltFrom {
-		if err := saq.loadBuiltFrom(ctx, query, nodes,
-			func(n *SLSAAttestation) { n.appendNamedBuiltFrom(name) },
-			func(n *SLSAAttestation, e *Artifact) { n.appendNamedBuiltFrom(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range saq.loadTotal {
-		if err := saq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return sas, nil
 }
 
-func (saq *SLSAAttestationQuery) loadBuiltFrom(ctx context.Context, query *ArtifactQuery, nodes []*SLSAAttestation, init func(*SLSAAttestation), assign func(*SLSAAttestation, *Artifact)) error {
-	edgeIDs := make([]driver.Value, len(nodes))
-	byID := make(map[int]*SLSAAttestation)
-	nids := make(map[int]map[*SLSAAttestation]struct{})
-	for i, node := range nodes {
-		edgeIDs[i] = node.ID
-		byID[node.ID] = node
-		if init != nil {
-			init(node)
-		}
+func (saq *SLSAAttestationQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := saq.gremlinQuery(ctx).Count().Query()
+	if err := saq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	query.Where(func(s *sql.Selector) {
-		joinT := sql.Table(slsaattestation.BuiltFromTable)
-		s.Join(joinT).On(s.C(artifact.FieldID), joinT.C(slsaattestation.BuiltFromPrimaryKey[1]))
-		s.Where(sql.InValues(joinT.C(slsaattestation.BuiltFromPrimaryKey[0]), edgeIDs...))
-		columns := s.SelectedColumns()
-		s.Select(joinT.C(slsaattestation.BuiltFromPrimaryKey[0]))
-		s.AppendSelect(columns...)
-		s.SetDistinct(false)
-	})
-	if err := query.prepareQuery(ctx); err != nil {
-		return err
-	}
-	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
-		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
-			assign := spec.Assign
-			values := spec.ScanValues
-			spec.ScanValues = func(columns []string) ([]any, error) {
-				values, err := values(columns[1:])
-				if err != nil {
-					return nil, err
-				}
-				return append([]any{new(sql.NullInt64)}, values...), nil
-			}
-			spec.Assign = func(columns []string, values []any) error {
-				outValue := int(values[0].(*sql.NullInt64).Int64)
-				inValue := int(values[1].(*sql.NullInt64).Int64)
-				if nids[inValue] == nil {
-					nids[inValue] = map[*SLSAAttestation]struct{}{byID[outValue]: {}}
-					return assign(columns[1:], values[1:])
-				}
-				nids[inValue][byID[outValue]] = struct{}{}
-				return nil
-			}
-		})
-	})
-	neighbors, err := withInterceptors[[]*Artifact](ctx, query, qr, query.inters)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected "built_from" node returned %v`, n.ID)
-		}
-		for kn := range nodes {
-			assign(kn, n)
-		}
-	}
-	return nil
-}
-func (saq *SLSAAttestationQuery) loadBuiltBy(ctx context.Context, query *BuilderQuery, nodes []*SLSAAttestation, init func(*SLSAAttestation), assign func(*SLSAAttestation, *Builder)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*SLSAAttestation)
-	for i := range nodes {
-		fk := nodes[i].BuiltByID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(builder.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "built_by_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (saq *SLSAAttestationQuery) loadSubject(ctx context.Context, query *ArtifactQuery, nodes []*SLSAAttestation, init func(*SLSAAttestation), assign func(*SLSAAttestation, *Artifact)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*SLSAAttestation)
-	for i := range nodes {
-		fk := nodes[i].SubjectID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(artifact.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "subject_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (saq *SLSAAttestationQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := saq.querySpec()
-	if len(saq.modifiers) > 0 {
-		_spec.Modifiers = saq.modifiers
-	}
-	_spec.Node.Columns = saq.ctx.Fields
-	if len(saq.ctx.Fields) > 0 {
-		_spec.Unique = saq.ctx.Unique != nil && *saq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, saq.driver, _spec)
-}
-
-func (saq *SLSAAttestationQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(slsaattestation.Table, slsaattestation.Columns, sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt))
-	_spec.From = saq.sql
-	if unique := saq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if saq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := saq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, slsaattestation.FieldID)
-		for i := range fields {
-			if fields[i] != slsaattestation.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if saq.withBuiltBy != nil {
-			_spec.Node.AddColumnOnce(slsaattestation.FieldBuiltByID)
-		}
-		if saq.withSubject != nil {
-			_spec.Node.AddColumnOnce(slsaattestation.FieldSubjectID)
-		}
-	}
-	if ps := saq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := saq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := saq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := saq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (saq *SLSAAttestationQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(saq.driver.Dialect())
-	t1 := builder.Table(slsaattestation.Table)
-	columns := saq.ctx.Fields
-	if len(columns) == 0 {
-		columns = slsaattestation.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if saq.sql != nil {
-		selector = saq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if saq.ctx.Unique != nil && *saq.ctx.Unique {
-		selector.Distinct()
+func (saq *SLSAAttestationQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(slsaattestation.Label)
+	if saq.gremlin != nil {
+		v = saq.gremlin.Clone()
 	}
 	for _, p := range saq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range saq.order {
-		p(selector)
+	if len(saq.order) > 0 {
+		v.Order()
+		for _, p := range saq.order {
+			p(v)
+		}
 	}
-	if offset := saq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := saq.ctx.Limit, saq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := saq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := saq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedBuiltFrom tells the query-builder to eager-load the nodes that are connected to the "built_from"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (saq *SLSAAttestationQuery) WithNamedBuiltFrom(name string, opts ...func(*ArtifactQuery)) *SLSAAttestationQuery {
-	query := (&ArtifactClient{config: saq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if saq.withNamedBuiltFrom == nil {
-		saq.withNamedBuiltFrom = make(map[string]*ArtifactQuery)
-	}
-	saq.withNamedBuiltFrom[name] = query
-	return saq
+	return v
 }
 
 // SLSAAttestationGroupBy is the group-by builder for SLSAAttestation entities.
@@ -750,31 +490,38 @@ func (sagb *SLSAAttestationGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*SLSAAttestationQuery, *SLSAAttestationGroupBy](ctx, sagb.build, sagb, sagb.build.inters, v)
 }
 
-func (sagb *SLSAAttestationGroupBy) sqlScan(ctx context.Context, root *SLSAAttestationQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(sagb.fns))
+func (sagb *SLSAAttestationGroupBy) gremlinScan(ctx context.Context, root *SLSAAttestationQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range sagb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*sagb.flds)+len(sagb.fns))
-		for _, f := range *sagb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *sagb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*sagb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*sagb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := sagb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sagb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*sagb.flds)+len(sagb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // SLSAAttestationSelect is the builder for selecting fields of SLSAAttestation entities.
@@ -798,23 +545,34 @@ func (sas *SLSAAttestationSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*SLSAAttestationQuery, *SLSAAttestationSelect](ctx, sas.SLSAAttestationQuery, sas, sas.inters, v)
 }
 
-func (sas *SLSAAttestationSelect) sqlScan(ctx context.Context, root *SLSAAttestationQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(sas.fns))
-	for _, fn := range sas.fns {
-		aggregation = append(aggregation, fn(selector))
+func (sas *SLSAAttestationSelect) gremlinScan(ctx context.Context, root *SLSAAttestationQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := sas.ctx.Fields; len(fields) == 1 {
+		if fields[0] != slsaattestation.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(sas.ctx.Fields))
+		for i, f := range sas.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*sas.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sas.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := sas.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

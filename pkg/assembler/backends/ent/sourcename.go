@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
 )
 
@@ -27,8 +25,7 @@ type SourceName struct {
 	NamespaceID int `json:"namespace_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the SourceNameQuery when eager-loading is set.
-	Edges        SourceNameEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges SourceNameEdges `json:"edges"`
 }
 
 // SourceNameEdges holds the relations/edges for other nodes in the graph.
@@ -40,10 +37,6 @@ type SourceNameEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
-	// totalCount holds the count of the edges above.
-	totalCount [2]map[string]int
-
-	namedOccurrences map[string][]*Occurrence
 }
 
 // NamespaceOrErr returns the Namespace value or an error if the edge
@@ -68,71 +61,28 @@ func (e SourceNameEdges) OccurrencesOrErr() ([]*Occurrence, error) {
 	return nil, &NotLoadedError{edge: "occurrences"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*SourceName) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case sourcename.FieldID, sourcename.FieldNamespaceID:
-			values[i] = new(sql.NullInt64)
-		case sourcename.FieldName, sourcename.FieldCommit, sourcename.FieldTag:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into SourceName.
+func (sn *SourceName) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the SourceName fields.
-func (sn *SourceName) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scansn struct {
+		ID          int    `json:"id,omitempty"`
+		Name        string `json:"name,omitempty"`
+		Commit      string `json:"commit,omitempty"`
+		Tag         string `json:"tag,omitempty"`
+		NamespaceID int    `json:"namespace_id,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case sourcename.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			sn.ID = int(value.Int64)
-		case sourcename.FieldName:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field name", values[i])
-			} else if value.Valid {
-				sn.Name = value.String
-			}
-		case sourcename.FieldCommit:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field commit", values[i])
-			} else if value.Valid {
-				sn.Commit = value.String
-			}
-		case sourcename.FieldTag:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field tag", values[i])
-			} else if value.Valid {
-				sn.Tag = value.String
-			}
-		case sourcename.FieldNamespaceID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field namespace_id", values[i])
-			} else if value.Valid {
-				sn.NamespaceID = int(value.Int64)
-			}
-		default:
-			sn.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scansn); err != nil {
+		return err
 	}
+	sn.ID = scansn.ID
+	sn.Name = scansn.Name
+	sn.Commit = scansn.Commit
+	sn.Tag = scansn.Tag
+	sn.NamespaceID = scansn.NamespaceID
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the SourceName.
-// This includes values selected through modifiers, order, etc.
-func (sn *SourceName) Value(name string) (ent.Value, error) {
-	return sn.selectValues.Get(name)
 }
 
 // QueryNamespace queries the "namespace" edge of the SourceName entity.
@@ -183,29 +133,32 @@ func (sn *SourceName) String() string {
 	return builder.String()
 }
 
-// NamedOccurrences returns the Occurrences named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (sn *SourceName) NamedOccurrences(name string) ([]*Occurrence, error) {
-	if sn.Edges.namedOccurrences == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := sn.Edges.namedOccurrences[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (sn *SourceName) appendNamedOccurrences(name string, edges ...*Occurrence) {
-	if sn.Edges.namedOccurrences == nil {
-		sn.Edges.namedOccurrences = make(map[string][]*Occurrence)
-	}
-	if len(edges) == 0 {
-		sn.Edges.namedOccurrences[name] = []*Occurrence{}
-	} else {
-		sn.Edges.namedOccurrences[name] = append(sn.Edges.namedOccurrences[name], edges...)
-	}
-}
-
 // SourceNames is a parsable slice of SourceName.
 type SourceNames []*SourceName
+
+// FromResponse scans the gremlin response data into SourceNames.
+func (sn *SourceNames) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scansn []struct {
+		ID          int    `json:"id,omitempty"`
+		Name        string `json:"name,omitempty"`
+		Commit      string `json:"commit,omitempty"`
+		Tag         string `json:"tag,omitempty"`
+		NamespaceID int    `json:"namespace_id,omitempty"`
+	}
+	if err := vmap.Decode(&scansn); err != nil {
+		return err
+	}
+	for _, v := range scansn {
+		node := &SourceName{ID: v.ID}
+		node.Name = v.Name
+		node.Commit = v.Commit
+		node.Tag = v.Tag
+		node.NamespaceID = v.NamespaceID
+		*sn = append(*sn, node)
+	}
+	return nil
+}

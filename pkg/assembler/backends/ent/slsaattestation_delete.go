@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
 )
@@ -27,7 +28,7 @@ func (sad *SLSAAttestationDelete) Where(ps ...predicate.SLSAAttestation) *SLSAAt
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (sad *SLSAAttestationDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, sad.sqlExec, sad.mutation, sad.hooks)
+	return withHooks(ctx, sad.gremlinExec, sad.mutation, sad.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (sad *SLSAAttestationDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (sad *SLSAAttestationDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(slsaattestation.Table, sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt))
-	if ps := sad.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, sad.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (sad *SLSAAttestationDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := sad.gremlin().Query()
+	if err := sad.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	sad.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (sad *SLSAAttestationDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(slsaattestation.Label)
+	for _, p := range sad.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // SLSAAttestationDeleteOne is the builder for deleting a single SLSAAttestation entity.

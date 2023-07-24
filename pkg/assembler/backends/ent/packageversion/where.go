@@ -3,404 +3,487 @@
 package packageversion
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNEQ(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldIn(FieldID, ids...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNotIn(FieldID, ids...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGT(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGTE(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLT(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLTE(FieldID, id))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // NameID applies equality check predicate on the "name_id" field. It's identical to NameIDEQ.
 func NameID(v int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldNameID, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNameID, p.EQ(v))
+	})
 }
 
 // Version applies equality check predicate on the "version" field. It's identical to VersionEQ.
 func Version(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.EQ(v))
+	})
 }
 
 // Subpath applies equality check predicate on the "subpath" field. It's identical to SubpathEQ.
 func Subpath(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.EQ(v))
+	})
 }
 
 // Hash applies equality check predicate on the "hash" field. It's identical to HashEQ.
 func Hash(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.EQ(v))
+	})
 }
 
 // NameIDEQ applies the EQ predicate on the "name_id" field.
 func NameIDEQ(v int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldNameID, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNameID, p.EQ(v))
+	})
 }
 
 // NameIDNEQ applies the NEQ predicate on the "name_id" field.
 func NameIDNEQ(v int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNEQ(FieldNameID, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNameID, p.NEQ(v))
+	})
 }
 
 // NameIDIn applies the In predicate on the "name_id" field.
 func NameIDIn(vs ...int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldIn(FieldNameID, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNameID, p.Within(vs...))
+	})
 }
 
 // NameIDNotIn applies the NotIn predicate on the "name_id" field.
 func NameIDNotIn(vs ...int) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNotIn(FieldNameID, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNameID, p.Without(vs...))
+	})
 }
 
 // VersionEQ applies the EQ predicate on the "version" field.
 func VersionEQ(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.EQ(v))
+	})
 }
 
 // VersionNEQ applies the NEQ predicate on the "version" field.
 func VersionNEQ(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNEQ(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.NEQ(v))
+	})
 }
 
 // VersionIn applies the In predicate on the "version" field.
 func VersionIn(vs ...string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldIn(FieldVersion, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.Within(vs...))
+	})
 }
 
 // VersionNotIn applies the NotIn predicate on the "version" field.
 func VersionNotIn(vs ...string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNotIn(FieldVersion, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.Without(vs...))
+	})
 }
 
 // VersionGT applies the GT predicate on the "version" field.
 func VersionGT(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGT(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.GT(v))
+	})
 }
 
 // VersionGTE applies the GTE predicate on the "version" field.
 func VersionGTE(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGTE(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.GTE(v))
+	})
 }
 
 // VersionLT applies the LT predicate on the "version" field.
 func VersionLT(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLT(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.LT(v))
+	})
 }
 
 // VersionLTE applies the LTE predicate on the "version" field.
 func VersionLTE(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLTE(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.LTE(v))
+	})
 }
 
 // VersionContains applies the Contains predicate on the "version" field.
 func VersionContains(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldContains(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.Containing(v))
+	})
 }
 
 // VersionHasPrefix applies the HasPrefix predicate on the "version" field.
 func VersionHasPrefix(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldHasPrefix(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.StartingWith(v))
+	})
 }
 
 // VersionHasSuffix applies the HasSuffix predicate on the "version" field.
 func VersionHasSuffix(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldHasSuffix(FieldVersion, v))
-}
-
-// VersionEqualFold applies the EqualFold predicate on the "version" field.
-func VersionEqualFold(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEqualFold(FieldVersion, v))
-}
-
-// VersionContainsFold applies the ContainsFold predicate on the "version" field.
-func VersionContainsFold(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldContainsFold(FieldVersion, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVersion, p.EndingWith(v))
+	})
 }
 
 // SubpathEQ applies the EQ predicate on the "subpath" field.
 func SubpathEQ(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.EQ(v))
+	})
 }
 
 // SubpathNEQ applies the NEQ predicate on the "subpath" field.
 func SubpathNEQ(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNEQ(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.NEQ(v))
+	})
 }
 
 // SubpathIn applies the In predicate on the "subpath" field.
 func SubpathIn(vs ...string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldIn(FieldSubpath, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.Within(vs...))
+	})
 }
 
 // SubpathNotIn applies the NotIn predicate on the "subpath" field.
 func SubpathNotIn(vs ...string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNotIn(FieldSubpath, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.Without(vs...))
+	})
 }
 
 // SubpathGT applies the GT predicate on the "subpath" field.
 func SubpathGT(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGT(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.GT(v))
+	})
 }
 
 // SubpathGTE applies the GTE predicate on the "subpath" field.
 func SubpathGTE(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGTE(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.GTE(v))
+	})
 }
 
 // SubpathLT applies the LT predicate on the "subpath" field.
 func SubpathLT(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLT(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.LT(v))
+	})
 }
 
 // SubpathLTE applies the LTE predicate on the "subpath" field.
 func SubpathLTE(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLTE(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.LTE(v))
+	})
 }
 
 // SubpathContains applies the Contains predicate on the "subpath" field.
 func SubpathContains(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldContains(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.Containing(v))
+	})
 }
 
 // SubpathHasPrefix applies the HasPrefix predicate on the "subpath" field.
 func SubpathHasPrefix(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldHasPrefix(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.StartingWith(v))
+	})
 }
 
 // SubpathHasSuffix applies the HasSuffix predicate on the "subpath" field.
 func SubpathHasSuffix(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldHasSuffix(FieldSubpath, v))
-}
-
-// SubpathEqualFold applies the EqualFold predicate on the "subpath" field.
-func SubpathEqualFold(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEqualFold(FieldSubpath, v))
-}
-
-// SubpathContainsFold applies the ContainsFold predicate on the "subpath" field.
-func SubpathContainsFold(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldContainsFold(FieldSubpath, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSubpath, p.EndingWith(v))
+	})
 }
 
 // QualifiersIsNil applies the IsNil predicate on the "qualifiers" field.
 func QualifiersIsNil() predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldIsNull(FieldQualifiers))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldQualifiers)
+	})
 }
 
 // QualifiersNotNil applies the NotNil predicate on the "qualifiers" field.
 func QualifiersNotNil() predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNotNull(FieldQualifiers))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldQualifiers)
+	})
 }
 
 // HashEQ applies the EQ predicate on the "hash" field.
 func HashEQ(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEQ(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.EQ(v))
+	})
 }
 
 // HashNEQ applies the NEQ predicate on the "hash" field.
 func HashNEQ(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNEQ(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.NEQ(v))
+	})
 }
 
 // HashIn applies the In predicate on the "hash" field.
 func HashIn(vs ...string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldIn(FieldHash, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.Within(vs...))
+	})
 }
 
 // HashNotIn applies the NotIn predicate on the "hash" field.
 func HashNotIn(vs ...string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldNotIn(FieldHash, vs...))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.Without(vs...))
+	})
 }
 
 // HashGT applies the GT predicate on the "hash" field.
 func HashGT(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGT(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.GT(v))
+	})
 }
 
 // HashGTE applies the GTE predicate on the "hash" field.
 func HashGTE(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldGTE(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.GTE(v))
+	})
 }
 
 // HashLT applies the LT predicate on the "hash" field.
 func HashLT(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLT(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.LT(v))
+	})
 }
 
 // HashLTE applies the LTE predicate on the "hash" field.
 func HashLTE(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldLTE(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.LTE(v))
+	})
 }
 
 // HashContains applies the Contains predicate on the "hash" field.
 func HashContains(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldContains(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.Containing(v))
+	})
 }
 
 // HashHasPrefix applies the HasPrefix predicate on the "hash" field.
 func HashHasPrefix(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldHasPrefix(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.StartingWith(v))
+	})
 }
 
 // HashHasSuffix applies the HasSuffix predicate on the "hash" field.
 func HashHasSuffix(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldHasSuffix(FieldHash, v))
-}
-
-// HashEqualFold applies the EqualFold predicate on the "hash" field.
-func HashEqualFold(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldEqualFold(FieldHash, v))
-}
-
-// HashContainsFold applies the ContainsFold predicate on the "hash" field.
-func HashContainsFold(v string) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.FieldContainsFold(FieldHash, v))
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.Has(Label, FieldHash, p.EndingWith(v))
+	})
 }
 
 // HasName applies the HasEdge predicate on the "name" edge.
 func HasName() predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, NameTable, NameColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.InE(NameInverseLabel).InV()
 	})
 }
 
 // HasNameWith applies the HasEdge predicate on the "name" edge with a given conditions (other predicates).
 func HasNameWith(preds ...predicate.PackageName) predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := newNameStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(NameInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasOccurrences applies the HasEdge predicate on the "occurrences" edge.
 func HasOccurrences() predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, OccurrencesTable, OccurrencesColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.InE(OccurrencesInverseLabel).InV()
 	})
 }
 
 // HasOccurrencesWith applies the HasEdge predicate on the "occurrences" edge with a given conditions (other predicates).
 func HasOccurrencesWith(preds ...predicate.Occurrence) predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := newOccurrencesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(OccurrencesInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasSbom applies the HasEdge predicate on the "sbom" edge.
 func HasSbom() predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, SbomTable, SbomColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.InE(SbomInverseLabel).InV()
 	})
 }
 
 // HasSbomWith applies the HasEdge predicate on the "sbom" edge with a given conditions (other predicates).
 func HasSbomWith(preds ...predicate.BillOfMaterials) predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := newSbomStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(SbomInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasEqualPackages applies the HasEdge predicate on the "equal_packages" edge.
 func HasEqualPackages() predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, EqualPackagesTable, EqualPackagesPrimaryKey...),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		t.InE(EqualPackagesInverseLabel).InV()
 	})
 }
 
 // HasEqualPackagesWith applies the HasEdge predicate on the "equal_packages" edge with a given conditions (other predicates).
 func HasEqualPackagesWith(preds ...predicate.PkgEqual) predicate.PackageVersion {
-	return predicate.PackageVersion(func(s *sql.Selector) {
-		step := newEqualPackagesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PackageVersion(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(EqualPackagesInverseLabel).Where(tr).InV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.PackageVersion) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.AndPredicates(predicates...))
+	return predicate.PackageVersion(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.PackageVersion) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.OrPredicates(predicates...))
+	return predicate.PackageVersion(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.PackageVersion) predicate.PackageVersion {
-	return predicate.PackageVersion(sql.NotPredicates(p))
+	return predicate.PackageVersion(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

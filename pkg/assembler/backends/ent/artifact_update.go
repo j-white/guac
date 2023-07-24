@@ -5,11 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
@@ -194,7 +195,7 @@ func (au *ArtifactUpdate) RemoveSame(h ...*HashEqual) *ArtifactUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (au *ArtifactUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, au.sqlSave, au.mutation, au.hooks)
+	return withHooks(ctx, au.gremlinSave, au.mutation, au.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -219,211 +220,90 @@ func (au *ArtifactUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-func (au *ArtifactUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(artifact.Table, artifact.Columns, sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt))
-	if ps := au.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+func (au *ArtifactUpdate) gremlinSave(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := au.gremlin().Query()
+	if err := au.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := au.mutation.Algorithm(); ok {
-		_spec.SetField(artifact.FieldAlgorithm, field.TypeString, value)
-	}
-	if value, ok := au.mutation.Digest(); ok {
-		_spec.SetField(artifact.FieldDigest, field.TypeString, value)
-	}
-	if au.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.RemovedOccurrencesIDs(); len(nodes) > 0 && !au.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.OccurrencesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if au.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.RemovedSbomIDs(); len(nodes) > 0 && !au.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.SbomIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if au.mutation.AttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.RemovedAttestationsIDs(); len(nodes) > 0 && !au.mutation.AttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.AttestationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if au.mutation.SameCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.RemovedSameIDs(); len(nodes) > 0 && !au.mutation.SameCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := au.mutation.SameIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, au.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{artifact.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	au.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (au *ArtifactUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V().HasLabel(artifact.Label)
+	for _, p := range au.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := au.mutation.Algorithm(); ok {
+		v.Property(dsl.Single, artifact.FieldAlgorithm, value)
+	}
+	if value, ok := au.mutation.Digest(); ok {
+		v.Property(dsl.Single, artifact.FieldDigest, value)
+	}
+	for _, id := range au.mutation.RemovedOccurrencesIDs() {
+		tr := rv.Clone().InE(occurrence.ArtifactLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range au.mutation.OccurrencesIDs() {
+		v.AddE(occurrence.ArtifactLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(occurrence.ArtifactLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(artifact.Label, occurrence.ArtifactLabel, id)),
+		})
+	}
+	for _, id := range au.mutation.RemovedSbomIDs() {
+		tr := rv.Clone().InE(billofmaterials.ArtifactLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range au.mutation.SbomIDs() {
+		v.AddE(billofmaterials.ArtifactLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(billofmaterials.ArtifactLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(artifact.Label, billofmaterials.ArtifactLabel, id)),
+		})
+	}
+	for _, id := range au.mutation.RemovedAttestationsIDs() {
+		tr := rv.Clone().InE(slsaattestation.BuiltFromLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range au.mutation.AttestationsIDs() {
+		v.AddE(slsaattestation.BuiltFromLabel).From(g.V(id)).InV()
+	}
+	for _, id := range au.mutation.RemovedSameIDs() {
+		tr := rv.Clone().InE(hashequal.ArtifactsLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range au.mutation.SameIDs() {
+		v.AddE(hashequal.ArtifactsLabel).From(g.V(id)).InV()
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // ArtifactUpdateOne is the builder for updating a single Artifact entity.
@@ -610,7 +490,7 @@ func (auo *ArtifactUpdateOne) Select(field string, fields ...string) *ArtifactUp
 
 // Save executes the query and returns the updated Artifact entity.
 func (auo *ArtifactUpdateOne) Save(ctx context.Context) (*Artifact, error) {
-	return withHooks(ctx, auo.sqlSave, auo.mutation, auo.hooks)
+	return withHooks(ctx, auo.gremlinSave, auo.mutation, auo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -635,229 +515,98 @@ func (auo *ArtifactUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-func (auo *ArtifactUpdateOne) sqlSave(ctx context.Context) (_node *Artifact, err error) {
-	_spec := sqlgraph.NewUpdateSpec(artifact.Table, artifact.Columns, sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt))
+func (auo *ArtifactUpdateOne) gremlinSave(ctx context.Context) (*Artifact, error) {
+	res := &gremlin.Response{}
 	id, ok := auo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Artifact.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := auo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, artifact.FieldID)
-		for _, f := range fields {
-			if !artifact.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != artifact.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := auo.gremlin(id).Query()
+	if err := auo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := auo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := auo.mutation.Algorithm(); ok {
-		_spec.SetField(artifact.FieldAlgorithm, field.TypeString, value)
-	}
-	if value, ok := auo.mutation.Digest(); ok {
-		_spec.SetField(artifact.FieldDigest, field.TypeString, value)
-	}
-	if auo.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.RemovedOccurrencesIDs(); len(nodes) > 0 && !auo.mutation.OccurrencesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.OccurrencesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.OccurrencesTable,
-			Columns: []string{artifact.OccurrencesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if auo.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.RemovedSbomIDs(); len(nodes) > 0 && !auo.mutation.SbomCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.SbomIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   artifact.SbomTable,
-			Columns: []string{artifact.SbomColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if auo.mutation.AttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.RemovedAttestationsIDs(); len(nodes) > 0 && !auo.mutation.AttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.AttestationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.AttestationsTable,
-			Columns: artifact.AttestationsPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if auo.mutation.SameCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.RemovedSameIDs(); len(nodes) > 0 && !auo.mutation.SameCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := auo.mutation.SameIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: true,
-			Table:   artifact.SameTable,
-			Columns: artifact.SamePrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &Artifact{config: auo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, auo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{artifact.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	auo.mutation.done = true
-	return _node, nil
+	a := &Artifact{config: auo.config}
+	if err := a.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+func (auo *ArtifactUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := auo.mutation.Algorithm(); ok {
+		v.Property(dsl.Single, artifact.FieldAlgorithm, value)
+	}
+	if value, ok := auo.mutation.Digest(); ok {
+		v.Property(dsl.Single, artifact.FieldDigest, value)
+	}
+	for _, id := range auo.mutation.RemovedOccurrencesIDs() {
+		tr := rv.Clone().InE(occurrence.ArtifactLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range auo.mutation.OccurrencesIDs() {
+		v.AddE(occurrence.ArtifactLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(occurrence.ArtifactLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(artifact.Label, occurrence.ArtifactLabel, id)),
+		})
+	}
+	for _, id := range auo.mutation.RemovedSbomIDs() {
+		tr := rv.Clone().InE(billofmaterials.ArtifactLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range auo.mutation.SbomIDs() {
+		v.AddE(billofmaterials.ArtifactLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(billofmaterials.ArtifactLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(artifact.Label, billofmaterials.ArtifactLabel, id)),
+		})
+	}
+	for _, id := range auo.mutation.RemovedAttestationsIDs() {
+		tr := rv.Clone().InE(slsaattestation.BuiltFromLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range auo.mutation.AttestationsIDs() {
+		v.AddE(slsaattestation.BuiltFromLabel).From(g.V(id)).InV()
+	}
+	for _, id := range auo.mutation.RemovedSameIDs() {
+		tr := rv.Clone().InE(hashequal.ArtifactsLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range auo.mutation.SameIDs() {
+		v.AddE(hashequal.ArtifactsLabel).From(g.V(id)).InV()
+	}
+	if len(auo.fields) > 0 {
+		fields := make([]any, 0, len(auo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range auo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

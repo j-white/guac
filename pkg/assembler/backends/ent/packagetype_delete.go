@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagetype"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (ptd *PackageTypeDelete) Where(ps ...predicate.PackageType) *PackageTypeDel
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (ptd *PackageTypeDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, ptd.sqlExec, ptd.mutation, ptd.hooks)
+	return withHooks(ctx, ptd.gremlinExec, ptd.mutation, ptd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (ptd *PackageTypeDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (ptd *PackageTypeDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(packagetype.Table, sqlgraph.NewFieldSpec(packagetype.FieldID, field.TypeInt))
-	if ps := ptd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, ptd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (ptd *PackageTypeDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := ptd.gremlin().Query()
+	if err := ptd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	ptd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (ptd *PackageTypeDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(packagetype.Label)
+	for _, p := range ptd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // PackageTypeDeleteOne is the builder for deleting a single PackageType entity.

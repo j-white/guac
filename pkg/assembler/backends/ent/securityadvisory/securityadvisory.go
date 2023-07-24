@@ -3,7 +3,7 @@
 package securityadvisory
 
 import (
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 const (
@@ -19,53 +19,7 @@ const (
 	FieldCveYear = "cve_year"
 	// FieldOsvID holds the string denoting the osv_id field in the database.
 	FieldOsvID = "osv_id"
-	// Table holds the table name of the securityadvisory in the database.
-	Table = "security_advisories"
 )
 
-// Columns holds all SQL columns for securityadvisory fields.
-var Columns = []string{
-	FieldID,
-	FieldGhsaID,
-	FieldCveID,
-	FieldCveYear,
-	FieldOsvID,
-}
-
-// ValidColumn reports if the column name is valid (part of the table columns).
-func ValidColumn(column string) bool {
-	for i := range Columns {
-		if column == Columns[i] {
-			return true
-		}
-	}
-	return false
-}
-
 // OrderOption defines the ordering options for the SecurityAdvisory queries.
-type OrderOption func(*sql.Selector)
-
-// ByID orders the results by the id field.
-func ByID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldID, opts...).ToFunc()
-}
-
-// ByGhsaID orders the results by the ghsa_id field.
-func ByGhsaID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldGhsaID, opts...).ToFunc()
-}
-
-// ByCveID orders the results by the cve_id field.
-func ByCveID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCveID, opts...).ToFunc()
-}
-
-// ByCveYear orders the results by the cve_year field.
-func ByCveYear(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCveYear, opts...).ToFunc()
-}
-
-// ByOsvID orders the results by the osv_id field.
-func ByOsvID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOsvID, opts...).ToFunc()
-}
+type OrderOption func(*dsl.Traversal)

@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (bomd *BillOfMaterialsDelete) Where(ps ...predicate.BillOfMaterials) *BillO
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (bomd *BillOfMaterialsDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, bomd.sqlExec, bomd.mutation, bomd.hooks)
+	return withHooks(ctx, bomd.gremlinExec, bomd.mutation, bomd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (bomd *BillOfMaterialsDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (bomd *BillOfMaterialsDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(billofmaterials.Table, sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt))
-	if ps := bomd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, bomd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (bomd *BillOfMaterialsDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := bomd.gremlin().Query()
+	if err := bomd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	bomd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (bomd *BillOfMaterialsDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(billofmaterials.Label)
+	for _, p := range bomd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // BillOfMaterialsDeleteOne is the builder for deleting a single BillOfMaterials entity.

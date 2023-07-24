@@ -7,12 +7,10 @@ import (
 	"errors"
 	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/dependency"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
@@ -100,7 +98,7 @@ func (du *DependencyUpdate) ClearDependentPackage() *DependencyUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (du *DependencyUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, du.sqlSave, du.mutation, du.hooks)
+	return withHooks(ctx, du.gremlinSave, du.mutation, du.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -141,101 +139,65 @@ func (du *DependencyUpdate) check() error {
 	return nil
 }
 
-func (du *DependencyUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (du *DependencyUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := du.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(dependency.Table, dependency.Columns, sqlgraph.NewFieldSpec(dependency.FieldID, field.TypeInt))
-	if ps := du.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := du.gremlin().Query()
+	if err := du.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := du.mutation.VersionRange(); ok {
-		_spec.SetField(dependency.FieldVersionRange, field.TypeString, value)
-	}
-	if value, ok := du.mutation.DependencyType(); ok {
-		_spec.SetField(dependency.FieldDependencyType, field.TypeEnum, value)
-	}
-	if value, ok := du.mutation.Justification(); ok {
-		_spec.SetField(dependency.FieldJustification, field.TypeString, value)
-	}
-	if value, ok := du.mutation.Origin(); ok {
-		_spec.SetField(dependency.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := du.mutation.Collector(); ok {
-		_spec.SetField(dependency.FieldCollector, field.TypeString, value)
-	}
-	if du.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.PackageTable,
-			Columns: []string{dependency.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := du.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.PackageTable,
-			Columns: []string{dependency.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if du.mutation.DependentPackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.DependentPackageTable,
-			Columns: []string{dependency.DependentPackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := du.mutation.DependentPackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.DependentPackageTable,
-			Columns: []string{dependency.DependentPackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, du.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{dependency.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	du.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (du *DependencyUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(dependency.Label)
+	for _, p := range du.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := du.mutation.VersionRange(); ok {
+		v.Property(dsl.Single, dependency.FieldVersionRange, value)
+	}
+	if value, ok := du.mutation.DependencyType(); ok {
+		v.Property(dsl.Single, dependency.FieldDependencyType, value)
+	}
+	if value, ok := du.mutation.Justification(); ok {
+		v.Property(dsl.Single, dependency.FieldJustification, value)
+	}
+	if value, ok := du.mutation.Origin(); ok {
+		v.Property(dsl.Single, dependency.FieldOrigin, value)
+	}
+	if value, ok := du.mutation.Collector(); ok {
+		v.Property(dsl.Single, dependency.FieldCollector, value)
+	}
+	if du.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(dependency.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range du.mutation.PackageIDs() {
+		v.AddE(dependency.PackageLabel).To(g.V(id)).OutV()
+	}
+	if du.mutation.DependentPackageCleared() {
+		tr := rv.Clone().OutE(dependency.DependentPackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range du.mutation.DependentPackageIDs() {
+		v.AddE(dependency.DependentPackageLabel).To(g.V(id)).OutV()
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // DependencyUpdateOne is the builder for updating a single Dependency entity.
@@ -330,7 +292,7 @@ func (duo *DependencyUpdateOne) Select(field string, fields ...string) *Dependen
 
 // Save executes the query and returns the updated Dependency entity.
 func (duo *DependencyUpdateOne) Save(ctx context.Context) (*Dependency, error) {
-	return withHooks(ctx, duo.sqlSave, duo.mutation, duo.hooks)
+	return withHooks(ctx, duo.gremlinSave, duo.mutation, duo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -371,119 +333,77 @@ func (duo *DependencyUpdateOne) check() error {
 	return nil
 }
 
-func (duo *DependencyUpdateOne) sqlSave(ctx context.Context) (_node *Dependency, err error) {
+func (duo *DependencyUpdateOne) gremlinSave(ctx context.Context) (*Dependency, error) {
 	if err := duo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(dependency.Table, dependency.Columns, sqlgraph.NewFieldSpec(dependency.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := duo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Dependency.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := duo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, dependency.FieldID)
-		for _, f := range fields {
-			if !dependency.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != dependency.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := duo.gremlin(id).Query()
+	if err := duo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := duo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := duo.mutation.VersionRange(); ok {
-		_spec.SetField(dependency.FieldVersionRange, field.TypeString, value)
-	}
-	if value, ok := duo.mutation.DependencyType(); ok {
-		_spec.SetField(dependency.FieldDependencyType, field.TypeEnum, value)
-	}
-	if value, ok := duo.mutation.Justification(); ok {
-		_spec.SetField(dependency.FieldJustification, field.TypeString, value)
-	}
-	if value, ok := duo.mutation.Origin(); ok {
-		_spec.SetField(dependency.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := duo.mutation.Collector(); ok {
-		_spec.SetField(dependency.FieldCollector, field.TypeString, value)
-	}
-	if duo.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.PackageTable,
-			Columns: []string{dependency.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := duo.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.PackageTable,
-			Columns: []string{dependency.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if duo.mutation.DependentPackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.DependentPackageTable,
-			Columns: []string{dependency.DependentPackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := duo.mutation.DependentPackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   dependency.DependentPackageTable,
-			Columns: []string{dependency.DependentPackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &Dependency{config: duo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, duo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{dependency.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	duo.mutation.done = true
-	return _node, nil
+	d := &Dependency{config: duo.config}
+	if err := d.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (duo *DependencyUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := duo.mutation.VersionRange(); ok {
+		v.Property(dsl.Single, dependency.FieldVersionRange, value)
+	}
+	if value, ok := duo.mutation.DependencyType(); ok {
+		v.Property(dsl.Single, dependency.FieldDependencyType, value)
+	}
+	if value, ok := duo.mutation.Justification(); ok {
+		v.Property(dsl.Single, dependency.FieldJustification, value)
+	}
+	if value, ok := duo.mutation.Origin(); ok {
+		v.Property(dsl.Single, dependency.FieldOrigin, value)
+	}
+	if value, ok := duo.mutation.Collector(); ok {
+		v.Property(dsl.Single, dependency.FieldCollector, value)
+	}
+	if duo.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(dependency.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range duo.mutation.PackageIDs() {
+		v.AddE(dependency.PackageLabel).To(g.V(id)).OutV()
+	}
+	if duo.mutation.DependentPackageCleared() {
+		tr := rv.Clone().OutE(dependency.DependentPackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range duo.mutation.DependentPackageIDs() {
+		v.AddE(dependency.DependentPackageLabel).To(g.V(id)).OutV()
+	}
+	if len(duo.fields) > 0 {
+		fields := make([]any, 0, len(duo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range duo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

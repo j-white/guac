@@ -5,15 +5,15 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
 )
 
 // SourceNamespaceUpdate is the builder for updating SourceNamespace entities.
@@ -101,7 +101,7 @@ func (snu *SourceNamespaceUpdate) RemoveNames(s ...*SourceName) *SourceNamespace
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (snu *SourceNamespaceUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, snu.sqlSave, snu.mutation, snu.hooks)
+	return withHooks(ctx, snu.gremlinSave, snu.mutation, snu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -134,105 +134,72 @@ func (snu *SourceNamespaceUpdate) check() error {
 	return nil
 }
 
-func (snu *SourceNamespaceUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (snu *SourceNamespaceUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := snu.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(sourcenamespace.Table, sourcenamespace.Columns, sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt))
-	if ps := snu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := snu.gremlin().Query()
+	if err := snu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := snu.mutation.Namespace(); ok {
-		_spec.SetField(sourcenamespace.FieldNamespace, field.TypeString, value)
-	}
-	if snu.mutation.SourceTypeCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   sourcenamespace.SourceTypeTable,
-			Columns: []string{sourcenamespace.SourceTypeColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := snu.mutation.SourceTypeIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   sourcenamespace.SourceTypeTable,
-			Columns: []string{sourcenamespace.SourceTypeColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if snu.mutation.NamesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := snu.mutation.RemovedNamesIDs(); len(nodes) > 0 && !snu.mutation.NamesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := snu.mutation.NamesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, snu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{sourcenamespace.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	snu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (snu *SourceNamespaceUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.V().HasLabel(sourcenamespace.Label)
+	for _, p := range snu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := snu.mutation.Namespace(); ok {
+		v.Property(dsl.Single, sourcenamespace.FieldNamespace, value)
+	}
+	if snu.mutation.SourceTypeCleared() {
+		tr := rv.Clone().OutE(sourcenamespace.SourceTypeLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range snu.mutation.SourceTypeIDs() {
+		v.AddE(sourcenamespace.SourceTypeLabel).To(g.V(id)).OutV()
+	}
+	for _, id := range snu.mutation.RemovedNamesIDs() {
+		tr := rv.Clone().InE(sourcename.NamespaceLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range snu.mutation.NamesIDs() {
+		v.AddE(sourcename.NamespaceLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(sourcename.NamespaceLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(sourcenamespace.Label, sourcename.NamespaceLabel, id)),
+		})
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // SourceNamespaceUpdateOne is the builder for updating a single SourceNamespace entity.
@@ -328,7 +295,7 @@ func (snuo *SourceNamespaceUpdateOne) Select(field string, fields ...string) *So
 
 // Save executes the query and returns the updated SourceNamespace entity.
 func (snuo *SourceNamespaceUpdateOne) Save(ctx context.Context) (*SourceNamespace, error) {
-	return withHooks(ctx, snuo.sqlSave, snuo.mutation, snuo.hooks)
+	return withHooks(ctx, snuo.gremlinSave, snuo.mutation, snuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -361,123 +328,80 @@ func (snuo *SourceNamespaceUpdateOne) check() error {
 	return nil
 }
 
-func (snuo *SourceNamespaceUpdateOne) sqlSave(ctx context.Context) (_node *SourceNamespace, err error) {
+func (snuo *SourceNamespaceUpdateOne) gremlinSave(ctx context.Context) (*SourceNamespace, error) {
 	if err := snuo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(sourcenamespace.Table, sourcenamespace.Columns, sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := snuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "SourceNamespace.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := snuo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, sourcenamespace.FieldID)
-		for _, f := range fields {
-			if !sourcenamespace.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != sourcenamespace.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := snuo.gremlin(id).Query()
+	if err := snuo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := snuo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := snuo.mutation.Namespace(); ok {
-		_spec.SetField(sourcenamespace.FieldNamespace, field.TypeString, value)
-	}
-	if snuo.mutation.SourceTypeCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   sourcenamespace.SourceTypeTable,
-			Columns: []string{sourcenamespace.SourceTypeColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := snuo.mutation.SourceTypeIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   sourcenamespace.SourceTypeTable,
-			Columns: []string{sourcenamespace.SourceTypeColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if snuo.mutation.NamesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := snuo.mutation.RemovedNamesIDs(); len(nodes) > 0 && !snuo.mutation.NamesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := snuo.mutation.NamesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &SourceNamespace{config: snuo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, snuo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{sourcenamespace.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	snuo.mutation.done = true
-	return _node, nil
+	sn := &SourceNamespace{config: snuo.config}
+	if err := sn.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return sn, nil
+}
+
+func (snuo *SourceNamespaceUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := snuo.mutation.Namespace(); ok {
+		v.Property(dsl.Single, sourcenamespace.FieldNamespace, value)
+	}
+	if snuo.mutation.SourceTypeCleared() {
+		tr := rv.Clone().OutE(sourcenamespace.SourceTypeLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range snuo.mutation.SourceTypeIDs() {
+		v.AddE(sourcenamespace.SourceTypeLabel).To(g.V(id)).OutV()
+	}
+	for _, id := range snuo.mutation.RemovedNamesIDs() {
+		tr := rv.Clone().InE(sourcename.NamespaceLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range snuo.mutation.NamesIDs() {
+		v.AddE(sourcename.NamespaceLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(sourcename.NamespaceLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(sourcenamespace.Label, sourcename.NamespaceLabel, id)),
+		})
+	}
+	if len(snuo.fields) > 0 {
+		fields := make([]any, 0, len(snuo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range snuo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

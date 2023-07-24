@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hassourceat"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (hsad *HasSourceAtDelete) Where(ps ...predicate.HasSourceAt) *HasSourceAtDe
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (hsad *HasSourceAtDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, hsad.sqlExec, hsad.mutation, hsad.hooks)
+	return withHooks(ctx, hsad.gremlinExec, hsad.mutation, hsad.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (hsad *HasSourceAtDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (hsad *HasSourceAtDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(hassourceat.Table, sqlgraph.NewFieldSpec(hassourceat.FieldID, field.TypeInt))
-	if ps := hsad.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, hsad.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (hsad *HasSourceAtDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := hsad.gremlin().Query()
+	if err := hsad.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	hsad.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (hsad *HasSourceAtDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(hassourceat.Label)
+	for _, p := range hsad.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // HasSourceAtDeleteOne is the builder for deleting a single HasSourceAt entity.

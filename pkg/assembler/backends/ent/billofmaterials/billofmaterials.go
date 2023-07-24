@@ -3,8 +3,7 @@
 package billofmaterials
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 const (
@@ -32,119 +31,11 @@ const (
 	EdgePackage = "package"
 	// EdgeArtifact holds the string denoting the artifact edge name in mutations.
 	EdgeArtifact = "artifact"
-	// Table holds the table name of the billofmaterials in the database.
-	Table = "bill_of_materials"
-	// PackageTable is the table that holds the package relation/edge.
-	PackageTable = "bill_of_materials"
-	// PackageInverseTable is the table name for the PackageVersion entity.
-	// It exists in this package in order to avoid circular dependency with the "packageversion" package.
-	PackageInverseTable = "package_versions"
-	// PackageColumn is the table column denoting the package relation/edge.
-	PackageColumn = "package_id"
-	// ArtifactTable is the table that holds the artifact relation/edge.
-	ArtifactTable = "bill_of_materials"
-	// ArtifactInverseTable is the table name for the Artifact entity.
-	// It exists in this package in order to avoid circular dependency with the "artifact" package.
-	ArtifactInverseTable = "artifacts"
-	// ArtifactColumn is the table column denoting the artifact relation/edge.
-	ArtifactColumn = "artifact_id"
+	// PackageLabel holds the string label denoting the package edge type in the database.
+	PackageLabel = "bill_of_materials_package"
+	// ArtifactLabel holds the string label denoting the artifact edge type in the database.
+	ArtifactLabel = "bill_of_materials_artifact"
 )
 
-// Columns holds all SQL columns for billofmaterials fields.
-var Columns = []string{
-	FieldID,
-	FieldPackageID,
-	FieldArtifactID,
-	FieldURI,
-	FieldAlgorithm,
-	FieldDigest,
-	FieldDownloadLocation,
-	FieldOrigin,
-	FieldCollector,
-}
-
-// ValidColumn reports if the column name is valid (part of the table columns).
-func ValidColumn(column string) bool {
-	for i := range Columns {
-		if column == Columns[i] {
-			return true
-		}
-	}
-	return false
-}
-
 // OrderOption defines the ordering options for the BillOfMaterials queries.
-type OrderOption func(*sql.Selector)
-
-// ByID orders the results by the id field.
-func ByID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldID, opts...).ToFunc()
-}
-
-// ByPackageID orders the results by the package_id field.
-func ByPackageID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPackageID, opts...).ToFunc()
-}
-
-// ByArtifactID orders the results by the artifact_id field.
-func ByArtifactID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldArtifactID, opts...).ToFunc()
-}
-
-// ByURI orders the results by the uri field.
-func ByURI(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldURI, opts...).ToFunc()
-}
-
-// ByAlgorithm orders the results by the algorithm field.
-func ByAlgorithm(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldAlgorithm, opts...).ToFunc()
-}
-
-// ByDigest orders the results by the digest field.
-func ByDigest(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDigest, opts...).ToFunc()
-}
-
-// ByDownloadLocation orders the results by the download_location field.
-func ByDownloadLocation(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDownloadLocation, opts...).ToFunc()
-}
-
-// ByOrigin orders the results by the origin field.
-func ByOrigin(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOrigin, opts...).ToFunc()
-}
-
-// ByCollector orders the results by the collector field.
-func ByCollector(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCollector, opts...).ToFunc()
-}
-
-// ByPackageField orders the results by package field.
-func ByPackageField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newPackageStep(), sql.OrderByField(field, opts...))
-	}
-}
-
-// ByArtifactField orders the results by artifact field.
-func ByArtifactField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newArtifactStep(), sql.OrderByField(field, opts...))
-	}
-}
-func newPackageStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(PackageInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-	)
-}
-func newArtifactStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(ArtifactInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, ArtifactTable, ArtifactColumn),
-	)
-}
+type OrderOption func(*dsl.Traversal)

@@ -5,17 +5,14 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hassourceat"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
 
 // HasSourceAtUpdate is the builder for updating HasSourceAt entities.
@@ -155,7 +152,7 @@ func (hsau *HasSourceAtUpdate) ClearSource() *HasSourceAtUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (hsau *HasSourceAtUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, hsau.sqlSave, hsau.mutation, hsau.hooks)
+	return withHooks(ctx, hsau.gremlinSave, hsau.mutation, hsau.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -188,127 +185,73 @@ func (hsau *HasSourceAtUpdate) check() error {
 	return nil
 }
 
-func (hsau *HasSourceAtUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (hsau *HasSourceAtUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := hsau.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(hassourceat.Table, hassourceat.Columns, sqlgraph.NewFieldSpec(hassourceat.FieldID, field.TypeInt))
-	if ps := hsau.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := hsau.gremlin().Query()
+	if err := hsau.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := hsau.mutation.KnownSince(); ok {
-		_spec.SetField(hassourceat.FieldKnownSince, field.TypeTime, value)
-	}
-	if value, ok := hsau.mutation.Justification(); ok {
-		_spec.SetField(hassourceat.FieldJustification, field.TypeString, value)
-	}
-	if value, ok := hsau.mutation.Origin(); ok {
-		_spec.SetField(hassourceat.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := hsau.mutation.Collector(); ok {
-		_spec.SetField(hassourceat.FieldCollector, field.TypeString, value)
-	}
-	if hsau.mutation.PackageVersionCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.PackageVersionTable,
-			Columns: []string{hassourceat.PackageVersionColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := hsau.mutation.PackageVersionIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.PackageVersionTable,
-			Columns: []string{hassourceat.PackageVersionColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if hsau.mutation.AllVersionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.AllVersionsTable,
-			Columns: []string{hassourceat.AllVersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := hsau.mutation.AllVersionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.AllVersionsTable,
-			Columns: []string{hassourceat.AllVersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if hsau.mutation.SourceCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.SourceTable,
-			Columns: []string{hassourceat.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := hsau.mutation.SourceIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.SourceTable,
-			Columns: []string{hassourceat.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, hsau.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{hassourceat.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	hsau.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (hsau *HasSourceAtUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(hassourceat.Label)
+	for _, p := range hsau.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := hsau.mutation.KnownSince(); ok {
+		v.Property(dsl.Single, hassourceat.FieldKnownSince, value)
+	}
+	if value, ok := hsau.mutation.Justification(); ok {
+		v.Property(dsl.Single, hassourceat.FieldJustification, value)
+	}
+	if value, ok := hsau.mutation.Origin(); ok {
+		v.Property(dsl.Single, hassourceat.FieldOrigin, value)
+	}
+	if value, ok := hsau.mutation.Collector(); ok {
+		v.Property(dsl.Single, hassourceat.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if hsau.mutation.PackageVersionCleared() {
+		tr := rv.Clone().OutE(hassourceat.PackageVersionLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range hsau.mutation.PackageVersionIDs() {
+		v.AddE(hassourceat.PackageVersionLabel).To(g.V(id)).OutV()
+	}
+	if hsau.mutation.AllVersionsCleared() {
+		tr := rv.Clone().OutE(hassourceat.AllVersionsLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range hsau.mutation.AllVersionsIDs() {
+		v.AddE(hassourceat.AllVersionsLabel).To(g.V(id)).OutV()
+	}
+	if hsau.mutation.SourceCleared() {
+		tr := rv.Clone().OutE(hassourceat.SourceLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range hsau.mutation.SourceIDs() {
+		v.AddE(hassourceat.SourceLabel).To(g.V(id)).OutV()
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // HasSourceAtUpdateOne is the builder for updating a single HasSourceAt entity.
@@ -456,7 +399,7 @@ func (hsauo *HasSourceAtUpdateOne) Select(field string, fields ...string) *HasSo
 
 // Save executes the query and returns the updated HasSourceAt entity.
 func (hsauo *HasSourceAtUpdateOne) Save(ctx context.Context) (*HasSourceAt, error) {
-	return withHooks(ctx, hsauo.sqlSave, hsauo.mutation, hsauo.hooks)
+	return withHooks(ctx, hsauo.gremlinSave, hsauo.mutation, hsauo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -489,145 +432,85 @@ func (hsauo *HasSourceAtUpdateOne) check() error {
 	return nil
 }
 
-func (hsauo *HasSourceAtUpdateOne) sqlSave(ctx context.Context) (_node *HasSourceAt, err error) {
+func (hsauo *HasSourceAtUpdateOne) gremlinSave(ctx context.Context) (*HasSourceAt, error) {
 	if err := hsauo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(hassourceat.Table, hassourceat.Columns, sqlgraph.NewFieldSpec(hassourceat.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := hsauo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "HasSourceAt.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := hsauo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, hassourceat.FieldID)
-		for _, f := range fields {
-			if !hassourceat.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != hassourceat.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := hsauo.gremlin(id).Query()
+	if err := hsauo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := hsauo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := hsauo.mutation.KnownSince(); ok {
-		_spec.SetField(hassourceat.FieldKnownSince, field.TypeTime, value)
-	}
-	if value, ok := hsauo.mutation.Justification(); ok {
-		_spec.SetField(hassourceat.FieldJustification, field.TypeString, value)
-	}
-	if value, ok := hsauo.mutation.Origin(); ok {
-		_spec.SetField(hassourceat.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := hsauo.mutation.Collector(); ok {
-		_spec.SetField(hassourceat.FieldCollector, field.TypeString, value)
-	}
-	if hsauo.mutation.PackageVersionCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.PackageVersionTable,
-			Columns: []string{hassourceat.PackageVersionColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := hsauo.mutation.PackageVersionIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.PackageVersionTable,
-			Columns: []string{hassourceat.PackageVersionColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if hsauo.mutation.AllVersionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.AllVersionsTable,
-			Columns: []string{hassourceat.AllVersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := hsauo.mutation.AllVersionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.AllVersionsTable,
-			Columns: []string{hassourceat.AllVersionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if hsauo.mutation.SourceCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.SourceTable,
-			Columns: []string{hassourceat.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := hsauo.mutation.SourceIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   hassourceat.SourceTable,
-			Columns: []string{hassourceat.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &HasSourceAt{config: hsauo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, hsauo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{hassourceat.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	hsauo.mutation.done = true
-	return _node, nil
+	hsa := &HasSourceAt{config: hsauo.config}
+	if err := hsa.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return hsa, nil
+}
+
+func (hsauo *HasSourceAtUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := hsauo.mutation.KnownSince(); ok {
+		v.Property(dsl.Single, hassourceat.FieldKnownSince, value)
+	}
+	if value, ok := hsauo.mutation.Justification(); ok {
+		v.Property(dsl.Single, hassourceat.FieldJustification, value)
+	}
+	if value, ok := hsauo.mutation.Origin(); ok {
+		v.Property(dsl.Single, hassourceat.FieldOrigin, value)
+	}
+	if value, ok := hsauo.mutation.Collector(); ok {
+		v.Property(dsl.Single, hassourceat.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if hsauo.mutation.PackageVersionCleared() {
+		tr := rv.Clone().OutE(hassourceat.PackageVersionLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range hsauo.mutation.PackageVersionIDs() {
+		v.AddE(hassourceat.PackageVersionLabel).To(g.V(id)).OutV()
+	}
+	if hsauo.mutation.AllVersionsCleared() {
+		tr := rv.Clone().OutE(hassourceat.AllVersionsLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range hsauo.mutation.AllVersionsIDs() {
+		v.AddE(hassourceat.AllVersionsLabel).To(g.V(id)).OutV()
+	}
+	if hsauo.mutation.SourceCleared() {
+		tr := rv.Clone().OutE(hassourceat.SourceLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range hsauo.mutation.SourceIDs() {
+		v.AddE(hassourceat.SourceLabel).To(g.V(id)).OutV()
+	}
+	if len(hsauo.fields) > 0 {
+		fields := make([]any, 0, len(hsauo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range hsauo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

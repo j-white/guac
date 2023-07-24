@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
@@ -489,7 +489,7 @@ func (m *ArtifactMutation) Where(ps ...predicate.Artifact) {
 
 // WhereP appends storage-level predicates to the ArtifactMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *ArtifactMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *ArtifactMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.Artifact, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -1229,6 +1229,7 @@ func (m *BillOfMaterialsMutation) ResetCollector() {
 // ClearPackage clears the "package" edge to the PackageVersion entity.
 func (m *BillOfMaterialsMutation) ClearPackage() {
 	m.cleared_package = true
+	m.clearedFields[billofmaterials.FieldPackageID] = struct{}{}
 }
 
 // PackageCleared reports if the "package" edge to the PackageVersion entity was cleared.
@@ -1255,6 +1256,7 @@ func (m *BillOfMaterialsMutation) ResetPackage() {
 // ClearArtifact clears the "artifact" edge to the Artifact entity.
 func (m *BillOfMaterialsMutation) ClearArtifact() {
 	m.clearedartifact = true
+	m.clearedFields[billofmaterials.FieldArtifactID] = struct{}{}
 }
 
 // ArtifactCleared reports if the "artifact" edge to the Artifact entity was cleared.
@@ -1285,7 +1287,7 @@ func (m *BillOfMaterialsMutation) Where(ps ...predicate.BillOfMaterials) {
 
 // WhereP appends storage-level predicates to the BillOfMaterialsMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *BillOfMaterialsMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *BillOfMaterialsMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.BillOfMaterials, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -1849,7 +1851,7 @@ func (m *BuilderMutation) Where(ps ...predicate.Builder) {
 
 // WhereP appends storage-level predicates to the BuilderMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *BuilderMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *BuilderMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.Builder, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -2522,6 +2524,7 @@ func (m *CertificationMutation) ResetCollector() {
 // ClearSource clears the "source" edge to the SourceName entity.
 func (m *CertificationMutation) ClearSource() {
 	m.clearedsource = true
+	m.clearedFields[certification.FieldSourceID] = struct{}{}
 }
 
 // SourceCleared reports if the "source" edge to the SourceName entity was cleared.
@@ -2548,6 +2551,7 @@ func (m *CertificationMutation) ResetSource() {
 // ClearPackageVersion clears the "package_version" edge to the PackageVersion entity.
 func (m *CertificationMutation) ClearPackageVersion() {
 	m.clearedpackage_version = true
+	m.clearedFields[certification.FieldPackageVersionID] = struct{}{}
 }
 
 // PackageVersionCleared reports if the "package_version" edge to the PackageVersion entity was cleared.
@@ -2579,6 +2583,7 @@ func (m *CertificationMutation) SetAllVersionsID(id int) {
 // ClearAllVersions clears the "all_versions" edge to the PackageName entity.
 func (m *CertificationMutation) ClearAllVersions() {
 	m.clearedall_versions = true
+	m.clearedFields[certification.FieldPackageNameID] = struct{}{}
 }
 
 // AllVersionsCleared reports if the "all_versions" edge to the PackageName entity was cleared.
@@ -2613,6 +2618,7 @@ func (m *CertificationMutation) ResetAllVersions() {
 // ClearArtifact clears the "artifact" edge to the Artifact entity.
 func (m *CertificationMutation) ClearArtifact() {
 	m.clearedartifact = true
+	m.clearedFields[certification.FieldArtifactID] = struct{}{}
 }
 
 // ArtifactCleared reports if the "artifact" edge to the Artifact entity was cleared.
@@ -2643,7 +2649,7 @@ func (m *CertificationMutation) Where(ps ...predicate.Certification) {
 
 // WhereP appends storage-level predicates to the CertificationMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *CertificationMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *CertificationMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.Certification, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -3233,6 +3239,7 @@ func (m *CertifyScorecardMutation) ResetScorecardID() {
 // ClearScorecard clears the "scorecard" edge to the Scorecard entity.
 func (m *CertifyScorecardMutation) ClearScorecard() {
 	m.clearedscorecard = true
+	m.clearedFields[certifyscorecard.FieldScorecardID] = struct{}{}
 }
 
 // ScorecardCleared reports if the "scorecard" edge to the Scorecard entity was cleared.
@@ -3259,6 +3266,7 @@ func (m *CertifyScorecardMutation) ResetScorecard() {
 // ClearSource clears the "source" edge to the SourceName entity.
 func (m *CertifyScorecardMutation) ClearSource() {
 	m.clearedsource = true
+	m.clearedFields[certifyscorecard.FieldSourceID] = struct{}{}
 }
 
 // SourceCleared reports if the "source" edge to the SourceName entity was cleared.
@@ -3289,7 +3297,7 @@ func (m *CertifyScorecardMutation) Where(ps ...predicate.CertifyScorecard) {
 
 // WhereP appends storage-level predicates to the CertifyScorecardMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *CertifyScorecardMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *CertifyScorecardMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.CertifyScorecard, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -3986,6 +3994,7 @@ func (m *CertifyVulnMutation) ResetCollector() {
 // ClearVulnerability clears the "vulnerability" edge to the SecurityAdvisory entity.
 func (m *CertifyVulnMutation) ClearVulnerability() {
 	m.clearedvulnerability = true
+	m.clearedFields[certifyvuln.FieldVulnerabilityID] = struct{}{}
 }
 
 // VulnerabilityCleared reports if the "vulnerability" edge to the SecurityAdvisory entity was cleared.
@@ -4012,6 +4021,7 @@ func (m *CertifyVulnMutation) ResetVulnerability() {
 // ClearPackage clears the "package" edge to the PackageVersion entity.
 func (m *CertifyVulnMutation) ClearPackage() {
 	m.cleared_package = true
+	m.clearedFields[certifyvuln.FieldPackageID] = struct{}{}
 }
 
 // PackageCleared reports if the "package" edge to the PackageVersion entity was cleared.
@@ -4042,7 +4052,7 @@ func (m *CertifyVulnMutation) Where(ps ...predicate.CertifyVuln) {
 
 // WhereP appends storage-level predicates to the CertifyVulnMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *CertifyVulnMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *CertifyVulnMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.CertifyVuln, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -4780,6 +4790,7 @@ func (m *DependencyMutation) ResetCollector() {
 // ClearPackage clears the "package" edge to the PackageVersion entity.
 func (m *DependencyMutation) ClearPackage() {
 	m.cleared_package = true
+	m.clearedFields[dependency.FieldPackageID] = struct{}{}
 }
 
 // PackageCleared reports if the "package" edge to the PackageVersion entity was cleared.
@@ -4806,6 +4817,7 @@ func (m *DependencyMutation) ResetPackage() {
 // ClearDependentPackage clears the "dependent_package" edge to the PackageName entity.
 func (m *DependencyMutation) ClearDependentPackage() {
 	m.cleareddependent_package = true
+	m.clearedFields[dependency.FieldDependentPackageID] = struct{}{}
 }
 
 // DependentPackageCleared reports if the "dependent_package" edge to the PackageName entity was cleared.
@@ -4836,7 +4848,7 @@ func (m *DependencyMutation) Where(ps ...predicate.Dependency) {
 
 // WhereP appends storage-level predicates to the DependencyMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *DependencyMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *DependencyMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.Dependency, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -5558,6 +5570,7 @@ func (m *HasSourceAtMutation) ResetCollector() {
 // ClearPackageVersion clears the "package_version" edge to the PackageVersion entity.
 func (m *HasSourceAtMutation) ClearPackageVersion() {
 	m.clearedpackage_version = true
+	m.clearedFields[hassourceat.FieldPackageVersionID] = struct{}{}
 }
 
 // PackageVersionCleared reports if the "package_version" edge to the PackageVersion entity was cleared.
@@ -5589,6 +5602,7 @@ func (m *HasSourceAtMutation) SetAllVersionsID(id int) {
 // ClearAllVersions clears the "all_versions" edge to the PackageName entity.
 func (m *HasSourceAtMutation) ClearAllVersions() {
 	m.clearedall_versions = true
+	m.clearedFields[hassourceat.FieldPackageNameID] = struct{}{}
 }
 
 // AllVersionsCleared reports if the "all_versions" edge to the PackageName entity was cleared.
@@ -5623,6 +5637,7 @@ func (m *HasSourceAtMutation) ResetAllVersions() {
 // ClearSource clears the "source" edge to the SourceName entity.
 func (m *HasSourceAtMutation) ClearSource() {
 	m.clearedsource = true
+	m.clearedFields[hassourceat.FieldSourceID] = struct{}{}
 }
 
 // SourceCleared reports if the "source" edge to the SourceName entity was cleared.
@@ -5653,7 +5668,7 @@ func (m *HasSourceAtMutation) Where(ps ...predicate.HasSourceAt) {
 
 // WhereP appends storage-level predicates to the HasSourceAtMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *HasSourceAtMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *HasSourceAtMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.HasSourceAt, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -6292,7 +6307,7 @@ func (m *HashEqualMutation) Where(ps ...predicate.HashEqual) {
 
 // WhereP appends storage-level predicates to the HashEqualMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *HashEqualMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *HashEqualMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.HashEqual, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -6834,6 +6849,7 @@ func (m *IsVulnerabilityMutation) ResetCollector() {
 // ClearOsv clears the "osv" edge to the SecurityAdvisory entity.
 func (m *IsVulnerabilityMutation) ClearOsv() {
 	m.clearedosv = true
+	m.clearedFields[isvulnerability.FieldOsvID] = struct{}{}
 }
 
 // OsvCleared reports if the "osv" edge to the SecurityAdvisory entity was cleared.
@@ -6860,6 +6876,7 @@ func (m *IsVulnerabilityMutation) ResetOsv() {
 // ClearVulnerability clears the "vulnerability" edge to the SecurityAdvisory entity.
 func (m *IsVulnerabilityMutation) ClearVulnerability() {
 	m.clearedvulnerability = true
+	m.clearedFields[isvulnerability.FieldVulnerabilityID] = struct{}{}
 }
 
 // VulnerabilityCleared reports if the "vulnerability" edge to the SecurityAdvisory entity was cleared.
@@ -6890,7 +6907,7 @@ func (m *IsVulnerabilityMutation) Where(ps ...predicate.IsVulnerability) {
 
 // WhereP appends storage-level predicates to the IsVulnerabilityMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *IsVulnerabilityMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *IsVulnerabilityMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.IsVulnerability, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -7541,6 +7558,7 @@ func (m *OccurrenceMutation) ResetPackageID() {
 // ClearArtifact clears the "artifact" edge to the Artifact entity.
 func (m *OccurrenceMutation) ClearArtifact() {
 	m.clearedartifact = true
+	m.clearedFields[occurrence.FieldArtifactID] = struct{}{}
 }
 
 // ArtifactCleared reports if the "artifact" edge to the Artifact entity was cleared.
@@ -7567,6 +7585,7 @@ func (m *OccurrenceMutation) ResetArtifact() {
 // ClearPackage clears the "package" edge to the PackageVersion entity.
 func (m *OccurrenceMutation) ClearPackage() {
 	m.cleared_package = true
+	m.clearedFields[occurrence.FieldPackageID] = struct{}{}
 }
 
 // PackageCleared reports if the "package" edge to the PackageVersion entity was cleared.
@@ -7593,6 +7612,7 @@ func (m *OccurrenceMutation) ResetPackage() {
 // ClearSource clears the "source" edge to the SourceName entity.
 func (m *OccurrenceMutation) ClearSource() {
 	m.clearedsource = true
+	m.clearedFields[occurrence.FieldSourceID] = struct{}{}
 }
 
 // SourceCleared reports if the "source" edge to the SourceName entity was cleared.
@@ -7623,7 +7643,7 @@ func (m *OccurrenceMutation) Where(ps ...predicate.Occurrence) {
 
 // WhereP appends storage-level predicates to the OccurrenceMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *OccurrenceMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *OccurrenceMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.Occurrence, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -8151,6 +8171,7 @@ func (m *PackageNameMutation) ResetName() {
 // ClearNamespace clears the "namespace" edge to the PackageNamespace entity.
 func (m *PackageNameMutation) ClearNamespace() {
 	m.clearednamespace = true
+	m.clearedFields[packagename.FieldNamespaceID] = struct{}{}
 }
 
 // NamespaceCleared reports if the "namespace" edge to the PackageNamespace entity was cleared.
@@ -8235,7 +8256,7 @@ func (m *PackageNameMutation) Where(ps ...predicate.PackageName) {
 
 // WhereP appends storage-level predicates to the PackageNameMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *PackageNameMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *PackageNameMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.PackageName, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -8672,6 +8693,7 @@ func (m *PackageNamespaceMutation) ResetNamespace() {
 // ClearPackage clears the "package" edge to the PackageType entity.
 func (m *PackageNamespaceMutation) ClearPackage() {
 	m.cleared_package = true
+	m.clearedFields[packagenamespace.FieldPackageID] = struct{}{}
 }
 
 // PackageCleared reports if the "package" edge to the PackageType entity was cleared.
@@ -8756,7 +8778,7 @@ func (m *PackageNamespaceMutation) Where(ps ...predicate.PackageNamespace) {
 
 // WhereP appends storage-level predicates to the PackageNamespaceMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *PackageNamespaceMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *PackageNamespaceMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.PackageNamespace, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -9213,7 +9235,7 @@ func (m *PackageTypeMutation) Where(ps ...predicate.PackageType) {
 
 // WhereP appends storage-level predicates to the PackageTypeMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *PackageTypeMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *PackageTypeMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.PackageType, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -9759,6 +9781,7 @@ func (m *PackageVersionMutation) ResetHash() {
 // ClearName clears the "name" edge to the PackageName entity.
 func (m *PackageVersionMutation) ClearName() {
 	m.clearedname = true
+	m.clearedFields[packageversion.FieldNameID] = struct{}{}
 }
 
 // NameCleared reports if the "name" edge to the PackageName entity was cleared.
@@ -9951,7 +9974,7 @@ func (m *PackageVersionMutation) Where(ps ...predicate.PackageVersion) {
 
 // WhereP appends storage-level predicates to the PackageVersionMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *PackageVersionMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *PackageVersionMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.PackageVersion, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -10631,7 +10654,7 @@ func (m *PkgEqualMutation) Where(ps ...predicate.PkgEqual) {
 
 // WhereP appends storage-level predicates to the PkgEqualMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *PkgEqualMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *PkgEqualMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.PkgEqual, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -11488,6 +11511,7 @@ func (m *SLSAAttestationMutation) ResetBuiltFrom() {
 // ClearBuiltBy clears the "built_by" edge to the Builder entity.
 func (m *SLSAAttestationMutation) ClearBuiltBy() {
 	m.clearedbuilt_by = true
+	m.clearedFields[slsaattestation.FieldBuiltByID] = struct{}{}
 }
 
 // BuiltByCleared reports if the "built_by" edge to the Builder entity was cleared.
@@ -11514,6 +11538,7 @@ func (m *SLSAAttestationMutation) ResetBuiltBy() {
 // ClearSubject clears the "subject" edge to the Artifact entity.
 func (m *SLSAAttestationMutation) ClearSubject() {
 	m.clearedsubject = true
+	m.clearedFields[slsaattestation.FieldSubjectID] = struct{}{}
 }
 
 // SubjectCleared reports if the "subject" edge to the Artifact entity was cleared.
@@ -11544,7 +11569,7 @@ func (m *SLSAAttestationMutation) Where(ps ...predicate.SLSAAttestation) {
 
 // WhereP appends storage-level predicates to the SLSAAttestationMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *SLSAAttestationMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *SLSAAttestationMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.SLSAAttestation, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -12435,7 +12460,7 @@ func (m *ScorecardMutation) Where(ps ...predicate.Scorecard) {
 
 // WhereP appends storage-level predicates to the ScorecardMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *ScorecardMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *ScorecardMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.Scorecard, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -13099,7 +13124,7 @@ func (m *SecurityAdvisoryMutation) Where(ps ...predicate.SecurityAdvisory) {
 
 // WhereP appends storage-level predicates to the SecurityAdvisoryMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *SecurityAdvisoryMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *SecurityAdvisoryMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.SecurityAdvisory, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -13655,6 +13680,7 @@ func (m *SourceNameMutation) ResetNamespaceID() {
 // ClearNamespace clears the "namespace" edge to the SourceNamespace entity.
 func (m *SourceNameMutation) ClearNamespace() {
 	m.clearednamespace = true
+	m.clearedFields[sourcename.FieldNamespaceID] = struct{}{}
 }
 
 // NamespaceCleared reports if the "namespace" edge to the SourceNamespace entity was cleared.
@@ -13739,7 +13765,7 @@ func (m *SourceNameMutation) Where(ps ...predicate.SourceName) {
 
 // WhereP appends storage-level predicates to the SourceNameMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *SourceNameMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *SourceNameMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.SourceName, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -14230,6 +14256,7 @@ func (m *SourceNamespaceMutation) SetSourceTypeID(id int) {
 // ClearSourceType clears the "source_type" edge to the SourceType entity.
 func (m *SourceNamespaceMutation) ClearSourceType() {
 	m.clearedsource_type = true
+	m.clearedFields[sourcenamespace.FieldSourceID] = struct{}{}
 }
 
 // SourceTypeCleared reports if the "source_type" edge to the SourceType entity was cleared.
@@ -14322,7 +14349,7 @@ func (m *SourceNamespaceMutation) Where(ps ...predicate.SourceNamespace) {
 
 // WhereP appends storage-level predicates to the SourceNamespaceMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *SourceNamespaceMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *SourceNamespaceMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.SourceNamespace, len(ps))
 	for i := range ps {
 		p[i] = ps[i]
@@ -14779,7 +14806,7 @@ func (m *SourceTypeMutation) Where(ps ...predicate.SourceType) {
 
 // WhereP appends storage-level predicates to the SourceTypeMutation builder. Using this method,
 // users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *SourceTypeMutation) WhereP(ps ...func(*sql.Selector)) {
+func (m *SourceTypeMutation) WhereP(ps ...func(*dsl.Traversal)) {
 	p := make([]predicate.SourceType, len(ps))
 	for i := range ps {
 		p[i] = ps[i]

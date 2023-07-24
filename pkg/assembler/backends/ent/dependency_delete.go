@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/dependency"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (dd *DependencyDelete) Where(ps ...predicate.Dependency) *DependencyDelete 
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (dd *DependencyDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, dd.sqlExec, dd.mutation, dd.hooks)
+	return withHooks(ctx, dd.gremlinExec, dd.mutation, dd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (dd *DependencyDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (dd *DependencyDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(dependency.Table, sqlgraph.NewFieldSpec(dependency.FieldID, field.TypeInt))
-	if ps := dd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, dd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (dd *DependencyDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := dd.gremlin().Query()
+	if err := dd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	dd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (dd *DependencyDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(dependency.Label)
+	for _, p := range dd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // DependencyDeleteOne is the builder for deleting a single Dependency entity.

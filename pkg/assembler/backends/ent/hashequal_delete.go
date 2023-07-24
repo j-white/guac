@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (hed *HashEqualDelete) Where(ps ...predicate.HashEqual) *HashEqualDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (hed *HashEqualDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, hed.sqlExec, hed.mutation, hed.hooks)
+	return withHooks(ctx, hed.gremlinExec, hed.mutation, hed.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (hed *HashEqualDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (hed *HashEqualDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(hashequal.Table, sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt))
-	if ps := hed.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, hed.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (hed *HashEqualDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := hed.gremlin().Query()
+	if err := hed.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	hed.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (hed *HashEqualDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(hashequal.Label)
+	for _, p := range hed.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // HashEqualDeleteOne is the builder for deleting a single HashEqual entity.

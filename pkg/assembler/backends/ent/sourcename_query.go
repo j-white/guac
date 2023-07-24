@@ -4,34 +4,30 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
 )
 
 // SourceNameQuery is the builder for querying SourceName entities.
 type SourceNameQuery struct {
 	config
-	ctx                  *QueryContext
-	order                []sourcename.OrderOption
-	inters               []Interceptor
-	predicates           []predicate.SourceName
-	withNamespace        *SourceNamespaceQuery
-	withOccurrences      *OccurrenceQuery
-	modifiers            []func(*sql.Selector)
-	loadTotal            []func(context.Context, []*SourceName) error
-	withNamedOccurrences map[string]*OccurrenceQuery
+	ctx             *QueryContext
+	order           []sourcename.OrderOption
+	inters          []Interceptor
+	predicates      []predicate.SourceName
+	withNamespace   *SourceNamespaceQuery
+	withOccurrences *OccurrenceQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the SourceNameQuery builder.
@@ -68,20 +64,12 @@ func (snq *SourceNameQuery) Order(o ...sourcename.OrderOption) *SourceNameQuery 
 // QueryNamespace chains the current query on the "namespace" edge.
 func (snq *SourceNameQuery) QueryNamespace() *SourceNamespaceQuery {
 	query := (&SourceNamespaceClient{config: snq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := snq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := snq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcename.Table, sourcename.FieldID, selector),
-			sqlgraph.To(sourcenamespace.Table, sourcenamespace.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, sourcename.NamespaceTable, sourcename.NamespaceColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(snq.driver.Dialect(), step)
+		gremlin := snq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(sourcename.NamespaceLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -90,20 +78,12 @@ func (snq *SourceNameQuery) QueryNamespace() *SourceNamespaceQuery {
 // QueryOccurrences chains the current query on the "occurrences" edge.
 func (snq *SourceNameQuery) QueryOccurrences() *OccurrenceQuery {
 	query := (&OccurrenceClient{config: snq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := snq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := snq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcename.Table, sourcename.FieldID, selector),
-			sqlgraph.To(occurrence.Table, occurrence.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, sourcename.OccurrencesTable, sourcename.OccurrencesColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(snq.driver.Dialect(), step)
+		gremlin := snq.gremlinQuery(ctx)
+		fromU = gremlin.InE(occurrence.SourceLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -304,8 +284,8 @@ func (snq *SourceNameQuery) Clone() *SourceNameQuery {
 		withNamespace:   snq.withNamespace.Clone(),
 		withOccurrences: snq.withOccurrences.Clone(),
 		// clone intermediate query.
-		sql:  snq.sql.Clone(),
-		path: snq.path,
+		gremlin: snq.gremlin.Clone(),
+		path:    snq.path,
 	}
 }
 
@@ -390,241 +370,77 @@ func (snq *SourceNameQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range snq.ctx.Fields {
-		if !sourcename.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if snq.path != nil {
 		prev, err := snq.path(ctx)
 		if err != nil {
 			return err
 		}
-		snq.sql = prev
+		snq.gremlin = prev
 	}
 	return nil
 }
 
-func (snq *SourceNameQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*SourceName, error) {
-	var (
-		nodes       = []*SourceName{}
-		_spec       = snq.querySpec()
-		loadedTypes = [2]bool{
-			snq.withNamespace != nil,
-			snq.withOccurrences != nil,
+func (snq *SourceNameQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*SourceName, error) {
+	res := &gremlin.Response{}
+	traversal := snq.gremlinQuery(ctx)
+	if len(snq.ctx.Fields) > 0 {
+		fields := make([]any, len(snq.ctx.Fields))
+		for i, f := range snq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*SourceName).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &SourceName{config: snq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(snq.modifiers) > 0 {
-		_spec.Modifiers = snq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, snq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := snq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var sns SourceNames
+	if err := sns.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := snq.withNamespace; query != nil {
-		if err := snq.loadNamespace(ctx, query, nodes, nil,
-			func(n *SourceName, e *SourceNamespace) { n.Edges.Namespace = e }); err != nil {
-			return nil, err
-		}
+	for i := range sns {
+		sns[i].config = snq.config
 	}
-	if query := snq.withOccurrences; query != nil {
-		if err := snq.loadOccurrences(ctx, query, nodes,
-			func(n *SourceName) { n.Edges.Occurrences = []*Occurrence{} },
-			func(n *SourceName, e *Occurrence) { n.Edges.Occurrences = append(n.Edges.Occurrences, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range snq.withNamedOccurrences {
-		if err := snq.loadOccurrences(ctx, query, nodes,
-			func(n *SourceName) { n.appendNamedOccurrences(name) },
-			func(n *SourceName, e *Occurrence) { n.appendNamedOccurrences(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range snq.loadTotal {
-		if err := snq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return sns, nil
 }
 
-func (snq *SourceNameQuery) loadNamespace(ctx context.Context, query *SourceNamespaceQuery, nodes []*SourceName, init func(*SourceName), assign func(*SourceName, *SourceNamespace)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*SourceName)
-	for i := range nodes {
-		fk := nodes[i].NamespaceID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (snq *SourceNameQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := snq.gremlinQuery(ctx).Count().Query()
+	if err := snq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(sourcenamespace.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "namespace_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (snq *SourceNameQuery) loadOccurrences(ctx context.Context, query *OccurrenceQuery, nodes []*SourceName, init func(*SourceName), assign func(*SourceName, *Occurrence)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int]*SourceName)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(occurrence.FieldSourceID)
-	}
-	query.Where(predicate.Occurrence(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(sourcename.OccurrencesColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.SourceID
-		if fk == nil {
-			return fmt.Errorf(`foreign-key "source_id" is nil for node %v`, n.ID)
-		}
-		node, ok := nodeids[*fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "source_id" returned %v for node %v`, *fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (snq *SourceNameQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := snq.querySpec()
-	if len(snq.modifiers) > 0 {
-		_spec.Modifiers = snq.modifiers
-	}
-	_spec.Node.Columns = snq.ctx.Fields
-	if len(snq.ctx.Fields) > 0 {
-		_spec.Unique = snq.ctx.Unique != nil && *snq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, snq.driver, _spec)
-}
-
-func (snq *SourceNameQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(sourcename.Table, sourcename.Columns, sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt))
-	_spec.From = snq.sql
-	if unique := snq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if snq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := snq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, sourcename.FieldID)
-		for i := range fields {
-			if fields[i] != sourcename.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if snq.withNamespace != nil {
-			_spec.Node.AddColumnOnce(sourcename.FieldNamespaceID)
-		}
-	}
-	if ps := snq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := snq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := snq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := snq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (snq *SourceNameQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(snq.driver.Dialect())
-	t1 := builder.Table(sourcename.Table)
-	columns := snq.ctx.Fields
-	if len(columns) == 0 {
-		columns = sourcename.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if snq.sql != nil {
-		selector = snq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if snq.ctx.Unique != nil && *snq.ctx.Unique {
-		selector.Distinct()
+func (snq *SourceNameQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(sourcename.Label)
+	if snq.gremlin != nil {
+		v = snq.gremlin.Clone()
 	}
 	for _, p := range snq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range snq.order {
-		p(selector)
+	if len(snq.order) > 0 {
+		v.Order()
+		for _, p := range snq.order {
+			p(v)
+		}
 	}
-	if offset := snq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := snq.ctx.Limit, snq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := snq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := snq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedOccurrences tells the query-builder to eager-load the nodes that are connected to the "occurrences"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (snq *SourceNameQuery) WithNamedOccurrences(name string, opts ...func(*OccurrenceQuery)) *SourceNameQuery {
-	query := (&OccurrenceClient{config: snq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if snq.withNamedOccurrences == nil {
-		snq.withNamedOccurrences = make(map[string]*OccurrenceQuery)
-	}
-	snq.withNamedOccurrences[name] = query
-	return snq
+	return v
 }
 
 // SourceNameGroupBy is the group-by builder for SourceName entities.
@@ -648,31 +464,38 @@ func (sngb *SourceNameGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*SourceNameQuery, *SourceNameGroupBy](ctx, sngb.build, sngb, sngb.build.inters, v)
 }
 
-func (sngb *SourceNameGroupBy) sqlScan(ctx context.Context, root *SourceNameQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(sngb.fns))
+func (sngb *SourceNameGroupBy) gremlinScan(ctx context.Context, root *SourceNameQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range sngb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*sngb.flds)+len(sngb.fns))
-		for _, f := range *sngb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *sngb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*sngb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*sngb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := sngb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sngb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*sngb.flds)+len(sngb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // SourceNameSelect is the builder for selecting fields of SourceName entities.
@@ -696,23 +519,34 @@ func (sns *SourceNameSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*SourceNameQuery, *SourceNameSelect](ctx, sns.SourceNameQuery, sns, sns.inters, v)
 }
 
-func (sns *SourceNameSelect) sqlScan(ctx context.Context, root *SourceNameQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(sns.fns))
-	for _, fn := range sns.fns {
-		aggregation = append(aggregation, fn(selector))
+func (sns *SourceNameSelect) gremlinScan(ctx context.Context, root *SourceNameQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := sns.ctx.Fields; len(fields) == 1 {
+		if fields[0] != sourcename.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(sns.ctx.Fields))
+		for i, f := range sns.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*sns.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sns.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := sns.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

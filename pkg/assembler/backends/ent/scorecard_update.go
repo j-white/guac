@@ -5,14 +5,13 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/dialect/sql/sqljson"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyscorecard"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
@@ -145,7 +144,7 @@ func (su *ScorecardUpdate) RemoveCertifications(c ...*CertifyScorecard) *Scoreca
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (su *ScorecardUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, su.sqlSave, su.mutation, su.hooks)
+	return withHooks(ctx, su.gremlinSave, su.mutation, su.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -170,99 +169,83 @@ func (su *ScorecardUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-func (su *ScorecardUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(scorecard.Table, scorecard.Columns, sqlgraph.NewFieldSpec(scorecard.FieldID, field.TypeInt))
-	if ps := su.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+func (su *ScorecardUpdate) gremlinSave(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := su.gremlin().Query()
+	if err := su.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := su.mutation.Checks(); ok {
-		_spec.SetField(scorecard.FieldChecks, field.TypeJSON, value)
-	}
-	if value, ok := su.mutation.AppendedChecks(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, scorecard.FieldChecks, value)
-		})
-	}
-	if value, ok := su.mutation.AggregateScore(); ok {
-		_spec.SetField(scorecard.FieldAggregateScore, field.TypeFloat64, value)
-	}
-	if value, ok := su.mutation.AddedAggregateScore(); ok {
-		_spec.AddField(scorecard.FieldAggregateScore, field.TypeFloat64, value)
-	}
-	if value, ok := su.mutation.TimeScanned(); ok {
-		_spec.SetField(scorecard.FieldTimeScanned, field.TypeTime, value)
-	}
-	if value, ok := su.mutation.ScorecardVersion(); ok {
-		_spec.SetField(scorecard.FieldScorecardVersion, field.TypeString, value)
-	}
-	if value, ok := su.mutation.ScorecardCommit(); ok {
-		_spec.SetField(scorecard.FieldScorecardCommit, field.TypeString, value)
-	}
-	if value, ok := su.mutation.Origin(); ok {
-		_spec.SetField(scorecard.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := su.mutation.Collector(); ok {
-		_spec.SetField(scorecard.FieldCollector, field.TypeString, value)
-	}
-	if su.mutation.CertificationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   scorecard.CertificationsTable,
-			Columns: []string{scorecard.CertificationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := su.mutation.RemovedCertificationsIDs(); len(nodes) > 0 && !su.mutation.CertificationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   scorecard.CertificationsTable,
-			Columns: []string{scorecard.CertificationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := su.mutation.CertificationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   scorecard.CertificationsTable,
-			Columns: []string{scorecard.CertificationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, su.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{scorecard.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	su.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (su *ScorecardUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.V().HasLabel(scorecard.Label)
+	for _, p := range su.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := su.mutation.Checks(); ok {
+		v.Property(dsl.Single, scorecard.FieldChecks, value)
+	}
+	if value, ok := su.mutation.AggregateScore(); ok {
+		v.Property(dsl.Single, scorecard.FieldAggregateScore, value)
+	}
+	if value, ok := su.mutation.AddedAggregateScore(); ok {
+		v.Property(dsl.Single, scorecard.FieldAggregateScore, __.Union(__.Values(scorecard.FieldAggregateScore), __.Constant(value)).Sum())
+	}
+	if value, ok := su.mutation.TimeScanned(); ok {
+		v.Property(dsl.Single, scorecard.FieldTimeScanned, value)
+	}
+	if value, ok := su.mutation.ScorecardVersion(); ok {
+		v.Property(dsl.Single, scorecard.FieldScorecardVersion, value)
+	}
+	if value, ok := su.mutation.ScorecardCommit(); ok {
+		v.Property(dsl.Single, scorecard.FieldScorecardCommit, value)
+	}
+	if value, ok := su.mutation.Origin(); ok {
+		v.Property(dsl.Single, scorecard.FieldOrigin, value)
+	}
+	if value, ok := su.mutation.Collector(); ok {
+		v.Property(dsl.Single, scorecard.FieldCollector, value)
+	}
+	for _, id := range su.mutation.RemovedCertificationsIDs() {
+		tr := rv.Clone().OutE(scorecard.CertificationsLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range su.mutation.CertificationsIDs() {
+		v.AddE(scorecard.CertificationsLabel).To(g.V(id)).OutV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(scorecard.CertificationsLabel).InV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(scorecard.Label, scorecard.CertificationsLabel, id)),
+		})
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // ScorecardUpdateOne is the builder for updating a single Scorecard entity.
@@ -400,7 +383,7 @@ func (suo *ScorecardUpdateOne) Select(field string, fields ...string) *Scorecard
 
 // Save executes the query and returns the updated Scorecard entity.
 func (suo *ScorecardUpdateOne) Save(ctx context.Context) (*Scorecard, error) {
-	return withHooks(ctx, suo.sqlSave, suo.mutation, suo.hooks)
+	return withHooks(ctx, suo.gremlinSave, suo.mutation, suo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -425,117 +408,91 @@ func (suo *ScorecardUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-func (suo *ScorecardUpdateOne) sqlSave(ctx context.Context) (_node *Scorecard, err error) {
-	_spec := sqlgraph.NewUpdateSpec(scorecard.Table, scorecard.Columns, sqlgraph.NewFieldSpec(scorecard.FieldID, field.TypeInt))
+func (suo *ScorecardUpdateOne) gremlinSave(ctx context.Context) (*Scorecard, error) {
+	res := &gremlin.Response{}
 	id, ok := suo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Scorecard.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := suo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, scorecard.FieldID)
-		for _, f := range fields {
-			if !scorecard.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != scorecard.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := suo.gremlin(id).Query()
+	if err := suo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := suo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := suo.mutation.Checks(); ok {
-		_spec.SetField(scorecard.FieldChecks, field.TypeJSON, value)
-	}
-	if value, ok := suo.mutation.AppendedChecks(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, scorecard.FieldChecks, value)
-		})
-	}
-	if value, ok := suo.mutation.AggregateScore(); ok {
-		_spec.SetField(scorecard.FieldAggregateScore, field.TypeFloat64, value)
-	}
-	if value, ok := suo.mutation.AddedAggregateScore(); ok {
-		_spec.AddField(scorecard.FieldAggregateScore, field.TypeFloat64, value)
-	}
-	if value, ok := suo.mutation.TimeScanned(); ok {
-		_spec.SetField(scorecard.FieldTimeScanned, field.TypeTime, value)
-	}
-	if value, ok := suo.mutation.ScorecardVersion(); ok {
-		_spec.SetField(scorecard.FieldScorecardVersion, field.TypeString, value)
-	}
-	if value, ok := suo.mutation.ScorecardCommit(); ok {
-		_spec.SetField(scorecard.FieldScorecardCommit, field.TypeString, value)
-	}
-	if value, ok := suo.mutation.Origin(); ok {
-		_spec.SetField(scorecard.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := suo.mutation.Collector(); ok {
-		_spec.SetField(scorecard.FieldCollector, field.TypeString, value)
-	}
-	if suo.mutation.CertificationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   scorecard.CertificationsTable,
-			Columns: []string{scorecard.CertificationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := suo.mutation.RemovedCertificationsIDs(); len(nodes) > 0 && !suo.mutation.CertificationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   scorecard.CertificationsTable,
-			Columns: []string{scorecard.CertificationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := suo.mutation.CertificationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   scorecard.CertificationsTable,
-			Columns: []string{scorecard.CertificationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(certifyscorecard.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &Scorecard{config: suo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, suo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{scorecard.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	suo.mutation.done = true
-	return _node, nil
+	s := &Scorecard{config: suo.config}
+	if err := s.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (suo *ScorecardUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := suo.mutation.Checks(); ok {
+		v.Property(dsl.Single, scorecard.FieldChecks, value)
+	}
+	if value, ok := suo.mutation.AggregateScore(); ok {
+		v.Property(dsl.Single, scorecard.FieldAggregateScore, value)
+	}
+	if value, ok := suo.mutation.AddedAggregateScore(); ok {
+		v.Property(dsl.Single, scorecard.FieldAggregateScore, __.Union(__.Values(scorecard.FieldAggregateScore), __.Constant(value)).Sum())
+	}
+	if value, ok := suo.mutation.TimeScanned(); ok {
+		v.Property(dsl.Single, scorecard.FieldTimeScanned, value)
+	}
+	if value, ok := suo.mutation.ScorecardVersion(); ok {
+		v.Property(dsl.Single, scorecard.FieldScorecardVersion, value)
+	}
+	if value, ok := suo.mutation.ScorecardCommit(); ok {
+		v.Property(dsl.Single, scorecard.FieldScorecardCommit, value)
+	}
+	if value, ok := suo.mutation.Origin(); ok {
+		v.Property(dsl.Single, scorecard.FieldOrigin, value)
+	}
+	if value, ok := suo.mutation.Collector(); ok {
+		v.Property(dsl.Single, scorecard.FieldCollector, value)
+	}
+	for _, id := range suo.mutation.RemovedCertificationsIDs() {
+		tr := rv.Clone().OutE(scorecard.CertificationsLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range suo.mutation.CertificationsIDs() {
+		v.AddE(scorecard.CertificationsLabel).To(g.V(id)).OutV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(scorecard.CertificationsLabel).InV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(scorecard.Label, scorecard.CertificationsLabel, id)),
+		})
+	}
+	if len(suo.fields) > 0 {
+		fields := make([]any, 0, len(suo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range suo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

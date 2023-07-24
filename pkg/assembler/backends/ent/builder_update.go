@@ -5,11 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
@@ -71,7 +72,7 @@ func (bu *BuilderUpdate) RemoveSlsaAttestations(s ...*SLSAAttestation) *BuilderU
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (bu *BuilderUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, bu.sqlSave, bu.mutation, bu.hooks)
+	return withHooks(ctx, bu.gremlinSave, bu.mutation, bu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -96,70 +97,59 @@ func (bu *BuilderUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-func (bu *BuilderUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(builder.Table, builder.Columns, sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt))
-	if ps := bu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+func (bu *BuilderUpdate) gremlinSave(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := bu.gremlin().Query()
+	if err := bu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if bu.mutation.SlsaAttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   builder.SlsaAttestationsTable,
-			Columns: []string{builder.SlsaAttestationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := bu.mutation.RemovedSlsaAttestationsIDs(); len(nodes) > 0 && !bu.mutation.SlsaAttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   builder.SlsaAttestationsTable,
-			Columns: []string{builder.SlsaAttestationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := bu.mutation.SlsaAttestationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   builder.SlsaAttestationsTable,
-			Columns: []string{builder.SlsaAttestationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, bu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{builder.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	bu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (bu *BuilderUpdate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V().HasLabel(builder.Label)
+	for _, p := range bu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	for _, id := range bu.mutation.RemovedSlsaAttestationsIDs() {
+		tr := rv.Clone().InE(slsaattestation.BuiltByLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range bu.mutation.SlsaAttestationsIDs() {
+		v.AddE(slsaattestation.BuiltByLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(slsaattestation.BuiltByLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(builder.Label, slsaattestation.BuiltByLabel, id)),
+		})
+	}
+	v.Count()
+	if len(constraints) > 0 {
+		constraints = append(constraints, &constraint{
+			pred: rv.Count(),
+			test: __.Is(p.GT(1)).Constant(&ConstraintError{msg: "update traversal contains more than one vertex"}),
+		})
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // BuilderUpdateOne is the builder for updating a single Builder entity.
@@ -226,7 +216,7 @@ func (buo *BuilderUpdateOne) Select(field string, fields ...string) *BuilderUpda
 
 // Save executes the query and returns the updated Builder entity.
 func (buo *BuilderUpdateOne) Save(ctx context.Context) (*Builder, error) {
-	return withHooks(ctx, buo.sqlSave, buo.mutation, buo.hooks)
+	return withHooks(ctx, buo.gremlinSave, buo.mutation, buo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -251,88 +241,67 @@ func (buo *BuilderUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-func (buo *BuilderUpdateOne) sqlSave(ctx context.Context) (_node *Builder, err error) {
-	_spec := sqlgraph.NewUpdateSpec(builder.Table, builder.Columns, sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt))
+func (buo *BuilderUpdateOne) gremlinSave(ctx context.Context) (*Builder, error) {
+	res := &gremlin.Response{}
 	id, ok := buo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Builder.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := buo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, builder.FieldID)
-		for _, f := range fields {
-			if !builder.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != builder.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := buo.gremlin(id).Query()
+	if err := buo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := buo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if buo.mutation.SlsaAttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   builder.SlsaAttestationsTable,
-			Columns: []string{builder.SlsaAttestationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := buo.mutation.RemovedSlsaAttestationsIDs(); len(nodes) > 0 && !buo.mutation.SlsaAttestationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   builder.SlsaAttestationsTable,
-			Columns: []string{builder.SlsaAttestationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := buo.mutation.SlsaAttestationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   builder.SlsaAttestationsTable,
-			Columns: []string{builder.SlsaAttestationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &Builder{config: buo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, buo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{builder.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	buo.mutation.done = true
-	return _node, nil
+	b := &Builder{config: buo.config}
+	if err := b.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (buo *BuilderUpdateOne) gremlin(id int) *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	for _, id := range buo.mutation.RemovedSlsaAttestationsIDs() {
+		tr := rv.Clone().InE(slsaattestation.BuiltByLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range buo.mutation.SlsaAttestationsIDs() {
+		v.AddE(slsaattestation.BuiltByLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(slsaattestation.BuiltByLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(builder.Label, slsaattestation.BuiltByLabel, id)),
+		})
+	}
+	if len(buo.fields) > 0 {
+		fields := make([]any, 0, len(buo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range buo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	if len(constraints) > 0 {
+		v = constraints[0].pred.Coalesce(constraints[0].test, v)
+		for _, cr := range constraints[1:] {
+			v = cr.pred.Coalesce(cr.test, v)
+		}
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

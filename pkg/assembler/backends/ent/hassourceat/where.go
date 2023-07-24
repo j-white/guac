@@ -5,486 +5,616 @@ package hassourceat
 import (
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldID, ids...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldID, ids...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGT(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGTE(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLT(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLTE(FieldID, id))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // PackageVersionID applies equality check predicate on the "package_version_id" field. It's identical to PackageVersionIDEQ.
 func PackageVersionID(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldPackageVersionID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.EQ(v))
+	})
 }
 
 // PackageNameID applies equality check predicate on the "package_name_id" field. It's identical to PackageNameIDEQ.
 func PackageNameID(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldPackageNameID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.EQ(v))
+	})
 }
 
 // SourceID applies equality check predicate on the "source_id" field. It's identical to SourceIDEQ.
 func SourceID(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldSourceID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // KnownSince applies equality check predicate on the "known_since" field. It's identical to KnownSinceEQ.
 func KnownSince(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.EQ(v))
+	})
 }
 
 // Justification applies equality check predicate on the "justification" field. It's identical to JustificationEQ.
 func Justification(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // PackageVersionIDEQ applies the EQ predicate on the "package_version_id" field.
 func PackageVersionIDEQ(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldPackageVersionID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.EQ(v))
+	})
 }
 
 // PackageVersionIDNEQ applies the NEQ predicate on the "package_version_id" field.
 func PackageVersionIDNEQ(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldPackageVersionID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.NEQ(v))
+	})
 }
 
 // PackageVersionIDIn applies the In predicate on the "package_version_id" field.
 func PackageVersionIDIn(vs ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldPackageVersionID, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.Within(vs...))
+	})
 }
 
 // PackageVersionIDNotIn applies the NotIn predicate on the "package_version_id" field.
 func PackageVersionIDNotIn(vs ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldPackageVersionID, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.Without(vs...))
+	})
 }
 
 // PackageVersionIDIsNil applies the IsNil predicate on the "package_version_id" field.
 func PackageVersionIDIsNil() predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIsNull(FieldPackageVersionID))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldPackageVersionID)
+	})
 }
 
 // PackageVersionIDNotNil applies the NotNil predicate on the "package_version_id" field.
 func PackageVersionIDNotNil() predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotNull(FieldPackageVersionID))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldPackageVersionID)
+	})
 }
 
 // PackageNameIDEQ applies the EQ predicate on the "package_name_id" field.
 func PackageNameIDEQ(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldPackageNameID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.EQ(v))
+	})
 }
 
 // PackageNameIDNEQ applies the NEQ predicate on the "package_name_id" field.
 func PackageNameIDNEQ(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldPackageNameID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.NEQ(v))
+	})
 }
 
 // PackageNameIDIn applies the In predicate on the "package_name_id" field.
 func PackageNameIDIn(vs ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldPackageNameID, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.Within(vs...))
+	})
 }
 
 // PackageNameIDNotIn applies the NotIn predicate on the "package_name_id" field.
 func PackageNameIDNotIn(vs ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldPackageNameID, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.Without(vs...))
+	})
 }
 
 // PackageNameIDIsNil applies the IsNil predicate on the "package_name_id" field.
 func PackageNameIDIsNil() predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIsNull(FieldPackageNameID))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldPackageNameID)
+	})
 }
 
 // PackageNameIDNotNil applies the NotNil predicate on the "package_name_id" field.
 func PackageNameIDNotNil() predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotNull(FieldPackageNameID))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldPackageNameID)
+	})
 }
 
 // SourceIDEQ applies the EQ predicate on the "source_id" field.
 func SourceIDEQ(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldSourceID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // SourceIDNEQ applies the NEQ predicate on the "source_id" field.
 func SourceIDNEQ(v int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldSourceID, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.NEQ(v))
+	})
 }
 
 // SourceIDIn applies the In predicate on the "source_id" field.
 func SourceIDIn(vs ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldSourceID, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Within(vs...))
+	})
 }
 
 // SourceIDNotIn applies the NotIn predicate on the "source_id" field.
 func SourceIDNotIn(vs ...int) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldSourceID, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Without(vs...))
+	})
 }
 
 // KnownSinceEQ applies the EQ predicate on the "known_since" field.
 func KnownSinceEQ(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.EQ(v))
+	})
 }
 
 // KnownSinceNEQ applies the NEQ predicate on the "known_since" field.
 func KnownSinceNEQ(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.NEQ(v))
+	})
 }
 
 // KnownSinceIn applies the In predicate on the "known_since" field.
 func KnownSinceIn(vs ...time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldKnownSince, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.Within(vs...))
+	})
 }
 
 // KnownSinceNotIn applies the NotIn predicate on the "known_since" field.
 func KnownSinceNotIn(vs ...time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldKnownSince, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.Without(vs...))
+	})
 }
 
 // KnownSinceGT applies the GT predicate on the "known_since" field.
 func KnownSinceGT(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGT(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.GT(v))
+	})
 }
 
 // KnownSinceGTE applies the GTE predicate on the "known_since" field.
 func KnownSinceGTE(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGTE(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.GTE(v))
+	})
 }
 
 // KnownSinceLT applies the LT predicate on the "known_since" field.
 func KnownSinceLT(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLT(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.LT(v))
+	})
 }
 
 // KnownSinceLTE applies the LTE predicate on the "known_since" field.
 func KnownSinceLTE(v time.Time) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLTE(FieldKnownSince, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldKnownSince, p.LTE(v))
+	})
 }
 
 // JustificationEQ applies the EQ predicate on the "justification" field.
 func JustificationEQ(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // JustificationNEQ applies the NEQ predicate on the "justification" field.
 func JustificationNEQ(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.NEQ(v))
+	})
 }
 
 // JustificationIn applies the In predicate on the "justification" field.
 func JustificationIn(vs ...string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldJustification, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Within(vs...))
+	})
 }
 
 // JustificationNotIn applies the NotIn predicate on the "justification" field.
 func JustificationNotIn(vs ...string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldJustification, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Without(vs...))
+	})
 }
 
 // JustificationGT applies the GT predicate on the "justification" field.
 func JustificationGT(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGT(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GT(v))
+	})
 }
 
 // JustificationGTE applies the GTE predicate on the "justification" field.
 func JustificationGTE(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGTE(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GTE(v))
+	})
 }
 
 // JustificationLT applies the LT predicate on the "justification" field.
 func JustificationLT(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLT(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LT(v))
+	})
 }
 
 // JustificationLTE applies the LTE predicate on the "justification" field.
 func JustificationLTE(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLTE(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LTE(v))
+	})
 }
 
 // JustificationContains applies the Contains predicate on the "justification" field.
 func JustificationContains(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldContains(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Containing(v))
+	})
 }
 
 // JustificationHasPrefix applies the HasPrefix predicate on the "justification" field.
 func JustificationHasPrefix(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldHasPrefix(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.StartingWith(v))
+	})
 }
 
 // JustificationHasSuffix applies the HasSuffix predicate on the "justification" field.
 func JustificationHasSuffix(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldHasSuffix(FieldJustification, v))
-}
-
-// JustificationEqualFold applies the EqualFold predicate on the "justification" field.
-func JustificationEqualFold(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEqualFold(FieldJustification, v))
-}
-
-// JustificationContainsFold applies the ContainsFold predicate on the "justification" field.
-func JustificationContainsFold(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldContainsFold(FieldJustification, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGT(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGTE(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLT(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLTE(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldContains(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEQ(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNEQ(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldIn(FieldCollector, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGT(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldGTE(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLT(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldLTE(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldContains(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // HasPackageVersion applies the HasEdge predicate on the "package_version" edge.
 func HasPackageVersion() predicate.HasSourceAt {
-	return predicate.HasSourceAt(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, PackageVersionTable, PackageVersionColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.OutE(PackageVersionLabel).OutV()
 	})
 }
 
 // HasPackageVersionWith applies the HasEdge predicate on the "package_version" edge with a given conditions (other predicates).
 func HasPackageVersionWith(preds ...predicate.PackageVersion) predicate.HasSourceAt {
-	return predicate.HasSourceAt(func(s *sql.Selector) {
-		step := newPackageVersionStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackageVersionLabel).Where(tr).OutV()
 	})
 }
 
 // HasAllVersions applies the HasEdge predicate on the "all_versions" edge.
 func HasAllVersions() predicate.HasSourceAt {
-	return predicate.HasSourceAt(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, AllVersionsTable, AllVersionsColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.OutE(AllVersionsLabel).OutV()
 	})
 }
 
 // HasAllVersionsWith applies the HasEdge predicate on the "all_versions" edge with a given conditions (other predicates).
 func HasAllVersionsWith(preds ...predicate.PackageName) predicate.HasSourceAt {
-	return predicate.HasSourceAt(func(s *sql.Selector) {
-		step := newAllVersionsStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(AllVersionsLabel).Where(tr).OutV()
 	})
 }
 
 // HasSource applies the HasEdge predicate on the "source" edge.
 func HasSource() predicate.HasSourceAt {
-	return predicate.HasSourceAt(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, SourceTable, SourceColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		t.OutE(SourceLabel).OutV()
 	})
 }
 
 // HasSourceWith applies the HasEdge predicate on the "source" edge with a given conditions (other predicates).
 func HasSourceWith(preds ...predicate.SourceName) predicate.HasSourceAt {
-	return predicate.HasSourceAt(func(s *sql.Selector) {
-		step := newSourceStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.HasSourceAt(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(SourceLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.HasSourceAt) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.AndPredicates(predicates...))
+	return predicate.HasSourceAt(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.HasSourceAt) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.OrPredicates(predicates...))
+	return predicate.HasSourceAt(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.HasSourceAt) predicate.HasSourceAt {
-	return predicate.HasSourceAt(sql.NotPredicates(p))
+	return predicate.HasSourceAt(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

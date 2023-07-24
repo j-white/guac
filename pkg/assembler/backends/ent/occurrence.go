@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
@@ -33,8 +31,7 @@ type Occurrence struct {
 	PackageID *int `json:"package_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the OccurrenceQuery when eager-loading is set.
-	Edges        OccurrenceEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges OccurrenceEdges `json:"edges"`
 }
 
 // OccurrenceEdges holds the relations/edges for other nodes in the graph.
@@ -48,8 +45,6 @@ type OccurrenceEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [3]bool
-	// totalCount holds the count of the edges above.
-	totalCount [3]map[string]int
 }
 
 // ArtifactOrErr returns the Artifact value or an error if the edge
@@ -91,85 +86,32 @@ func (e OccurrenceEdges) SourceOrErr() (*SourceName, error) {
 	return nil, &NotLoadedError{edge: "source"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*Occurrence) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case occurrence.FieldID, occurrence.FieldArtifactID, occurrence.FieldSourceID, occurrence.FieldPackageID:
-			values[i] = new(sql.NullInt64)
-		case occurrence.FieldJustification, occurrence.FieldOrigin, occurrence.FieldCollector:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into Occurrence.
+func (o *Occurrence) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Occurrence fields.
-func (o *Occurrence) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scano struct {
+		ID            int    `json:"id,omitempty"`
+		ArtifactID    int    `json:"artifact_id,omitempty"`
+		Justification string `json:"justification,omitempty"`
+		Origin        string `json:"origin,omitempty"`
+		Collector     string `json:"collector,omitempty"`
+		SourceID      *int   `json:"source_id,omitempty"`
+		PackageID     *int   `json:"package_id,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case occurrence.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			o.ID = int(value.Int64)
-		case occurrence.FieldArtifactID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field artifact_id", values[i])
-			} else if value.Valid {
-				o.ArtifactID = int(value.Int64)
-			}
-		case occurrence.FieldJustification:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field justification", values[i])
-			} else if value.Valid {
-				o.Justification = value.String
-			}
-		case occurrence.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				o.Origin = value.String
-			}
-		case occurrence.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				o.Collector = value.String
-			}
-		case occurrence.FieldSourceID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field source_id", values[i])
-			} else if value.Valid {
-				o.SourceID = new(int)
-				*o.SourceID = int(value.Int64)
-			}
-		case occurrence.FieldPackageID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_id", values[i])
-			} else if value.Valid {
-				o.PackageID = new(int)
-				*o.PackageID = int(value.Int64)
-			}
-		default:
-			o.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scano); err != nil {
+		return err
 	}
+	o.ID = scano.ID
+	o.ArtifactID = scano.ArtifactID
+	o.Justification = scano.Justification
+	o.Origin = scano.Origin
+	o.Collector = scano.Collector
+	o.SourceID = scano.SourceID
+	o.PackageID = scano.PackageID
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the Occurrence.
-// This includes values selected through modifiers, order, etc.
-func (o *Occurrence) Value(name string) (ent.Value, error) {
-	return o.selectValues.Get(name)
 }
 
 // QueryArtifact queries the "artifact" edge of the Occurrence entity.
@@ -237,3 +179,34 @@ func (o *Occurrence) String() string {
 
 // Occurrences is a parsable slice of Occurrence.
 type Occurrences []*Occurrence
+
+// FromResponse scans the gremlin response data into Occurrences.
+func (o *Occurrences) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scano []struct {
+		ID            int    `json:"id,omitempty"`
+		ArtifactID    int    `json:"artifact_id,omitempty"`
+		Justification string `json:"justification,omitempty"`
+		Origin        string `json:"origin,omitempty"`
+		Collector     string `json:"collector,omitempty"`
+		SourceID      *int   `json:"source_id,omitempty"`
+		PackageID     *int   `json:"package_id,omitempty"`
+	}
+	if err := vmap.Decode(&scano); err != nil {
+		return err
+	}
+	for _, v := range scano {
+		node := &Occurrence{ID: v.ID}
+		node.ArtifactID = v.ArtifactID
+		node.Justification = v.Justification
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		node.SourceID = v.SourceID
+		node.PackageID = v.PackageID
+		*o = append(*o, node)
+	}
+	return nil
+}

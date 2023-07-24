@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagenamespace"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (pnd *PackageNamespaceDelete) Where(ps ...predicate.PackageNamespace) *Pack
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (pnd *PackageNamespaceDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, pnd.sqlExec, pnd.mutation, pnd.hooks)
+	return withHooks(ctx, pnd.gremlinExec, pnd.mutation, pnd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (pnd *PackageNamespaceDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (pnd *PackageNamespaceDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(packagenamespace.Table, sqlgraph.NewFieldSpec(packagenamespace.FieldID, field.TypeInt))
-	if ps := pnd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, pnd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (pnd *PackageNamespaceDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := pnd.gremlin().Query()
+	if err := pnd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	pnd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (pnd *PackageNamespaceDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(packagenamespace.Label)
+	for _, p := range pnd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // PackageNamespaceDeleteOne is the builder for deleting a single PackageNamespace entity.

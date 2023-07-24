@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
+	"entgo.io/ent/dialect/gremlin"
 )
 
 // HashEqual is the model entity for the HashEqual schema.
@@ -24,8 +22,7 @@ type HashEqual struct {
 	Justification string `json:"justification,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the HashEqualQuery when eager-loading is set.
-	Edges        HashEqualEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges HashEqualEdges `json:"edges"`
 }
 
 // HashEqualEdges holds the relations/edges for other nodes in the graph.
@@ -35,10 +32,6 @@ type HashEqualEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
-	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
-
-	namedArtifacts map[string][]*Artifact
 }
 
 // ArtifactsOrErr returns the Artifacts value or an error if the edge
@@ -50,65 +43,26 @@ func (e HashEqualEdges) ArtifactsOrErr() ([]*Artifact, error) {
 	return nil, &NotLoadedError{edge: "artifacts"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*HashEqual) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case hashequal.FieldID:
-			values[i] = new(sql.NullInt64)
-		case hashequal.FieldOrigin, hashequal.FieldCollector, hashequal.FieldJustification:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into HashEqual.
+func (he *HashEqual) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the HashEqual fields.
-func (he *HashEqual) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanhe struct {
+		ID            int    `json:"id,omitempty"`
+		Origin        string `json:"origin,omitempty"`
+		Collector     string `json:"collector,omitempty"`
+		Justification string `json:"justification,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case hashequal.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			he.ID = int(value.Int64)
-		case hashequal.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				he.Origin = value.String
-			}
-		case hashequal.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				he.Collector = value.String
-			}
-		case hashequal.FieldJustification:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field justification", values[i])
-			} else if value.Valid {
-				he.Justification = value.String
-			}
-		default:
-			he.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanhe); err != nil {
+		return err
 	}
+	he.ID = scanhe.ID
+	he.Origin = scanhe.Origin
+	he.Collector = scanhe.Collector
+	he.Justification = scanhe.Justification
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the HashEqual.
-// This includes values selected through modifiers, order, etc.
-func (he *HashEqual) Value(name string) (ent.Value, error) {
-	return he.selectValues.Get(name)
 }
 
 // QueryArtifacts queries the "artifacts" edge of the HashEqual entity.
@@ -151,29 +105,30 @@ func (he *HashEqual) String() string {
 	return builder.String()
 }
 
-// NamedArtifacts returns the Artifacts named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (he *HashEqual) NamedArtifacts(name string) ([]*Artifact, error) {
-	if he.Edges.namedArtifacts == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := he.Edges.namedArtifacts[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (he *HashEqual) appendNamedArtifacts(name string, edges ...*Artifact) {
-	if he.Edges.namedArtifacts == nil {
-		he.Edges.namedArtifacts = make(map[string][]*Artifact)
-	}
-	if len(edges) == 0 {
-		he.Edges.namedArtifacts[name] = []*Artifact{}
-	} else {
-		he.Edges.namedArtifacts[name] = append(he.Edges.namedArtifacts[name], edges...)
-	}
-}
-
 // HashEquals is a parsable slice of HashEqual.
 type HashEquals []*HashEqual
+
+// FromResponse scans the gremlin response data into HashEquals.
+func (he *HashEquals) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanhe []struct {
+		ID            int    `json:"id,omitempty"`
+		Origin        string `json:"origin,omitempty"`
+		Collector     string `json:"collector,omitempty"`
+		Justification string `json:"justification,omitempty"`
+	}
+	if err := vmap.Decode(&scanhe); err != nil {
+		return err
+	}
+	for _, v := range scanhe {
+		node := &HashEqual{ID: v.ID}
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		node.Justification = v.Justification
+		*he = append(*he, node)
+	}
+	return nil
+}

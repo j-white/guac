@@ -5,16 +5,13 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
 
 // OccurrenceUpdate is the builder for updating Occurrence entities.
@@ -134,7 +131,7 @@ func (ou *OccurrenceUpdate) ClearSource() *OccurrenceUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (ou *OccurrenceUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, ou.sqlSave, ou.mutation, ou.hooks)
+	return withHooks(ctx, ou.gremlinSave, ou.mutation, ou.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -167,124 +164,70 @@ func (ou *OccurrenceUpdate) check() error {
 	return nil
 }
 
-func (ou *OccurrenceUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (ou *OccurrenceUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := ou.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(occurrence.Table, occurrence.Columns, sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt))
-	if ps := ou.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := ou.gremlin().Query()
+	if err := ou.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := ou.mutation.Justification(); ok {
-		_spec.SetField(occurrence.FieldJustification, field.TypeString, value)
-	}
-	if value, ok := ou.mutation.Origin(); ok {
-		_spec.SetField(occurrence.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := ou.mutation.Collector(); ok {
-		_spec.SetField(occurrence.FieldCollector, field.TypeString, value)
-	}
-	if ou.mutation.ArtifactCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.ArtifactTable,
-			Columns: []string{occurrence.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := ou.mutation.ArtifactIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.ArtifactTable,
-			Columns: []string{occurrence.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if ou.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.PackageTable,
-			Columns: []string{occurrence.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := ou.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.PackageTable,
-			Columns: []string{occurrence.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if ou.mutation.SourceCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.SourceTable,
-			Columns: []string{occurrence.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := ou.mutation.SourceIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.SourceTable,
-			Columns: []string{occurrence.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, ou.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{occurrence.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	ou.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (ou *OccurrenceUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(occurrence.Label)
+	for _, p := range ou.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := ou.mutation.Justification(); ok {
+		v.Property(dsl.Single, occurrence.FieldJustification, value)
+	}
+	if value, ok := ou.mutation.Origin(); ok {
+		v.Property(dsl.Single, occurrence.FieldOrigin, value)
+	}
+	if value, ok := ou.mutation.Collector(); ok {
+		v.Property(dsl.Single, occurrence.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if ou.mutation.ArtifactCleared() {
+		tr := rv.Clone().OutE(occurrence.ArtifactLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range ou.mutation.ArtifactIDs() {
+		v.AddE(occurrence.ArtifactLabel).To(g.V(id)).OutV()
+	}
+	if ou.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(occurrence.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range ou.mutation.PackageIDs() {
+		v.AddE(occurrence.PackageLabel).To(g.V(id)).OutV()
+	}
+	if ou.mutation.SourceCleared() {
+		tr := rv.Clone().OutE(occurrence.SourceLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range ou.mutation.SourceIDs() {
+		v.AddE(occurrence.SourceLabel).To(g.V(id)).OutV()
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // OccurrenceUpdateOne is the builder for updating a single Occurrence entity.
@@ -412,7 +355,7 @@ func (ouo *OccurrenceUpdateOne) Select(field string, fields ...string) *Occurren
 
 // Save executes the query and returns the updated Occurrence entity.
 func (ouo *OccurrenceUpdateOne) Save(ctx context.Context) (*Occurrence, error) {
-	return withHooks(ctx, ouo.sqlSave, ouo.mutation, ouo.hooks)
+	return withHooks(ctx, ouo.gremlinSave, ouo.mutation, ouo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -445,142 +388,82 @@ func (ouo *OccurrenceUpdateOne) check() error {
 	return nil
 }
 
-func (ouo *OccurrenceUpdateOne) sqlSave(ctx context.Context) (_node *Occurrence, err error) {
+func (ouo *OccurrenceUpdateOne) gremlinSave(ctx context.Context) (*Occurrence, error) {
 	if err := ouo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(occurrence.Table, occurrence.Columns, sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := ouo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Occurrence.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := ouo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, occurrence.FieldID)
-		for _, f := range fields {
-			if !occurrence.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != occurrence.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := ouo.gremlin(id).Query()
+	if err := ouo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := ouo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := ouo.mutation.Justification(); ok {
-		_spec.SetField(occurrence.FieldJustification, field.TypeString, value)
-	}
-	if value, ok := ouo.mutation.Origin(); ok {
-		_spec.SetField(occurrence.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := ouo.mutation.Collector(); ok {
-		_spec.SetField(occurrence.FieldCollector, field.TypeString, value)
-	}
-	if ouo.mutation.ArtifactCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.ArtifactTable,
-			Columns: []string{occurrence.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := ouo.mutation.ArtifactIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.ArtifactTable,
-			Columns: []string{occurrence.ArtifactColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if ouo.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.PackageTable,
-			Columns: []string{occurrence.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := ouo.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.PackageTable,
-			Columns: []string{occurrence.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if ouo.mutation.SourceCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.SourceTable,
-			Columns: []string{occurrence.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := ouo.mutation.SourceIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   occurrence.SourceTable,
-			Columns: []string{occurrence.SourceColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &Occurrence{config: ouo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, ouo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{occurrence.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	ouo.mutation.done = true
-	return _node, nil
+	o := &Occurrence{config: ouo.config}
+	if err := o.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
+func (ouo *OccurrenceUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := ouo.mutation.Justification(); ok {
+		v.Property(dsl.Single, occurrence.FieldJustification, value)
+	}
+	if value, ok := ouo.mutation.Origin(); ok {
+		v.Property(dsl.Single, occurrence.FieldOrigin, value)
+	}
+	if value, ok := ouo.mutation.Collector(); ok {
+		v.Property(dsl.Single, occurrence.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if ouo.mutation.ArtifactCleared() {
+		tr := rv.Clone().OutE(occurrence.ArtifactLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range ouo.mutation.ArtifactIDs() {
+		v.AddE(occurrence.ArtifactLabel).To(g.V(id)).OutV()
+	}
+	if ouo.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(occurrence.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range ouo.mutation.PackageIDs() {
+		v.AddE(occurrence.PackageLabel).To(g.V(id)).OutV()
+	}
+	if ouo.mutation.SourceCleared() {
+		tr := rv.Clone().OutE(occurrence.SourceLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range ouo.mutation.SourceIDs() {
+		v.AddE(occurrence.SourceLabel).To(g.V(id)).OutV()
+	}
+	if len(ouo.fields) > 0 {
+		fields := make([]any, 0, len(ouo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range ouo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

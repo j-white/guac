@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
 )
@@ -27,7 +28,7 @@ func (std *SourceTypeDelete) Where(ps ...predicate.SourceType) *SourceTypeDelete
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (std *SourceTypeDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, std.sqlExec, std.mutation, std.hooks)
+	return withHooks(ctx, std.gremlinExec, std.mutation, std.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (std *SourceTypeDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (std *SourceTypeDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(sourcetype.Table, sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt))
-	if ps := std.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, std.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (std *SourceTypeDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := std.gremlin().Query()
+	if err := std.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	std.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (std *SourceTypeDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(sourcetype.Label)
+	for _, p := range std.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // SourceTypeDeleteOne is the builder for deleting a single SourceType entity.

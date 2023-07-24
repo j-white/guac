@@ -3,163 +3,220 @@
 package certifyscorecard
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldEQ(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldEQ(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldNEQ(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldIn(FieldID, ids...))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldNotIn(FieldID, ids...))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldGT(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldGTE(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldLT(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldLTE(FieldID, id))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // SourceID applies equality check predicate on the "source_id" field. It's identical to SourceIDEQ.
 func SourceID(v int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldEQ(FieldSourceID, v))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // ScorecardID applies equality check predicate on the "scorecard_id" field. It's identical to ScorecardIDEQ.
 func ScorecardID(v int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldEQ(FieldScorecardID, v))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardID, p.EQ(v))
+	})
 }
 
 // SourceIDEQ applies the EQ predicate on the "source_id" field.
 func SourceIDEQ(v int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldEQ(FieldSourceID, v))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // SourceIDNEQ applies the NEQ predicate on the "source_id" field.
 func SourceIDNEQ(v int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldNEQ(FieldSourceID, v))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.NEQ(v))
+	})
 }
 
 // SourceIDIn applies the In predicate on the "source_id" field.
 func SourceIDIn(vs ...int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldIn(FieldSourceID, vs...))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Within(vs...))
+	})
 }
 
 // SourceIDNotIn applies the NotIn predicate on the "source_id" field.
 func SourceIDNotIn(vs ...int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldNotIn(FieldSourceID, vs...))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Without(vs...))
+	})
 }
 
 // ScorecardIDEQ applies the EQ predicate on the "scorecard_id" field.
 func ScorecardIDEQ(v int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldEQ(FieldScorecardID, v))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardID, p.EQ(v))
+	})
 }
 
 // ScorecardIDNEQ applies the NEQ predicate on the "scorecard_id" field.
 func ScorecardIDNEQ(v int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldNEQ(FieldScorecardID, v))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardID, p.NEQ(v))
+	})
 }
 
 // ScorecardIDIn applies the In predicate on the "scorecard_id" field.
 func ScorecardIDIn(vs ...int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldIn(FieldScorecardID, vs...))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardID, p.Within(vs...))
+	})
 }
 
 // ScorecardIDNotIn applies the NotIn predicate on the "scorecard_id" field.
 func ScorecardIDNotIn(vs ...int) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.FieldNotIn(FieldScorecardID, vs...))
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScorecardID, p.Without(vs...))
+	})
 }
 
 // HasScorecard applies the HasEdge predicate on the "scorecard" edge.
 func HasScorecard() predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, ScorecardTable, ScorecardColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.InE(ScorecardInverseLabel).InV()
 	})
 }
 
 // HasScorecardWith applies the HasEdge predicate on the "scorecard" edge with a given conditions (other predicates).
 func HasScorecardWith(preds ...predicate.Scorecard) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(func(s *sql.Selector) {
-		step := newScorecardStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(ScorecardInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasSource applies the HasEdge predicate on the "source" edge.
 func HasSource() predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, SourceTable, SourceColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		t.OutE(SourceLabel).OutV()
 	})
 }
 
 // HasSourceWith applies the HasEdge predicate on the "source" edge with a given conditions (other predicates).
 func HasSourceWith(preds ...predicate.SourceName) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(func(s *sql.Selector) {
-		step := newSourceStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.CertifyScorecard(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(SourceLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.CertifyScorecard) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.AndPredicates(predicates...))
+	return predicate.CertifyScorecard(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.CertifyScorecard) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.OrPredicates(predicates...))
+	return predicate.CertifyScorecard(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.CertifyScorecard) predicate.CertifyScorecard {
-	return predicate.CertifyScorecard(sql.NotPredicates(p))
+	return predicate.CertifyScorecard(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

@@ -5,638 +5,801 @@ package certifyvuln
 import (
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldID, ids...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldID, ids...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldID, id))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // VulnerabilityID applies equality check predicate on the "vulnerability_id" field. It's identical to VulnerabilityIDEQ.
 func VulnerabilityID(v int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldVulnerabilityID, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVulnerabilityID, p.EQ(v))
+	})
 }
 
 // PackageID applies equality check predicate on the "package_id" field. It's identical to PackageIDEQ.
 func PackageID(v int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldPackageID, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // TimeScanned applies equality check predicate on the "time_scanned" field. It's identical to TimeScannedEQ.
 func TimeScanned(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.EQ(v))
+	})
 }
 
 // DbURI applies equality check predicate on the "db_uri" field. It's identical to DbURIEQ.
 func DbURI(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.EQ(v))
+	})
 }
 
 // DbVersion applies equality check predicate on the "db_version" field. It's identical to DbVersionEQ.
 func DbVersion(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.EQ(v))
+	})
 }
 
 // ScannerURI applies equality check predicate on the "scanner_uri" field. It's identical to ScannerURIEQ.
 func ScannerURI(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.EQ(v))
+	})
 }
 
 // ScannerVersion applies equality check predicate on the "scanner_version" field. It's identical to ScannerVersionEQ.
 func ScannerVersion(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // VulnerabilityIDEQ applies the EQ predicate on the "vulnerability_id" field.
 func VulnerabilityIDEQ(v int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldVulnerabilityID, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVulnerabilityID, p.EQ(v))
+	})
 }
 
 // VulnerabilityIDNEQ applies the NEQ predicate on the "vulnerability_id" field.
 func VulnerabilityIDNEQ(v int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldVulnerabilityID, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVulnerabilityID, p.NEQ(v))
+	})
 }
 
 // VulnerabilityIDIn applies the In predicate on the "vulnerability_id" field.
 func VulnerabilityIDIn(vs ...int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldVulnerabilityID, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVulnerabilityID, p.Within(vs...))
+	})
 }
 
 // VulnerabilityIDNotIn applies the NotIn predicate on the "vulnerability_id" field.
 func VulnerabilityIDNotIn(vs ...int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldVulnerabilityID, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldVulnerabilityID, p.Without(vs...))
+	})
 }
 
 // VulnerabilityIDIsNil applies the IsNil predicate on the "vulnerability_id" field.
 func VulnerabilityIDIsNil() predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIsNull(FieldVulnerabilityID))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldVulnerabilityID)
+	})
 }
 
 // VulnerabilityIDNotNil applies the NotNil predicate on the "vulnerability_id" field.
 func VulnerabilityIDNotNil() predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotNull(FieldVulnerabilityID))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldVulnerabilityID)
+	})
 }
 
 // PackageIDEQ applies the EQ predicate on the "package_id" field.
 func PackageIDEQ(v int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldPackageID, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // PackageIDNEQ applies the NEQ predicate on the "package_id" field.
 func PackageIDNEQ(v int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldPackageID, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.NEQ(v))
+	})
 }
 
 // PackageIDIn applies the In predicate on the "package_id" field.
 func PackageIDIn(vs ...int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldPackageID, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Within(vs...))
+	})
 }
 
 // PackageIDNotIn applies the NotIn predicate on the "package_id" field.
 func PackageIDNotIn(vs ...int) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldPackageID, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Without(vs...))
+	})
 }
 
 // TimeScannedEQ applies the EQ predicate on the "time_scanned" field.
 func TimeScannedEQ(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.EQ(v))
+	})
 }
 
 // TimeScannedNEQ applies the NEQ predicate on the "time_scanned" field.
 func TimeScannedNEQ(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.NEQ(v))
+	})
 }
 
 // TimeScannedIn applies the In predicate on the "time_scanned" field.
 func TimeScannedIn(vs ...time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldTimeScanned, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.Within(vs...))
+	})
 }
 
 // TimeScannedNotIn applies the NotIn predicate on the "time_scanned" field.
 func TimeScannedNotIn(vs ...time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldTimeScanned, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.Without(vs...))
+	})
 }
 
 // TimeScannedGT applies the GT predicate on the "time_scanned" field.
 func TimeScannedGT(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.GT(v))
+	})
 }
 
 // TimeScannedGTE applies the GTE predicate on the "time_scanned" field.
 func TimeScannedGTE(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.GTE(v))
+	})
 }
 
 // TimeScannedLT applies the LT predicate on the "time_scanned" field.
 func TimeScannedLT(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.LT(v))
+	})
 }
 
 // TimeScannedLTE applies the LTE predicate on the "time_scanned" field.
 func TimeScannedLTE(v time.Time) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldTimeScanned, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldTimeScanned, p.LTE(v))
+	})
 }
 
 // DbURIEQ applies the EQ predicate on the "db_uri" field.
 func DbURIEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.EQ(v))
+	})
 }
 
 // DbURINEQ applies the NEQ predicate on the "db_uri" field.
 func DbURINEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.NEQ(v))
+	})
 }
 
 // DbURIIn applies the In predicate on the "db_uri" field.
 func DbURIIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldDbURI, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.Within(vs...))
+	})
 }
 
 // DbURINotIn applies the NotIn predicate on the "db_uri" field.
 func DbURINotIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldDbURI, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.Without(vs...))
+	})
 }
 
 // DbURIGT applies the GT predicate on the "db_uri" field.
 func DbURIGT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.GT(v))
+	})
 }
 
 // DbURIGTE applies the GTE predicate on the "db_uri" field.
 func DbURIGTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.GTE(v))
+	})
 }
 
 // DbURILT applies the LT predicate on the "db_uri" field.
 func DbURILT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.LT(v))
+	})
 }
 
 // DbURILTE applies the LTE predicate on the "db_uri" field.
 func DbURILTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.LTE(v))
+	})
 }
 
 // DbURIContains applies the Contains predicate on the "db_uri" field.
 func DbURIContains(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContains(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.Containing(v))
+	})
 }
 
 // DbURIHasPrefix applies the HasPrefix predicate on the "db_uri" field.
 func DbURIHasPrefix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasPrefix(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.StartingWith(v))
+	})
 }
 
 // DbURIHasSuffix applies the HasSuffix predicate on the "db_uri" field.
 func DbURIHasSuffix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasSuffix(FieldDbURI, v))
-}
-
-// DbURIEqualFold applies the EqualFold predicate on the "db_uri" field.
-func DbURIEqualFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEqualFold(FieldDbURI, v))
-}
-
-// DbURIContainsFold applies the ContainsFold predicate on the "db_uri" field.
-func DbURIContainsFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContainsFold(FieldDbURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbURI, p.EndingWith(v))
+	})
 }
 
 // DbVersionEQ applies the EQ predicate on the "db_version" field.
 func DbVersionEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.EQ(v))
+	})
 }
 
 // DbVersionNEQ applies the NEQ predicate on the "db_version" field.
 func DbVersionNEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.NEQ(v))
+	})
 }
 
 // DbVersionIn applies the In predicate on the "db_version" field.
 func DbVersionIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldDbVersion, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.Within(vs...))
+	})
 }
 
 // DbVersionNotIn applies the NotIn predicate on the "db_version" field.
 func DbVersionNotIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldDbVersion, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.Without(vs...))
+	})
 }
 
 // DbVersionGT applies the GT predicate on the "db_version" field.
 func DbVersionGT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.GT(v))
+	})
 }
 
 // DbVersionGTE applies the GTE predicate on the "db_version" field.
 func DbVersionGTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.GTE(v))
+	})
 }
 
 // DbVersionLT applies the LT predicate on the "db_version" field.
 func DbVersionLT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.LT(v))
+	})
 }
 
 // DbVersionLTE applies the LTE predicate on the "db_version" field.
 func DbVersionLTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.LTE(v))
+	})
 }
 
 // DbVersionContains applies the Contains predicate on the "db_version" field.
 func DbVersionContains(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContains(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.Containing(v))
+	})
 }
 
 // DbVersionHasPrefix applies the HasPrefix predicate on the "db_version" field.
 func DbVersionHasPrefix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasPrefix(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.StartingWith(v))
+	})
 }
 
 // DbVersionHasSuffix applies the HasSuffix predicate on the "db_version" field.
 func DbVersionHasSuffix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasSuffix(FieldDbVersion, v))
-}
-
-// DbVersionEqualFold applies the EqualFold predicate on the "db_version" field.
-func DbVersionEqualFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEqualFold(FieldDbVersion, v))
-}
-
-// DbVersionContainsFold applies the ContainsFold predicate on the "db_version" field.
-func DbVersionContainsFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContainsFold(FieldDbVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldDbVersion, p.EndingWith(v))
+	})
 }
 
 // ScannerURIEQ applies the EQ predicate on the "scanner_uri" field.
 func ScannerURIEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.EQ(v))
+	})
 }
 
 // ScannerURINEQ applies the NEQ predicate on the "scanner_uri" field.
 func ScannerURINEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.NEQ(v))
+	})
 }
 
 // ScannerURIIn applies the In predicate on the "scanner_uri" field.
 func ScannerURIIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldScannerURI, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.Within(vs...))
+	})
 }
 
 // ScannerURINotIn applies the NotIn predicate on the "scanner_uri" field.
 func ScannerURINotIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldScannerURI, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.Without(vs...))
+	})
 }
 
 // ScannerURIGT applies the GT predicate on the "scanner_uri" field.
 func ScannerURIGT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.GT(v))
+	})
 }
 
 // ScannerURIGTE applies the GTE predicate on the "scanner_uri" field.
 func ScannerURIGTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.GTE(v))
+	})
 }
 
 // ScannerURILT applies the LT predicate on the "scanner_uri" field.
 func ScannerURILT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.LT(v))
+	})
 }
 
 // ScannerURILTE applies the LTE predicate on the "scanner_uri" field.
 func ScannerURILTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.LTE(v))
+	})
 }
 
 // ScannerURIContains applies the Contains predicate on the "scanner_uri" field.
 func ScannerURIContains(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContains(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.Containing(v))
+	})
 }
 
 // ScannerURIHasPrefix applies the HasPrefix predicate on the "scanner_uri" field.
 func ScannerURIHasPrefix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasPrefix(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.StartingWith(v))
+	})
 }
 
 // ScannerURIHasSuffix applies the HasSuffix predicate on the "scanner_uri" field.
 func ScannerURIHasSuffix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasSuffix(FieldScannerURI, v))
-}
-
-// ScannerURIEqualFold applies the EqualFold predicate on the "scanner_uri" field.
-func ScannerURIEqualFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEqualFold(FieldScannerURI, v))
-}
-
-// ScannerURIContainsFold applies the ContainsFold predicate on the "scanner_uri" field.
-func ScannerURIContainsFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContainsFold(FieldScannerURI, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerURI, p.EndingWith(v))
+	})
 }
 
 // ScannerVersionEQ applies the EQ predicate on the "scanner_version" field.
 func ScannerVersionEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.EQ(v))
+	})
 }
 
 // ScannerVersionNEQ applies the NEQ predicate on the "scanner_version" field.
 func ScannerVersionNEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.NEQ(v))
+	})
 }
 
 // ScannerVersionIn applies the In predicate on the "scanner_version" field.
 func ScannerVersionIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldScannerVersion, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.Within(vs...))
+	})
 }
 
 // ScannerVersionNotIn applies the NotIn predicate on the "scanner_version" field.
 func ScannerVersionNotIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldScannerVersion, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.Without(vs...))
+	})
 }
 
 // ScannerVersionGT applies the GT predicate on the "scanner_version" field.
 func ScannerVersionGT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.GT(v))
+	})
 }
 
 // ScannerVersionGTE applies the GTE predicate on the "scanner_version" field.
 func ScannerVersionGTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.GTE(v))
+	})
 }
 
 // ScannerVersionLT applies the LT predicate on the "scanner_version" field.
 func ScannerVersionLT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.LT(v))
+	})
 }
 
 // ScannerVersionLTE applies the LTE predicate on the "scanner_version" field.
 func ScannerVersionLTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.LTE(v))
+	})
 }
 
 // ScannerVersionContains applies the Contains predicate on the "scanner_version" field.
 func ScannerVersionContains(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContains(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.Containing(v))
+	})
 }
 
 // ScannerVersionHasPrefix applies the HasPrefix predicate on the "scanner_version" field.
 func ScannerVersionHasPrefix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasPrefix(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.StartingWith(v))
+	})
 }
 
 // ScannerVersionHasSuffix applies the HasSuffix predicate on the "scanner_version" field.
 func ScannerVersionHasSuffix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasSuffix(FieldScannerVersion, v))
-}
-
-// ScannerVersionEqualFold applies the EqualFold predicate on the "scanner_version" field.
-func ScannerVersionEqualFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEqualFold(FieldScannerVersion, v))
-}
-
-// ScannerVersionContainsFold applies the ContainsFold predicate on the "scanner_version" field.
-func ScannerVersionContainsFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContainsFold(FieldScannerVersion, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldScannerVersion, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContains(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEQ(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNEQ(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldIn(FieldCollector, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGT(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldGTE(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLT(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldLTE(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContains(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // HasVulnerability applies the HasEdge predicate on the "vulnerability" edge.
 func HasVulnerability() predicate.CertifyVuln {
-	return predicate.CertifyVuln(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, VulnerabilityTable, VulnerabilityColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.OutE(VulnerabilityLabel).OutV()
 	})
 }
 
 // HasVulnerabilityWith applies the HasEdge predicate on the "vulnerability" edge with a given conditions (other predicates).
 func HasVulnerabilityWith(preds ...predicate.SecurityAdvisory) predicate.CertifyVuln {
-	return predicate.CertifyVuln(func(s *sql.Selector) {
-		step := newVulnerabilityStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(VulnerabilityLabel).Where(tr).OutV()
 	})
 }
 
 // HasPackage applies the HasEdge predicate on the "package" edge.
 func HasPackage() predicate.CertifyVuln {
-	return predicate.CertifyVuln(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		t.OutE(PackageLabel).OutV()
 	})
 }
 
 // HasPackageWith applies the HasEdge predicate on the "package" edge with a given conditions (other predicates).
 func HasPackageWith(preds ...predicate.PackageVersion) predicate.CertifyVuln {
-	return predicate.CertifyVuln(func(s *sql.Selector) {
-		step := newPackageStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.CertifyVuln(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackageLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.CertifyVuln) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.AndPredicates(predicates...))
+	return predicate.CertifyVuln(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.CertifyVuln) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.OrPredicates(predicates...))
+	return predicate.CertifyVuln(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.CertifyVuln) predicate.CertifyVuln {
-	return predicate.CertifyVuln(sql.NotPredicates(p))
+	return predicate.CertifyVuln(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

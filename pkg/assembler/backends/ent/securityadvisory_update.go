@@ -5,11 +5,11 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
 )
@@ -121,7 +121,7 @@ func (sau *SecurityAdvisoryUpdate) Mutation() *SecurityAdvisoryMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (sau *SecurityAdvisoryUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, sau.sqlSave, sau.mutation, sau.hooks)
+	return withHooks(ctx, sau.gremlinSave, sau.mutation, sau.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -146,52 +146,61 @@ func (sau *SecurityAdvisoryUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-func (sau *SecurityAdvisoryUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(securityadvisory.Table, securityadvisory.Columns, sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt))
-	if ps := sau.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+func (sau *SecurityAdvisoryUpdate) gremlinSave(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := sau.gremlin().Query()
+	if err := sau.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := sau.mutation.GhsaID(); ok {
-		_spec.SetField(securityadvisory.FieldGhsaID, field.TypeString, value)
-	}
-	if sau.mutation.GhsaIDCleared() {
-		_spec.ClearField(securityadvisory.FieldGhsaID, field.TypeString)
-	}
-	if value, ok := sau.mutation.CveID(); ok {
-		_spec.SetField(securityadvisory.FieldCveID, field.TypeString, value)
-	}
-	if sau.mutation.CveIDCleared() {
-		_spec.ClearField(securityadvisory.FieldCveID, field.TypeString)
-	}
-	if value, ok := sau.mutation.CveYear(); ok {
-		_spec.SetField(securityadvisory.FieldCveYear, field.TypeInt, value)
-	}
-	if value, ok := sau.mutation.AddedCveYear(); ok {
-		_spec.AddField(securityadvisory.FieldCveYear, field.TypeInt, value)
-	}
-	if sau.mutation.CveYearCleared() {
-		_spec.ClearField(securityadvisory.FieldCveYear, field.TypeInt)
-	}
-	if value, ok := sau.mutation.OsvID(); ok {
-		_spec.SetField(securityadvisory.FieldOsvID, field.TypeString, value)
-	}
-	if sau.mutation.OsvIDCleared() {
-		_spec.ClearField(securityadvisory.FieldOsvID, field.TypeString)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, sau.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{securityadvisory.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	sau.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (sau *SecurityAdvisoryUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(securityadvisory.Label)
+	for _, p := range sau.mutation.predicates {
+		p(v)
+	}
+	var (
+		trs []*dsl.Traversal
+	)
+	if value, ok := sau.mutation.GhsaID(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldGhsaID, value)
+	}
+	if value, ok := sau.mutation.CveID(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldCveID, value)
+	}
+	if value, ok := sau.mutation.CveYear(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldCveYear, value)
+	}
+	if value, ok := sau.mutation.AddedCveYear(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldCveYear, __.Union(__.Values(securityadvisory.FieldCveYear), __.Constant(value)).Sum())
+	}
+	if value, ok := sau.mutation.OsvID(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldOsvID, value)
+	}
+	var properties []any
+	if sau.mutation.GhsaIDCleared() {
+		properties = append(properties, securityadvisory.FieldGhsaID)
+	}
+	if sau.mutation.CveIDCleared() {
+		properties = append(properties, securityadvisory.FieldCveID)
+	}
+	if sau.mutation.CveYearCleared() {
+		properties = append(properties, securityadvisory.FieldCveYear)
+	}
+	if sau.mutation.OsvIDCleared() {
+		properties = append(properties, securityadvisory.FieldOsvID)
+	}
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // SecurityAdvisoryUpdateOne is the builder for updating a single SecurityAdvisory entity.
@@ -309,7 +318,7 @@ func (sauo *SecurityAdvisoryUpdateOne) Select(field string, fields ...string) *S
 
 // Save executes the query and returns the updated SecurityAdvisory entity.
 func (sauo *SecurityAdvisoryUpdateOne) Save(ctx context.Context) (*SecurityAdvisory, error) {
-	return withHooks(ctx, sauo.sqlSave, sauo.mutation, sauo.hooks)
+	return withHooks(ctx, sauo.gremlinSave, sauo.mutation, sauo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -334,70 +343,73 @@ func (sauo *SecurityAdvisoryUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-func (sauo *SecurityAdvisoryUpdateOne) sqlSave(ctx context.Context) (_node *SecurityAdvisory, err error) {
-	_spec := sqlgraph.NewUpdateSpec(securityadvisory.Table, securityadvisory.Columns, sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt))
+func (sauo *SecurityAdvisoryUpdateOne) gremlinSave(ctx context.Context) (*SecurityAdvisory, error) {
+	res := &gremlin.Response{}
 	id, ok := sauo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "SecurityAdvisory.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := sauo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, securityadvisory.FieldID)
-		for _, f := range fields {
-			if !securityadvisory.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != securityadvisory.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := sauo.gremlin(id).Query()
+	if err := sauo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := sauo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := sauo.mutation.GhsaID(); ok {
-		_spec.SetField(securityadvisory.FieldGhsaID, field.TypeString, value)
-	}
-	if sauo.mutation.GhsaIDCleared() {
-		_spec.ClearField(securityadvisory.FieldGhsaID, field.TypeString)
-	}
-	if value, ok := sauo.mutation.CveID(); ok {
-		_spec.SetField(securityadvisory.FieldCveID, field.TypeString, value)
-	}
-	if sauo.mutation.CveIDCleared() {
-		_spec.ClearField(securityadvisory.FieldCveID, field.TypeString)
-	}
-	if value, ok := sauo.mutation.CveYear(); ok {
-		_spec.SetField(securityadvisory.FieldCveYear, field.TypeInt, value)
-	}
-	if value, ok := sauo.mutation.AddedCveYear(); ok {
-		_spec.AddField(securityadvisory.FieldCveYear, field.TypeInt, value)
-	}
-	if sauo.mutation.CveYearCleared() {
-		_spec.ClearField(securityadvisory.FieldCveYear, field.TypeInt)
-	}
-	if value, ok := sauo.mutation.OsvID(); ok {
-		_spec.SetField(securityadvisory.FieldOsvID, field.TypeString, value)
-	}
-	if sauo.mutation.OsvIDCleared() {
-		_spec.ClearField(securityadvisory.FieldOsvID, field.TypeString)
-	}
-	_node = &SecurityAdvisory{config: sauo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, sauo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{securityadvisory.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	sauo.mutation.done = true
-	return _node, nil
+	sa := &SecurityAdvisory{config: sauo.config}
+	if err := sa.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return sa, nil
+}
+
+func (sauo *SecurityAdvisoryUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		trs []*dsl.Traversal
+	)
+	if value, ok := sauo.mutation.GhsaID(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldGhsaID, value)
+	}
+	if value, ok := sauo.mutation.CveID(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldCveID, value)
+	}
+	if value, ok := sauo.mutation.CveYear(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldCveYear, value)
+	}
+	if value, ok := sauo.mutation.AddedCveYear(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldCveYear, __.Union(__.Values(securityadvisory.FieldCveYear), __.Constant(value)).Sum())
+	}
+	if value, ok := sauo.mutation.OsvID(); ok {
+		v.Property(dsl.Single, securityadvisory.FieldOsvID, value)
+	}
+	var properties []any
+	if sauo.mutation.GhsaIDCleared() {
+		properties = append(properties, securityadvisory.FieldGhsaID)
+	}
+	if sauo.mutation.CveIDCleared() {
+		properties = append(properties, securityadvisory.FieldCveID)
+	}
+	if sauo.mutation.CveYearCleared() {
+		properties = append(properties, securityadvisory.FieldCveYear)
+	}
+	if sauo.mutation.OsvIDCleared() {
+		properties = append(properties, securityadvisory.FieldOsvID)
+	}
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if len(sauo.fields) > 0 {
+		fields := make([]any, 0, len(sauo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range sauo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certification"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (cd *CertificationDelete) Where(ps ...predicate.Certification) *Certificati
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (cd *CertificationDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, cd.sqlExec, cd.mutation, cd.hooks)
+	return withHooks(ctx, cd.gremlinExec, cd.mutation, cd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (cd *CertificationDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (cd *CertificationDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(certification.Table, sqlgraph.NewFieldSpec(certification.FieldID, field.TypeInt))
-	if ps := cd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, cd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (cd *CertificationDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := cd.gremlin().Query()
+	if err := cd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	cd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (cd *CertificationDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(certification.Label)
+	for _, p := range cd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // CertificationDeleteOne is the builder for deleting a single Certification entity.

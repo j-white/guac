@@ -4,11 +4,8 @@ package dependency
 
 import (
 	"fmt"
-	"io"
-	"strconv"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 const (
@@ -34,45 +31,11 @@ const (
 	EdgePackage = "package"
 	// EdgeDependentPackage holds the string denoting the dependent_package edge name in mutations.
 	EdgeDependentPackage = "dependent_package"
-	// Table holds the table name of the dependency in the database.
-	Table = "dependencies"
-	// PackageTable is the table that holds the package relation/edge.
-	PackageTable = "dependencies"
-	// PackageInverseTable is the table name for the PackageVersion entity.
-	// It exists in this package in order to avoid circular dependency with the "packageversion" package.
-	PackageInverseTable = "package_versions"
-	// PackageColumn is the table column denoting the package relation/edge.
-	PackageColumn = "package_id"
-	// DependentPackageTable is the table that holds the dependent_package relation/edge.
-	DependentPackageTable = "dependencies"
-	// DependentPackageInverseTable is the table name for the PackageName entity.
-	// It exists in this package in order to avoid circular dependency with the "packagename" package.
-	DependentPackageInverseTable = "package_names"
-	// DependentPackageColumn is the table column denoting the dependent_package relation/edge.
-	DependentPackageColumn = "dependent_package_id"
+	// PackageLabel holds the string label denoting the package edge type in the database.
+	PackageLabel = "dependency_package"
+	// DependentPackageLabel holds the string label denoting the dependent_package edge type in the database.
+	DependentPackageLabel = "dependency_dependent_package"
 )
-
-// Columns holds all SQL columns for dependency fields.
-var Columns = []string{
-	FieldID,
-	FieldPackageID,
-	FieldDependentPackageID,
-	FieldVersionRange,
-	FieldDependencyType,
-	FieldJustification,
-	FieldOrigin,
-	FieldCollector,
-}
-
-// ValidColumn reports if the column name is valid (part of the table columns).
-func ValidColumn(column string) bool {
-	for i := range Columns {
-		if column == Columns[i] {
-			return true
-		}
-	}
-	return false
-}
 
 // DependencyType defines the type for the "dependency_type" enum field.
 type DependencyType string
@@ -99,90 +62,4 @@ func DependencyTypeValidator(dt DependencyType) error {
 }
 
 // OrderOption defines the ordering options for the Dependency queries.
-type OrderOption func(*sql.Selector)
-
-// ByID orders the results by the id field.
-func ByID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldID, opts...).ToFunc()
-}
-
-// ByPackageID orders the results by the package_id field.
-func ByPackageID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPackageID, opts...).ToFunc()
-}
-
-// ByDependentPackageID orders the results by the dependent_package_id field.
-func ByDependentPackageID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDependentPackageID, opts...).ToFunc()
-}
-
-// ByVersionRange orders the results by the version_range field.
-func ByVersionRange(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVersionRange, opts...).ToFunc()
-}
-
-// ByDependencyType orders the results by the dependency_type field.
-func ByDependencyType(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDependencyType, opts...).ToFunc()
-}
-
-// ByJustification orders the results by the justification field.
-func ByJustification(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldJustification, opts...).ToFunc()
-}
-
-// ByOrigin orders the results by the origin field.
-func ByOrigin(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOrigin, opts...).ToFunc()
-}
-
-// ByCollector orders the results by the collector field.
-func ByCollector(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCollector, opts...).ToFunc()
-}
-
-// ByPackageField orders the results by package field.
-func ByPackageField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newPackageStep(), sql.OrderByField(field, opts...))
-	}
-}
-
-// ByDependentPackageField orders the results by dependent_package field.
-func ByDependentPackageField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newDependentPackageStep(), sql.OrderByField(field, opts...))
-	}
-}
-func newPackageStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(PackageInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-	)
-}
-func newDependentPackageStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(DependentPackageInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, DependentPackageTable, DependentPackageColumn),
-	)
-}
-
-// MarshalGQL implements graphql.Marshaler interface.
-func (e DependencyType) MarshalGQL(w io.Writer) {
-	io.WriteString(w, strconv.Quote(e.String()))
-}
-
-// UnmarshalGQL implements graphql.Unmarshaler interface.
-func (e *DependencyType) UnmarshalGQL(val interface{}) error {
-	str, ok := val.(string)
-	if !ok {
-		return fmt.Errorf("enum %T must be a string", val)
-	}
-	*e = DependencyType(str)
-	if err := DependencyTypeValidator(*e); err != nil {
-		return fmt.Errorf("%s is not a valid DependencyType", str)
-	}
-	return nil
-}
+type OrderOption func(*dsl.Traversal)

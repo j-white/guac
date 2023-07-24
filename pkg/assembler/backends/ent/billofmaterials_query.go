@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
@@ -25,11 +24,9 @@ type BillOfMaterialsQuery struct {
 	predicates   []predicate.BillOfMaterials
 	withPackage  *PackageVersionQuery
 	withArtifact *ArtifactQuery
-	modifiers    []func(*sql.Selector)
-	loadTotal    []func(context.Context, []*BillOfMaterials) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the BillOfMaterialsQuery builder.
@@ -66,20 +63,12 @@ func (bomq *BillOfMaterialsQuery) Order(o ...billofmaterials.OrderOption) *BillO
 // QueryPackage chains the current query on the "package" edge.
 func (bomq *BillOfMaterialsQuery) QueryPackage() *PackageVersionQuery {
 	query := (&PackageVersionClient{config: bomq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := bomq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := bomq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(billofmaterials.Table, billofmaterials.FieldID, selector),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, billofmaterials.PackageTable, billofmaterials.PackageColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(bomq.driver.Dialect(), step)
+		gremlin := bomq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(billofmaterials.PackageLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -88,20 +77,12 @@ func (bomq *BillOfMaterialsQuery) QueryPackage() *PackageVersionQuery {
 // QueryArtifact chains the current query on the "artifact" edge.
 func (bomq *BillOfMaterialsQuery) QueryArtifact() *ArtifactQuery {
 	query := (&ArtifactClient{config: bomq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := bomq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := bomq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(billofmaterials.Table, billofmaterials.FieldID, selector),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, billofmaterials.ArtifactTable, billofmaterials.ArtifactColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(bomq.driver.Dialect(), step)
+		gremlin := bomq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(billofmaterials.ArtifactLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -302,8 +283,8 @@ func (bomq *BillOfMaterialsQuery) Clone() *BillOfMaterialsQuery {
 		withPackage:  bomq.withPackage.Clone(),
 		withArtifact: bomq.withArtifact.Clone(),
 		// clone intermediate query.
-		sql:  bomq.sql.Clone(),
-		path: bomq.path,
+		gremlin: bomq.gremlin.Clone(),
+		path:    bomq.path,
 	}
 }
 
@@ -388,224 +369,77 @@ func (bomq *BillOfMaterialsQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range bomq.ctx.Fields {
-		if !billofmaterials.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if bomq.path != nil {
 		prev, err := bomq.path(ctx)
 		if err != nil {
 			return err
 		}
-		bomq.sql = prev
+		bomq.gremlin = prev
 	}
 	return nil
 }
 
-func (bomq *BillOfMaterialsQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*BillOfMaterials, error) {
-	var (
-		nodes       = []*BillOfMaterials{}
-		_spec       = bomq.querySpec()
-		loadedTypes = [2]bool{
-			bomq.withPackage != nil,
-			bomq.withArtifact != nil,
+func (bomq *BillOfMaterialsQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*BillOfMaterials, error) {
+	res := &gremlin.Response{}
+	traversal := bomq.gremlinQuery(ctx)
+	if len(bomq.ctx.Fields) > 0 {
+		fields := make([]any, len(bomq.ctx.Fields))
+		for i, f := range bomq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*BillOfMaterials).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &BillOfMaterials{config: bomq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(bomq.modifiers) > 0 {
-		_spec.Modifiers = bomq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, bomq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := bomq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var boms BillOfMaterialsSlice
+	if err := boms.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := bomq.withPackage; query != nil {
-		if err := bomq.loadPackage(ctx, query, nodes, nil,
-			func(n *BillOfMaterials, e *PackageVersion) { n.Edges.Package = e }); err != nil {
-			return nil, err
-		}
+	for i := range boms {
+		boms[i].config = bomq.config
 	}
-	if query := bomq.withArtifact; query != nil {
-		if err := bomq.loadArtifact(ctx, query, nodes, nil,
-			func(n *BillOfMaterials, e *Artifact) { n.Edges.Artifact = e }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range bomq.loadTotal {
-		if err := bomq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return boms, nil
 }
 
-func (bomq *BillOfMaterialsQuery) loadPackage(ctx context.Context, query *PackageVersionQuery, nodes []*BillOfMaterials, init func(*BillOfMaterials), assign func(*BillOfMaterials, *PackageVersion)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*BillOfMaterials)
-	for i := range nodes {
-		if nodes[i].PackageID == nil {
-			continue
-		}
-		fk := *nodes[i].PackageID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (bomq *BillOfMaterialsQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := bomq.gremlinQuery(ctx).Count().Query()
+	if err := bomq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packageversion.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "package_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (bomq *BillOfMaterialsQuery) loadArtifact(ctx context.Context, query *ArtifactQuery, nodes []*BillOfMaterials, init func(*BillOfMaterials), assign func(*BillOfMaterials, *Artifact)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*BillOfMaterials)
-	for i := range nodes {
-		if nodes[i].ArtifactID == nil {
-			continue
-		}
-		fk := *nodes[i].ArtifactID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(artifact.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "artifact_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (bomq *BillOfMaterialsQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := bomq.querySpec()
-	if len(bomq.modifiers) > 0 {
-		_spec.Modifiers = bomq.modifiers
-	}
-	_spec.Node.Columns = bomq.ctx.Fields
-	if len(bomq.ctx.Fields) > 0 {
-		_spec.Unique = bomq.ctx.Unique != nil && *bomq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, bomq.driver, _spec)
-}
-
-func (bomq *BillOfMaterialsQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(billofmaterials.Table, billofmaterials.Columns, sqlgraph.NewFieldSpec(billofmaterials.FieldID, field.TypeInt))
-	_spec.From = bomq.sql
-	if unique := bomq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if bomq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := bomq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, billofmaterials.FieldID)
-		for i := range fields {
-			if fields[i] != billofmaterials.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if bomq.withPackage != nil {
-			_spec.Node.AddColumnOnce(billofmaterials.FieldPackageID)
-		}
-		if bomq.withArtifact != nil {
-			_spec.Node.AddColumnOnce(billofmaterials.FieldArtifactID)
-		}
-	}
-	if ps := bomq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := bomq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := bomq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := bomq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (bomq *BillOfMaterialsQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(bomq.driver.Dialect())
-	t1 := builder.Table(billofmaterials.Table)
-	columns := bomq.ctx.Fields
-	if len(columns) == 0 {
-		columns = billofmaterials.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if bomq.sql != nil {
-		selector = bomq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if bomq.ctx.Unique != nil && *bomq.ctx.Unique {
-		selector.Distinct()
+func (bomq *BillOfMaterialsQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(billofmaterials.Label)
+	if bomq.gremlin != nil {
+		v = bomq.gremlin.Clone()
 	}
 	for _, p := range bomq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range bomq.order {
-		p(selector)
+	if len(bomq.order) > 0 {
+		v.Order()
+		for _, p := range bomq.order {
+			p(v)
+		}
 	}
-	if offset := bomq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := bomq.ctx.Limit, bomq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := bomq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := bomq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // BillOfMaterialsGroupBy is the group-by builder for BillOfMaterials entities.
@@ -629,31 +463,38 @@ func (bomgb *BillOfMaterialsGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*BillOfMaterialsQuery, *BillOfMaterialsGroupBy](ctx, bomgb.build, bomgb, bomgb.build.inters, v)
 }
 
-func (bomgb *BillOfMaterialsGroupBy) sqlScan(ctx context.Context, root *BillOfMaterialsQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(bomgb.fns))
+func (bomgb *BillOfMaterialsGroupBy) gremlinScan(ctx context.Context, root *BillOfMaterialsQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range bomgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*bomgb.flds)+len(bomgb.fns))
-		for _, f := range *bomgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *bomgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*bomgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*bomgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := bomgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := bomgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*bomgb.flds)+len(bomgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // BillOfMaterialsSelect is the builder for selecting fields of BillOfMaterials entities.
@@ -677,23 +518,34 @@ func (boms *BillOfMaterialsSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*BillOfMaterialsQuery, *BillOfMaterialsSelect](ctx, boms.BillOfMaterialsQuery, boms, boms.inters, v)
 }
 
-func (boms *BillOfMaterialsSelect) sqlScan(ctx context.Context, root *BillOfMaterialsQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(boms.fns))
-	for _, fn := range boms.fns {
-		aggregation = append(aggregation, fn(selector))
+func (boms *BillOfMaterialsSelect) gremlinScan(ctx context.Context, root *BillOfMaterialsQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := boms.ctx.Fields; len(fields) == 1 {
+		if fields[0] != billofmaterials.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(boms.ctx.Fields))
+		for i, f := range boms.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*boms.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := boms.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := boms.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

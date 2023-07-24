@@ -3,208 +3,269 @@
 package packagenamespace
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEQ(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEQ(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldNEQ(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldIn(FieldID, ids...))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldNotIn(FieldID, ids...))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldGT(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldGTE(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldLT(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldLTE(FieldID, id))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // PackageID applies equality check predicate on the "package_id" field. It's identical to PackageIDEQ.
 func PackageID(v int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEQ(FieldPackageID, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // Namespace applies equality check predicate on the "namespace" field. It's identical to NamespaceEQ.
 func Namespace(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEQ(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.EQ(v))
+	})
 }
 
 // PackageIDEQ applies the EQ predicate on the "package_id" field.
 func PackageIDEQ(v int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEQ(FieldPackageID, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // PackageIDNEQ applies the NEQ predicate on the "package_id" field.
 func PackageIDNEQ(v int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldNEQ(FieldPackageID, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.NEQ(v))
+	})
 }
 
 // PackageIDIn applies the In predicate on the "package_id" field.
 func PackageIDIn(vs ...int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldIn(FieldPackageID, vs...))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Within(vs...))
+	})
 }
 
 // PackageIDNotIn applies the NotIn predicate on the "package_id" field.
 func PackageIDNotIn(vs ...int) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldNotIn(FieldPackageID, vs...))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Without(vs...))
+	})
 }
 
 // NamespaceEQ applies the EQ predicate on the "namespace" field.
 func NamespaceEQ(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEQ(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.EQ(v))
+	})
 }
 
 // NamespaceNEQ applies the NEQ predicate on the "namespace" field.
 func NamespaceNEQ(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldNEQ(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.NEQ(v))
+	})
 }
 
 // NamespaceIn applies the In predicate on the "namespace" field.
 func NamespaceIn(vs ...string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldIn(FieldNamespace, vs...))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.Within(vs...))
+	})
 }
 
 // NamespaceNotIn applies the NotIn predicate on the "namespace" field.
 func NamespaceNotIn(vs ...string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldNotIn(FieldNamespace, vs...))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.Without(vs...))
+	})
 }
 
 // NamespaceGT applies the GT predicate on the "namespace" field.
 func NamespaceGT(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldGT(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.GT(v))
+	})
 }
 
 // NamespaceGTE applies the GTE predicate on the "namespace" field.
 func NamespaceGTE(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldGTE(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.GTE(v))
+	})
 }
 
 // NamespaceLT applies the LT predicate on the "namespace" field.
 func NamespaceLT(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldLT(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.LT(v))
+	})
 }
 
 // NamespaceLTE applies the LTE predicate on the "namespace" field.
 func NamespaceLTE(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldLTE(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.LTE(v))
+	})
 }
 
 // NamespaceContains applies the Contains predicate on the "namespace" field.
 func NamespaceContains(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldContains(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.Containing(v))
+	})
 }
 
 // NamespaceHasPrefix applies the HasPrefix predicate on the "namespace" field.
 func NamespaceHasPrefix(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldHasPrefix(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.StartingWith(v))
+	})
 }
 
 // NamespaceHasSuffix applies the HasSuffix predicate on the "namespace" field.
 func NamespaceHasSuffix(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldHasSuffix(FieldNamespace, v))
-}
-
-// NamespaceEqualFold applies the EqualFold predicate on the "namespace" field.
-func NamespaceEqualFold(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldEqualFold(FieldNamespace, v))
-}
-
-// NamespaceContainsFold applies the ContainsFold predicate on the "namespace" field.
-func NamespaceContainsFold(v string) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.FieldContainsFold(FieldNamespace, v))
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.Has(Label, FieldNamespace, p.EndingWith(v))
+	})
 }
 
 // HasPackage applies the HasEdge predicate on the "package" edge.
 func HasPackage() predicate.PackageNamespace {
-	return predicate.PackageNamespace(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, PackageTable, PackageColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.InE(PackageInverseLabel).InV()
 	})
 }
 
 // HasPackageWith applies the HasEdge predicate on the "package" edge with a given conditions (other predicates).
 func HasPackageWith(preds ...predicate.PackageType) predicate.PackageNamespace {
-	return predicate.PackageNamespace(func(s *sql.Selector) {
-		step := newPackageStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		tr := __.OutV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.InE(PackageInverseLabel).Where(tr).InV()
 	})
 }
 
 // HasNames applies the HasEdge predicate on the "names" edge.
 func HasNames() predicate.PackageNamespace {
-	return predicate.PackageNamespace(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, NamesTable, NamesColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		t.OutE(NamesLabel).OutV()
 	})
 }
 
 // HasNamesWith applies the HasEdge predicate on the "names" edge with a given conditions (other predicates).
 func HasNamesWith(preds ...predicate.PackageName) predicate.PackageNamespace {
-	return predicate.PackageNamespace(func(s *sql.Selector) {
-		step := newNamesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PackageNamespace(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(NamesLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.PackageNamespace) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.AndPredicates(predicates...))
+	return predicate.PackageNamespace(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.PackageNamespace) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.OrPredicates(predicates...))
+	return predicate.PackageNamespace(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.PackageNamespace) predicate.PackageNamespace {
-	return predicate.PackageNamespace(sql.NotPredicates(p))
+	return predicate.PackageNamespace(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

@@ -5,16 +5,14 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyvuln"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
 )
 
 // CertifyVulnUpdate is the builder for updating CertifyVuln entities.
@@ -127,7 +125,7 @@ func (cvu *CertifyVulnUpdate) ClearPackage() *CertifyVulnUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (cvu *CertifyVulnUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, cvu.sqlSave, cvu.mutation, cvu.hooks)
+	return withHooks(ctx, cvu.gremlinSave, cvu.mutation, cvu.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -160,107 +158,75 @@ func (cvu *CertifyVulnUpdate) check() error {
 	return nil
 }
 
-func (cvu *CertifyVulnUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (cvu *CertifyVulnUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := cvu.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(certifyvuln.Table, certifyvuln.Columns, sqlgraph.NewFieldSpec(certifyvuln.FieldID, field.TypeInt))
-	if ps := cvu.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := cvu.gremlin().Query()
+	if err := cvu.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := cvu.mutation.TimeScanned(); ok {
-		_spec.SetField(certifyvuln.FieldTimeScanned, field.TypeTime, value)
-	}
-	if value, ok := cvu.mutation.DbURI(); ok {
-		_spec.SetField(certifyvuln.FieldDbURI, field.TypeString, value)
-	}
-	if value, ok := cvu.mutation.DbVersion(); ok {
-		_spec.SetField(certifyvuln.FieldDbVersion, field.TypeString, value)
-	}
-	if value, ok := cvu.mutation.ScannerURI(); ok {
-		_spec.SetField(certifyvuln.FieldScannerURI, field.TypeString, value)
-	}
-	if value, ok := cvu.mutation.ScannerVersion(); ok {
-		_spec.SetField(certifyvuln.FieldScannerVersion, field.TypeString, value)
-	}
-	if value, ok := cvu.mutation.Origin(); ok {
-		_spec.SetField(certifyvuln.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := cvu.mutation.Collector(); ok {
-		_spec.SetField(certifyvuln.FieldCollector, field.TypeString, value)
-	}
-	if cvu.mutation.VulnerabilityCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.VulnerabilityTable,
-			Columns: []string{certifyvuln.VulnerabilityColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := cvu.mutation.VulnerabilityIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.VulnerabilityTable,
-			Columns: []string{certifyvuln.VulnerabilityColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if cvu.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.PackageTable,
-			Columns: []string{certifyvuln.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := cvu.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.PackageTable,
-			Columns: []string{certifyvuln.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, cvu.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{certifyvuln.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	cvu.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (cvu *CertifyVulnUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(certifyvuln.Label)
+	for _, p := range cvu.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := cvu.mutation.TimeScanned(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldTimeScanned, value)
+	}
+	if value, ok := cvu.mutation.DbURI(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldDbURI, value)
+	}
+	if value, ok := cvu.mutation.DbVersion(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldDbVersion, value)
+	}
+	if value, ok := cvu.mutation.ScannerURI(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldScannerURI, value)
+	}
+	if value, ok := cvu.mutation.ScannerVersion(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldScannerVersion, value)
+	}
+	if value, ok := cvu.mutation.Origin(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldOrigin, value)
+	}
+	if value, ok := cvu.mutation.Collector(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if cvu.mutation.VulnerabilityCleared() {
+		tr := rv.Clone().OutE(certifyvuln.VulnerabilityLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range cvu.mutation.VulnerabilityIDs() {
+		v.AddE(certifyvuln.VulnerabilityLabel).To(g.V(id)).OutV()
+	}
+	if cvu.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(certifyvuln.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range cvu.mutation.PackageIDs() {
+		v.AddE(certifyvuln.PackageLabel).To(g.V(id)).OutV()
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // CertifyVulnUpdateOne is the builder for updating a single CertifyVuln entity.
@@ -381,7 +347,7 @@ func (cvuo *CertifyVulnUpdateOne) Select(field string, fields ...string) *Certif
 
 // Save executes the query and returns the updated CertifyVuln entity.
 func (cvuo *CertifyVulnUpdateOne) Save(ctx context.Context) (*CertifyVuln, error) {
-	return withHooks(ctx, cvuo.sqlSave, cvuo.mutation, cvuo.hooks)
+	return withHooks(ctx, cvuo.gremlinSave, cvuo.mutation, cvuo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -414,125 +380,87 @@ func (cvuo *CertifyVulnUpdateOne) check() error {
 	return nil
 }
 
-func (cvuo *CertifyVulnUpdateOne) sqlSave(ctx context.Context) (_node *CertifyVuln, err error) {
+func (cvuo *CertifyVulnUpdateOne) gremlinSave(ctx context.Context) (*CertifyVuln, error) {
 	if err := cvuo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(certifyvuln.Table, certifyvuln.Columns, sqlgraph.NewFieldSpec(certifyvuln.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := cvuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "CertifyVuln.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := cvuo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, certifyvuln.FieldID)
-		for _, f := range fields {
-			if !certifyvuln.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != certifyvuln.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := cvuo.gremlin(id).Query()
+	if err := cvuo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := cvuo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := cvuo.mutation.TimeScanned(); ok {
-		_spec.SetField(certifyvuln.FieldTimeScanned, field.TypeTime, value)
-	}
-	if value, ok := cvuo.mutation.DbURI(); ok {
-		_spec.SetField(certifyvuln.FieldDbURI, field.TypeString, value)
-	}
-	if value, ok := cvuo.mutation.DbVersion(); ok {
-		_spec.SetField(certifyvuln.FieldDbVersion, field.TypeString, value)
-	}
-	if value, ok := cvuo.mutation.ScannerURI(); ok {
-		_spec.SetField(certifyvuln.FieldScannerURI, field.TypeString, value)
-	}
-	if value, ok := cvuo.mutation.ScannerVersion(); ok {
-		_spec.SetField(certifyvuln.FieldScannerVersion, field.TypeString, value)
-	}
-	if value, ok := cvuo.mutation.Origin(); ok {
-		_spec.SetField(certifyvuln.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := cvuo.mutation.Collector(); ok {
-		_spec.SetField(certifyvuln.FieldCollector, field.TypeString, value)
-	}
-	if cvuo.mutation.VulnerabilityCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.VulnerabilityTable,
-			Columns: []string{certifyvuln.VulnerabilityColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := cvuo.mutation.VulnerabilityIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.VulnerabilityTable,
-			Columns: []string{certifyvuln.VulnerabilityColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if cvuo.mutation.PackageCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.PackageTable,
-			Columns: []string{certifyvuln.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := cvuo.mutation.PackageIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   certifyvuln.PackageTable,
-			Columns: []string{certifyvuln.PackageColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(packageversion.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &CertifyVuln{config: cvuo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, cvuo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{certifyvuln.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	cvuo.mutation.done = true
-	return _node, nil
+	cv := &CertifyVuln{config: cvuo.config}
+	if err := cv.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return cv, nil
+}
+
+func (cvuo *CertifyVulnUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := cvuo.mutation.TimeScanned(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldTimeScanned, value)
+	}
+	if value, ok := cvuo.mutation.DbURI(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldDbURI, value)
+	}
+	if value, ok := cvuo.mutation.DbVersion(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldDbVersion, value)
+	}
+	if value, ok := cvuo.mutation.ScannerURI(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldScannerURI, value)
+	}
+	if value, ok := cvuo.mutation.ScannerVersion(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldScannerVersion, value)
+	}
+	if value, ok := cvuo.mutation.Origin(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldOrigin, value)
+	}
+	if value, ok := cvuo.mutation.Collector(); ok {
+		v.Property(dsl.Single, certifyvuln.FieldCollector, value)
+	}
+	var properties []any
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	if cvuo.mutation.VulnerabilityCleared() {
+		tr := rv.Clone().OutE(certifyvuln.VulnerabilityLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range cvuo.mutation.VulnerabilityIDs() {
+		v.AddE(certifyvuln.VulnerabilityLabel).To(g.V(id)).OutV()
+	}
+	if cvuo.mutation.PackageCleared() {
+		tr := rv.Clone().OutE(certifyvuln.PackageLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range cvuo.mutation.PackageIDs() {
+		v.AddE(certifyvuln.PackageLabel).To(g.V(id)).OutV()
+	}
+	if len(cvuo.fields) > 0 {
+		fields := make([]any, 0, len(cvuo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range cvuo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

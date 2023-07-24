@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 )
 
@@ -36,8 +34,7 @@ type BillOfMaterials struct {
 	Collector string `json:"collector,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the BillOfMaterialsQuery when eager-loading is set.
-	Edges        BillOfMaterialsEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges BillOfMaterialsEdges `json:"edges"`
 }
 
 // BillOfMaterialsEdges holds the relations/edges for other nodes in the graph.
@@ -49,8 +46,6 @@ type BillOfMaterialsEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
-	// totalCount holds the count of the edges above.
-	totalCount [2]map[string]int
 }
 
 // PackageOrErr returns the Package value or an error if the edge
@@ -79,97 +74,36 @@ func (e BillOfMaterialsEdges) ArtifactOrErr() (*Artifact, error) {
 	return nil, &NotLoadedError{edge: "artifact"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*BillOfMaterials) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case billofmaterials.FieldID, billofmaterials.FieldPackageID, billofmaterials.FieldArtifactID:
-			values[i] = new(sql.NullInt64)
-		case billofmaterials.FieldURI, billofmaterials.FieldAlgorithm, billofmaterials.FieldDigest, billofmaterials.FieldDownloadLocation, billofmaterials.FieldOrigin, billofmaterials.FieldCollector:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into BillOfMaterials.
+func (bom *BillOfMaterials) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the BillOfMaterials fields.
-func (bom *BillOfMaterials) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanbom struct {
+		ID               int    `json:"id,omitempty"`
+		PackageID        *int   `json:"package_id,omitempty"`
+		ArtifactID       *int   `json:"artifact_id,omitempty"`
+		URI              string `json:"uri,omitempty"`
+		Algorithm        string `json:"algorithm,omitempty"`
+		Digest           string `json:"digest,omitempty"`
+		DownloadLocation string `json:"download_location,omitempty"`
+		Origin           string `json:"origin,omitempty"`
+		Collector        string `json:"collector,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case billofmaterials.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			bom.ID = int(value.Int64)
-		case billofmaterials.FieldPackageID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_id", values[i])
-			} else if value.Valid {
-				bom.PackageID = new(int)
-				*bom.PackageID = int(value.Int64)
-			}
-		case billofmaterials.FieldArtifactID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field artifact_id", values[i])
-			} else if value.Valid {
-				bom.ArtifactID = new(int)
-				*bom.ArtifactID = int(value.Int64)
-			}
-		case billofmaterials.FieldURI:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field uri", values[i])
-			} else if value.Valid {
-				bom.URI = value.String
-			}
-		case billofmaterials.FieldAlgorithm:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field algorithm", values[i])
-			} else if value.Valid {
-				bom.Algorithm = value.String
-			}
-		case billofmaterials.FieldDigest:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field digest", values[i])
-			} else if value.Valid {
-				bom.Digest = value.String
-			}
-		case billofmaterials.FieldDownloadLocation:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field download_location", values[i])
-			} else if value.Valid {
-				bom.DownloadLocation = value.String
-			}
-		case billofmaterials.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				bom.Origin = value.String
-			}
-		case billofmaterials.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				bom.Collector = value.String
-			}
-		default:
-			bom.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanbom); err != nil {
+		return err
 	}
+	bom.ID = scanbom.ID
+	bom.PackageID = scanbom.PackageID
+	bom.ArtifactID = scanbom.ArtifactID
+	bom.URI = scanbom.URI
+	bom.Algorithm = scanbom.Algorithm
+	bom.Digest = scanbom.Digest
+	bom.DownloadLocation = scanbom.DownloadLocation
+	bom.Origin = scanbom.Origin
+	bom.Collector = scanbom.Collector
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the BillOfMaterials.
-// This includes values selected through modifiers, order, etc.
-func (bom *BillOfMaterials) Value(name string) (ent.Value, error) {
-	return bom.selectValues.Get(name)
 }
 
 // QueryPackage queries the "package" edge of the BillOfMaterials entity.
@@ -238,3 +172,38 @@ func (bom *BillOfMaterials) String() string {
 
 // BillOfMaterialsSlice is a parsable slice of BillOfMaterials.
 type BillOfMaterialsSlice []*BillOfMaterials
+
+// FromResponse scans the gremlin response data into BillOfMaterialsSlice.
+func (bom *BillOfMaterialsSlice) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanbom []struct {
+		ID               int    `json:"id,omitempty"`
+		PackageID        *int   `json:"package_id,omitempty"`
+		ArtifactID       *int   `json:"artifact_id,omitempty"`
+		URI              string `json:"uri,omitempty"`
+		Algorithm        string `json:"algorithm,omitempty"`
+		Digest           string `json:"digest,omitempty"`
+		DownloadLocation string `json:"download_location,omitempty"`
+		Origin           string `json:"origin,omitempty"`
+		Collector        string `json:"collector,omitempty"`
+	}
+	if err := vmap.Decode(&scanbom); err != nil {
+		return err
+	}
+	for _, v := range scanbom {
+		node := &BillOfMaterials{ID: v.ID}
+		node.PackageID = v.PackageID
+		node.ArtifactID = v.ArtifactID
+		node.URI = v.URI
+		node.Algorithm = v.Algorithm
+		node.Digest = v.Digest
+		node.DownloadLocation = v.DownloadLocation
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		*bom = append(*bom, node)
+	}
+	return nil
+}

@@ -3,441 +3,553 @@
 package occurrence
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldID, ids...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldID, ids...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGT(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGTE(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLT(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLTE(FieldID, id))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // ArtifactID applies equality check predicate on the "artifact_id" field. It's identical to ArtifactIDEQ.
 func ArtifactID(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldArtifactID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.EQ(v))
+	})
 }
 
 // Justification applies equality check predicate on the "justification" field. It's identical to JustificationEQ.
 func Justification(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // SourceID applies equality check predicate on the "source_id" field. It's identical to SourceIDEQ.
 func SourceID(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldSourceID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // PackageID applies equality check predicate on the "package_id" field. It's identical to PackageIDEQ.
 func PackageID(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldPackageID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // ArtifactIDEQ applies the EQ predicate on the "artifact_id" field.
 func ArtifactIDEQ(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldArtifactID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.EQ(v))
+	})
 }
 
 // ArtifactIDNEQ applies the NEQ predicate on the "artifact_id" field.
 func ArtifactIDNEQ(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldArtifactID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.NEQ(v))
+	})
 }
 
 // ArtifactIDIn applies the In predicate on the "artifact_id" field.
 func ArtifactIDIn(vs ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldArtifactID, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.Within(vs...))
+	})
 }
 
 // ArtifactIDNotIn applies the NotIn predicate on the "artifact_id" field.
 func ArtifactIDNotIn(vs ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldArtifactID, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.Without(vs...))
+	})
 }
 
 // JustificationEQ applies the EQ predicate on the "justification" field.
 func JustificationEQ(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // JustificationNEQ applies the NEQ predicate on the "justification" field.
 func JustificationNEQ(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.NEQ(v))
+	})
 }
 
 // JustificationIn applies the In predicate on the "justification" field.
 func JustificationIn(vs ...string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldJustification, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Within(vs...))
+	})
 }
 
 // JustificationNotIn applies the NotIn predicate on the "justification" field.
 func JustificationNotIn(vs ...string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldJustification, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Without(vs...))
+	})
 }
 
 // JustificationGT applies the GT predicate on the "justification" field.
 func JustificationGT(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGT(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GT(v))
+	})
 }
 
 // JustificationGTE applies the GTE predicate on the "justification" field.
 func JustificationGTE(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGTE(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GTE(v))
+	})
 }
 
 // JustificationLT applies the LT predicate on the "justification" field.
 func JustificationLT(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLT(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LT(v))
+	})
 }
 
 // JustificationLTE applies the LTE predicate on the "justification" field.
 func JustificationLTE(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLTE(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LTE(v))
+	})
 }
 
 // JustificationContains applies the Contains predicate on the "justification" field.
 func JustificationContains(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldContains(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Containing(v))
+	})
 }
 
 // JustificationHasPrefix applies the HasPrefix predicate on the "justification" field.
 func JustificationHasPrefix(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldHasPrefix(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.StartingWith(v))
+	})
 }
 
 // JustificationHasSuffix applies the HasSuffix predicate on the "justification" field.
 func JustificationHasSuffix(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldHasSuffix(FieldJustification, v))
-}
-
-// JustificationEqualFold applies the EqualFold predicate on the "justification" field.
-func JustificationEqualFold(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEqualFold(FieldJustification, v))
-}
-
-// JustificationContainsFold applies the ContainsFold predicate on the "justification" field.
-func JustificationContainsFold(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldContainsFold(FieldJustification, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGT(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGTE(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLT(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLTE(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldContains(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldCollector, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGT(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldGTE(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLT(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldLTE(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldContains(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // SourceIDEQ applies the EQ predicate on the "source_id" field.
 func SourceIDEQ(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldSourceID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // SourceIDNEQ applies the NEQ predicate on the "source_id" field.
 func SourceIDNEQ(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldSourceID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.NEQ(v))
+	})
 }
 
 // SourceIDIn applies the In predicate on the "source_id" field.
 func SourceIDIn(vs ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldSourceID, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Within(vs...))
+	})
 }
 
 // SourceIDNotIn applies the NotIn predicate on the "source_id" field.
 func SourceIDNotIn(vs ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldSourceID, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Without(vs...))
+	})
 }
 
 // SourceIDIsNil applies the IsNil predicate on the "source_id" field.
 func SourceIDIsNil() predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIsNull(FieldSourceID))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldSourceID)
+	})
 }
 
 // SourceIDNotNil applies the NotNil predicate on the "source_id" field.
 func SourceIDNotNil() predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotNull(FieldSourceID))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldSourceID)
+	})
 }
 
 // PackageIDEQ applies the EQ predicate on the "package_id" field.
 func PackageIDEQ(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldEQ(FieldPackageID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.EQ(v))
+	})
 }
 
 // PackageIDNEQ applies the NEQ predicate on the "package_id" field.
 func PackageIDNEQ(v int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNEQ(FieldPackageID, v))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.NEQ(v))
+	})
 }
 
 // PackageIDIn applies the In predicate on the "package_id" field.
 func PackageIDIn(vs ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIn(FieldPackageID, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Within(vs...))
+	})
 }
 
 // PackageIDNotIn applies the NotIn predicate on the "package_id" field.
 func PackageIDNotIn(vs ...int) predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotIn(FieldPackageID, vs...))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageID, p.Without(vs...))
+	})
 }
 
 // PackageIDIsNil applies the IsNil predicate on the "package_id" field.
 func PackageIDIsNil() predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldIsNull(FieldPackageID))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldPackageID)
+	})
 }
 
 // PackageIDNotNil applies the NotNil predicate on the "package_id" field.
 func PackageIDNotNil() predicate.Occurrence {
-	return predicate.Occurrence(sql.FieldNotNull(FieldPackageID))
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldPackageID)
+	})
 }
 
 // HasArtifact applies the HasEdge predicate on the "artifact" edge.
 func HasArtifact() predicate.Occurrence {
-	return predicate.Occurrence(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, ArtifactTable, ArtifactColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.OutE(ArtifactLabel).OutV()
 	})
 }
 
 // HasArtifactWith applies the HasEdge predicate on the "artifact" edge with a given conditions (other predicates).
 func HasArtifactWith(preds ...predicate.Artifact) predicate.Occurrence {
-	return predicate.Occurrence(func(s *sql.Selector) {
-		step := newArtifactStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(ArtifactLabel).Where(tr).OutV()
 	})
 }
 
 // HasPackage applies the HasEdge predicate on the "package" edge.
 func HasPackage() predicate.Occurrence {
-	return predicate.Occurrence(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.OutE(PackageLabel).OutV()
 	})
 }
 
 // HasPackageWith applies the HasEdge predicate on the "package" edge with a given conditions (other predicates).
 func HasPackageWith(preds ...predicate.PackageVersion) predicate.Occurrence {
-	return predicate.Occurrence(func(s *sql.Selector) {
-		step := newPackageStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackageLabel).Where(tr).OutV()
 	})
 }
 
 // HasSource applies the HasEdge predicate on the "source" edge.
 func HasSource() predicate.Occurrence {
-	return predicate.Occurrence(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, SourceTable, SourceColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		t.OutE(SourceLabel).OutV()
 	})
 }
 
 // HasSourceWith applies the HasEdge predicate on the "source" edge with a given conditions (other predicates).
 func HasSourceWith(preds ...predicate.SourceName) predicate.Occurrence {
-	return predicate.Occurrence(func(s *sql.Selector) {
-		step := newSourceStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Occurrence(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(SourceLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Occurrence) predicate.Occurrence {
-	return predicate.Occurrence(sql.AndPredicates(predicates...))
+	return predicate.Occurrence(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Occurrence) predicate.Occurrence {
-	return predicate.Occurrence(sql.OrPredicates(predicates...))
+	return predicate.Occurrence(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.Occurrence) predicate.Occurrence {
-	return predicate.Occurrence(sql.NotPredicates(p))
+	return predicate.Occurrence(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

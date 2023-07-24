@@ -4,34 +4,30 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagenamespace"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // PackageNameQuery is the builder for querying PackageName entities.
 type PackageNameQuery struct {
 	config
-	ctx               *QueryContext
-	order             []packagename.OrderOption
-	inters            []Interceptor
-	predicates        []predicate.PackageName
-	withNamespace     *PackageNamespaceQuery
-	withVersions      *PackageVersionQuery
-	modifiers         []func(*sql.Selector)
-	loadTotal         []func(context.Context, []*PackageName) error
-	withNamedVersions map[string]*PackageVersionQuery
+	ctx           *QueryContext
+	order         []packagename.OrderOption
+	inters        []Interceptor
+	predicates    []predicate.PackageName
+	withNamespace *PackageNamespaceQuery
+	withVersions  *PackageVersionQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the PackageNameQuery builder.
@@ -68,20 +64,12 @@ func (pnq *PackageNameQuery) Order(o ...packagename.OrderOption) *PackageNameQue
 // QueryNamespace chains the current query on the "namespace" edge.
 func (pnq *PackageNameQuery) QueryNamespace() *PackageNamespaceQuery {
 	query := (&PackageNamespaceClient{config: pnq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := pnq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := pnq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagename.Table, packagename.FieldID, selector),
-			sqlgraph.To(packagenamespace.Table, packagenamespace.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, packagename.NamespaceTable, packagename.NamespaceColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(pnq.driver.Dialect(), step)
+		gremlin := pnq.gremlinQuery(ctx)
+		fromU = gremlin.InE(packagenamespace.NamesLabel).OutV()
 		return fromU, nil
 	}
 	return query
@@ -90,20 +78,12 @@ func (pnq *PackageNameQuery) QueryNamespace() *PackageNamespaceQuery {
 // QueryVersions chains the current query on the "versions" edge.
 func (pnq *PackageNameQuery) QueryVersions() *PackageVersionQuery {
 	query := (&PackageVersionClient{config: pnq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := pnq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := pnq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagename.Table, packagename.FieldID, selector),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, packagename.VersionsTable, packagename.VersionsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(pnq.driver.Dialect(), step)
+		gremlin := pnq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(packagename.VersionsLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -304,8 +284,8 @@ func (pnq *PackageNameQuery) Clone() *PackageNameQuery {
 		withNamespace: pnq.withNamespace.Clone(),
 		withVersions:  pnq.withVersions.Clone(),
 		// clone intermediate query.
-		sql:  pnq.sql.Clone(),
-		path: pnq.path,
+		gremlin: pnq.gremlin.Clone(),
+		path:    pnq.path,
 	}
 }
 
@@ -390,238 +370,77 @@ func (pnq *PackageNameQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range pnq.ctx.Fields {
-		if !packagename.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if pnq.path != nil {
 		prev, err := pnq.path(ctx)
 		if err != nil {
 			return err
 		}
-		pnq.sql = prev
+		pnq.gremlin = prev
 	}
 	return nil
 }
 
-func (pnq *PackageNameQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*PackageName, error) {
-	var (
-		nodes       = []*PackageName{}
-		_spec       = pnq.querySpec()
-		loadedTypes = [2]bool{
-			pnq.withNamespace != nil,
-			pnq.withVersions != nil,
+func (pnq *PackageNameQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*PackageName, error) {
+	res := &gremlin.Response{}
+	traversal := pnq.gremlinQuery(ctx)
+	if len(pnq.ctx.Fields) > 0 {
+		fields := make([]any, len(pnq.ctx.Fields))
+		for i, f := range pnq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*PackageName).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &PackageName{config: pnq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(pnq.modifiers) > 0 {
-		_spec.Modifiers = pnq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, pnq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := pnq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var pns PackageNames
+	if err := pns.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := pnq.withNamespace; query != nil {
-		if err := pnq.loadNamespace(ctx, query, nodes, nil,
-			func(n *PackageName, e *PackageNamespace) { n.Edges.Namespace = e }); err != nil {
-			return nil, err
-		}
+	for i := range pns {
+		pns[i].config = pnq.config
 	}
-	if query := pnq.withVersions; query != nil {
-		if err := pnq.loadVersions(ctx, query, nodes,
-			func(n *PackageName) { n.Edges.Versions = []*PackageVersion{} },
-			func(n *PackageName, e *PackageVersion) { n.Edges.Versions = append(n.Edges.Versions, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for name, query := range pnq.withNamedVersions {
-		if err := pnq.loadVersions(ctx, query, nodes,
-			func(n *PackageName) { n.appendNamedVersions(name) },
-			func(n *PackageName, e *PackageVersion) { n.appendNamedVersions(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range pnq.loadTotal {
-		if err := pnq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return pns, nil
 }
 
-func (pnq *PackageNameQuery) loadNamespace(ctx context.Context, query *PackageNamespaceQuery, nodes []*PackageName, init func(*PackageName), assign func(*PackageName, *PackageNamespace)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*PackageName)
-	for i := range nodes {
-		fk := nodes[i].NamespaceID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (pnq *PackageNameQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := pnq.gremlinQuery(ctx).Count().Query()
+	if err := pnq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packagenamespace.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "namespace_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (pnq *PackageNameQuery) loadVersions(ctx context.Context, query *PackageVersionQuery, nodes []*PackageName, init func(*PackageName), assign func(*PackageName, *PackageVersion)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int]*PackageName)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(packageversion.FieldNameID)
-	}
-	query.Where(predicate.PackageVersion(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(packagename.VersionsColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.NameID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "name_id" returned %v for node %v`, fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (pnq *PackageNameQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := pnq.querySpec()
-	if len(pnq.modifiers) > 0 {
-		_spec.Modifiers = pnq.modifiers
-	}
-	_spec.Node.Columns = pnq.ctx.Fields
-	if len(pnq.ctx.Fields) > 0 {
-		_spec.Unique = pnq.ctx.Unique != nil && *pnq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, pnq.driver, _spec)
-}
-
-func (pnq *PackageNameQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(packagename.Table, packagename.Columns, sqlgraph.NewFieldSpec(packagename.FieldID, field.TypeInt))
-	_spec.From = pnq.sql
-	if unique := pnq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if pnq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := pnq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, packagename.FieldID)
-		for i := range fields {
-			if fields[i] != packagename.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if pnq.withNamespace != nil {
-			_spec.Node.AddColumnOnce(packagename.FieldNamespaceID)
-		}
-	}
-	if ps := pnq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := pnq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := pnq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := pnq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (pnq *PackageNameQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(pnq.driver.Dialect())
-	t1 := builder.Table(packagename.Table)
-	columns := pnq.ctx.Fields
-	if len(columns) == 0 {
-		columns = packagename.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if pnq.sql != nil {
-		selector = pnq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if pnq.ctx.Unique != nil && *pnq.ctx.Unique {
-		selector.Distinct()
+func (pnq *PackageNameQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(packagename.Label)
+	if pnq.gremlin != nil {
+		v = pnq.gremlin.Clone()
 	}
 	for _, p := range pnq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range pnq.order {
-		p(selector)
+	if len(pnq.order) > 0 {
+		v.Order()
+		for _, p := range pnq.order {
+			p(v)
+		}
 	}
-	if offset := pnq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := pnq.ctx.Limit, pnq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := pnq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := pnq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedVersions tells the query-builder to eager-load the nodes that are connected to the "versions"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (pnq *PackageNameQuery) WithNamedVersions(name string, opts ...func(*PackageVersionQuery)) *PackageNameQuery {
-	query := (&PackageVersionClient{config: pnq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if pnq.withNamedVersions == nil {
-		pnq.withNamedVersions = make(map[string]*PackageVersionQuery)
-	}
-	pnq.withNamedVersions[name] = query
-	return pnq
+	return v
 }
 
 // PackageNameGroupBy is the group-by builder for PackageName entities.
@@ -645,31 +464,38 @@ func (pngb *PackageNameGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*PackageNameQuery, *PackageNameGroupBy](ctx, pngb.build, pngb, pngb.build.inters, v)
 }
 
-func (pngb *PackageNameGroupBy) sqlScan(ctx context.Context, root *PackageNameQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(pngb.fns))
+func (pngb *PackageNameGroupBy) gremlinScan(ctx context.Context, root *PackageNameQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range pngb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*pngb.flds)+len(pngb.fns))
-		for _, f := range *pngb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *pngb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*pngb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*pngb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := pngb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := pngb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*pngb.flds)+len(pngb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // PackageNameSelect is the builder for selecting fields of PackageName entities.
@@ -693,23 +519,34 @@ func (pns *PackageNameSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*PackageNameQuery, *PackageNameSelect](ctx, pns.PackageNameQuery, pns, pns.inters, v)
 }
 
-func (pns *PackageNameSelect) sqlScan(ctx context.Context, root *PackageNameQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(pns.fns))
-	for _, fn := range pns.fns {
-		aggregation = append(aggregation, fn(selector))
+func (pns *PackageNameSelect) gremlinScan(ctx context.Context, root *PackageNameQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := pns.ctx.Fields; len(fields) == 1 {
+		if fields[0] != packagename.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(pns.ctx.Fields))
+		for i, f := range pns.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*pns.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := pns.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := pns.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

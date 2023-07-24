@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
 )
@@ -27,7 +28,7 @@ func (sad *SecurityAdvisoryDelete) Where(ps ...predicate.SecurityAdvisory) *Secu
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (sad *SecurityAdvisoryDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, sad.sqlExec, sad.mutation, sad.hooks)
+	return withHooks(ctx, sad.gremlinExec, sad.mutation, sad.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (sad *SecurityAdvisoryDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (sad *SecurityAdvisoryDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(securityadvisory.Table, sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt))
-	if ps := sad.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, sad.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (sad *SecurityAdvisoryDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := sad.gremlin().Query()
+	if err := sad.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	sad.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (sad *SecurityAdvisoryDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(securityadvisory.Label)
+	for _, p := range sad.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // SecurityAdvisoryDeleteOne is the builder for deleting a single SecurityAdvisory entity.

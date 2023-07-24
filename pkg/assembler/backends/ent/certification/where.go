@@ -3,529 +3,662 @@
 package certification
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldID, ids...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldID, ids...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldGT(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldGTE(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldLT(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.Certification {
-	return predicate.Certification(sql.FieldLTE(FieldID, id))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // SourceID applies equality check predicate on the "source_id" field. It's identical to SourceIDEQ.
 func SourceID(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldSourceID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // PackageVersionID applies equality check predicate on the "package_version_id" field. It's identical to PackageVersionIDEQ.
 func PackageVersionID(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldPackageVersionID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.EQ(v))
+	})
 }
 
 // PackageNameID applies equality check predicate on the "package_name_id" field. It's identical to PackageNameIDEQ.
 func PackageNameID(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldPackageNameID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.EQ(v))
+	})
 }
 
 // ArtifactID applies equality check predicate on the "artifact_id" field. It's identical to ArtifactIDEQ.
 func ArtifactID(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldArtifactID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.EQ(v))
+	})
 }
 
 // Justification applies equality check predicate on the "justification" field. It's identical to JustificationEQ.
 func Justification(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // SourceIDEQ applies the EQ predicate on the "source_id" field.
 func SourceIDEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldSourceID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.EQ(v))
+	})
 }
 
 // SourceIDNEQ applies the NEQ predicate on the "source_id" field.
 func SourceIDNEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldSourceID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.NEQ(v))
+	})
 }
 
 // SourceIDIn applies the In predicate on the "source_id" field.
 func SourceIDIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldSourceID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Within(vs...))
+	})
 }
 
 // SourceIDNotIn applies the NotIn predicate on the "source_id" field.
 func SourceIDNotIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldSourceID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldSourceID, p.Without(vs...))
+	})
 }
 
 // SourceIDIsNil applies the IsNil predicate on the "source_id" field.
 func SourceIDIsNil() predicate.Certification {
-	return predicate.Certification(sql.FieldIsNull(FieldSourceID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldSourceID)
+	})
 }
 
 // SourceIDNotNil applies the NotNil predicate on the "source_id" field.
 func SourceIDNotNil() predicate.Certification {
-	return predicate.Certification(sql.FieldNotNull(FieldSourceID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldSourceID)
+	})
 }
 
 // PackageVersionIDEQ applies the EQ predicate on the "package_version_id" field.
 func PackageVersionIDEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldPackageVersionID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.EQ(v))
+	})
 }
 
 // PackageVersionIDNEQ applies the NEQ predicate on the "package_version_id" field.
 func PackageVersionIDNEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldPackageVersionID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.NEQ(v))
+	})
 }
 
 // PackageVersionIDIn applies the In predicate on the "package_version_id" field.
 func PackageVersionIDIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldPackageVersionID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.Within(vs...))
+	})
 }
 
 // PackageVersionIDNotIn applies the NotIn predicate on the "package_version_id" field.
 func PackageVersionIDNotIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldPackageVersionID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageVersionID, p.Without(vs...))
+	})
 }
 
 // PackageVersionIDIsNil applies the IsNil predicate on the "package_version_id" field.
 func PackageVersionIDIsNil() predicate.Certification {
-	return predicate.Certification(sql.FieldIsNull(FieldPackageVersionID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldPackageVersionID)
+	})
 }
 
 // PackageVersionIDNotNil applies the NotNil predicate on the "package_version_id" field.
 func PackageVersionIDNotNil() predicate.Certification {
-	return predicate.Certification(sql.FieldNotNull(FieldPackageVersionID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldPackageVersionID)
+	})
 }
 
 // PackageNameIDEQ applies the EQ predicate on the "package_name_id" field.
 func PackageNameIDEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldPackageNameID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.EQ(v))
+	})
 }
 
 // PackageNameIDNEQ applies the NEQ predicate on the "package_name_id" field.
 func PackageNameIDNEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldPackageNameID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.NEQ(v))
+	})
 }
 
 // PackageNameIDIn applies the In predicate on the "package_name_id" field.
 func PackageNameIDIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldPackageNameID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.Within(vs...))
+	})
 }
 
 // PackageNameIDNotIn applies the NotIn predicate on the "package_name_id" field.
 func PackageNameIDNotIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldPackageNameID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackageNameID, p.Without(vs...))
+	})
 }
 
 // PackageNameIDIsNil applies the IsNil predicate on the "package_name_id" field.
 func PackageNameIDIsNil() predicate.Certification {
-	return predicate.Certification(sql.FieldIsNull(FieldPackageNameID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldPackageNameID)
+	})
 }
 
 // PackageNameIDNotNil applies the NotNil predicate on the "package_name_id" field.
 func PackageNameIDNotNil() predicate.Certification {
-	return predicate.Certification(sql.FieldNotNull(FieldPackageNameID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldPackageNameID)
+	})
 }
 
 // ArtifactIDEQ applies the EQ predicate on the "artifact_id" field.
 func ArtifactIDEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldArtifactID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.EQ(v))
+	})
 }
 
 // ArtifactIDNEQ applies the NEQ predicate on the "artifact_id" field.
 func ArtifactIDNEQ(v int) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldArtifactID, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.NEQ(v))
+	})
 }
 
 // ArtifactIDIn applies the In predicate on the "artifact_id" field.
 func ArtifactIDIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldArtifactID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.Within(vs...))
+	})
 }
 
 // ArtifactIDNotIn applies the NotIn predicate on the "artifact_id" field.
 func ArtifactIDNotIn(vs ...int) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldArtifactID, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldArtifactID, p.Without(vs...))
+	})
 }
 
 // ArtifactIDIsNil applies the IsNil predicate on the "artifact_id" field.
 func ArtifactIDIsNil() predicate.Certification {
-	return predicate.Certification(sql.FieldIsNull(FieldArtifactID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).HasNot(FieldArtifactID)
+	})
 }
 
 // ArtifactIDNotNil applies the NotNil predicate on the "artifact_id" field.
 func ArtifactIDNotNil() predicate.Certification {
-	return predicate.Certification(sql.FieldNotNull(FieldArtifactID))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.HasLabel(Label).Has(FieldArtifactID)
+	})
 }
 
 // TypeEQ applies the EQ predicate on the "type" field.
 func TypeEQ(v Type) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldType, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.EQ(v))
+	})
 }
 
 // TypeNEQ applies the NEQ predicate on the "type" field.
 func TypeNEQ(v Type) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldType, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.NEQ(v))
+	})
 }
 
 // TypeIn applies the In predicate on the "type" field.
 func TypeIn(vs ...Type) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldType, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.Within(vs...))
+	})
 }
 
 // TypeNotIn applies the NotIn predicate on the "type" field.
 func TypeNotIn(vs ...Type) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldType, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldType, p.Without(vs...))
+	})
 }
 
 // JustificationEQ applies the EQ predicate on the "justification" field.
 func JustificationEQ(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // JustificationNEQ applies the NEQ predicate on the "justification" field.
 func JustificationNEQ(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.NEQ(v))
+	})
 }
 
 // JustificationIn applies the In predicate on the "justification" field.
 func JustificationIn(vs ...string) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldJustification, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Within(vs...))
+	})
 }
 
 // JustificationNotIn applies the NotIn predicate on the "justification" field.
 func JustificationNotIn(vs ...string) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldJustification, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Without(vs...))
+	})
 }
 
 // JustificationGT applies the GT predicate on the "justification" field.
 func JustificationGT(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldGT(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GT(v))
+	})
 }
 
 // JustificationGTE applies the GTE predicate on the "justification" field.
 func JustificationGTE(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldGTE(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GTE(v))
+	})
 }
 
 // JustificationLT applies the LT predicate on the "justification" field.
 func JustificationLT(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldLT(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LT(v))
+	})
 }
 
 // JustificationLTE applies the LTE predicate on the "justification" field.
 func JustificationLTE(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldLTE(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LTE(v))
+	})
 }
 
 // JustificationContains applies the Contains predicate on the "justification" field.
 func JustificationContains(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldContains(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Containing(v))
+	})
 }
 
 // JustificationHasPrefix applies the HasPrefix predicate on the "justification" field.
 func JustificationHasPrefix(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldHasPrefix(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.StartingWith(v))
+	})
 }
 
 // JustificationHasSuffix applies the HasSuffix predicate on the "justification" field.
 func JustificationHasSuffix(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldHasSuffix(FieldJustification, v))
-}
-
-// JustificationEqualFold applies the EqualFold predicate on the "justification" field.
-func JustificationEqualFold(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEqualFold(FieldJustification, v))
-}
-
-// JustificationContainsFold applies the ContainsFold predicate on the "justification" field.
-func JustificationContainsFold(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldContainsFold(FieldJustification, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EndingWith(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldGT(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldGTE(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldLT(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldLTE(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldContains(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEQ(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldNEQ(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.Certification {
-	return predicate.Certification(sql.FieldIn(FieldCollector, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.Certification {
-	return predicate.Certification(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldGT(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldGTE(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldLT(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldLTE(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldContains(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.Certification {
-	return predicate.Certification(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // HasSource applies the HasEdge predicate on the "source" edge.
 func HasSource() predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, SourceTable, SourceColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.OutE(SourceLabel).OutV()
 	})
 }
 
 // HasSourceWith applies the HasEdge predicate on the "source" edge with a given conditions (other predicates).
 func HasSourceWith(preds ...predicate.SourceName) predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := newSourceStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Certification(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(SourceLabel).Where(tr).OutV()
 	})
 }
 
 // HasPackageVersion applies the HasEdge predicate on the "package_version" edge.
 func HasPackageVersion() predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, PackageVersionTable, PackageVersionColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.OutE(PackageVersionLabel).OutV()
 	})
 }
 
 // HasPackageVersionWith applies the HasEdge predicate on the "package_version" edge with a given conditions (other predicates).
 func HasPackageVersionWith(preds ...predicate.PackageVersion) predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := newPackageVersionStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Certification(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackageVersionLabel).Where(tr).OutV()
 	})
 }
 
 // HasAllVersions applies the HasEdge predicate on the "all_versions" edge.
 func HasAllVersions() predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, AllVersionsTable, AllVersionsColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.OutE(AllVersionsLabel).OutV()
 	})
 }
 
 // HasAllVersionsWith applies the HasEdge predicate on the "all_versions" edge with a given conditions (other predicates).
 func HasAllVersionsWith(preds ...predicate.PackageName) predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := newAllVersionsStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Certification(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(AllVersionsLabel).Where(tr).OutV()
 	})
 }
 
 // HasArtifact applies the HasEdge predicate on the "artifact" edge.
 func HasArtifact() predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, ArtifactTable, ArtifactColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.Certification(func(t *dsl.Traversal) {
+		t.OutE(ArtifactLabel).OutV()
 	})
 }
 
 // HasArtifactWith applies the HasEdge predicate on the "artifact" edge with a given conditions (other predicates).
 func HasArtifactWith(preds ...predicate.Artifact) predicate.Certification {
-	return predicate.Certification(func(s *sql.Selector) {
-		step := newArtifactStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.Certification(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(ArtifactLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Certification) predicate.Certification {
-	return predicate.Certification(sql.AndPredicates(predicates...))
+	return predicate.Certification(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Certification) predicate.Certification {
-	return predicate.Certification(sql.OrPredicates(predicates...))
+	return predicate.Certification(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.Certification) predicate.Certification {
-	return predicate.Certification(sql.NotPredicates(p))
+	return predicate.Certification(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

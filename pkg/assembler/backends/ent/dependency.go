@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/dependency"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
@@ -34,8 +33,7 @@ type Dependency struct {
 	Collector string `json:"collector,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the DependencyQuery when eager-loading is set.
-	Edges        DependencyEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges DependencyEdges `json:"edges"`
 }
 
 // DependencyEdges holds the relations/edges for other nodes in the graph.
@@ -47,8 +45,6 @@ type DependencyEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
-	// totalCount holds the count of the edges above.
-	totalCount [2]map[string]int
 }
 
 // PackageOrErr returns the Package value or an error if the edge
@@ -77,89 +73,34 @@ func (e DependencyEdges) DependentPackageOrErr() (*PackageName, error) {
 	return nil, &NotLoadedError{edge: "dependent_package"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*Dependency) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case dependency.FieldID, dependency.FieldPackageID, dependency.FieldDependentPackageID:
-			values[i] = new(sql.NullInt64)
-		case dependency.FieldVersionRange, dependency.FieldDependencyType, dependency.FieldJustification, dependency.FieldOrigin, dependency.FieldCollector:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into Dependency.
+func (d *Dependency) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Dependency fields.
-func (d *Dependency) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scand struct {
+		ID                 int                       `json:"id,omitempty"`
+		PackageID          int                       `json:"package_id,omitempty"`
+		DependentPackageID int                       `json:"dependent_package_id,omitempty"`
+		VersionRange       string                    `json:"version_range,omitempty"`
+		DependencyType     dependency.DependencyType `json:"dependency_type,omitempty"`
+		Justification      string                    `json:"justification,omitempty"`
+		Origin             string                    `json:"origin,omitempty"`
+		Collector          string                    `json:"collector,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case dependency.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			d.ID = int(value.Int64)
-		case dependency.FieldPackageID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_id", values[i])
-			} else if value.Valid {
-				d.PackageID = int(value.Int64)
-			}
-		case dependency.FieldDependentPackageID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field dependent_package_id", values[i])
-			} else if value.Valid {
-				d.DependentPackageID = int(value.Int64)
-			}
-		case dependency.FieldVersionRange:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field version_range", values[i])
-			} else if value.Valid {
-				d.VersionRange = value.String
-			}
-		case dependency.FieldDependencyType:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field dependency_type", values[i])
-			} else if value.Valid {
-				d.DependencyType = dependency.DependencyType(value.String)
-			}
-		case dependency.FieldJustification:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field justification", values[i])
-			} else if value.Valid {
-				d.Justification = value.String
-			}
-		case dependency.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				d.Origin = value.String
-			}
-		case dependency.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				d.Collector = value.String
-			}
-		default:
-			d.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scand); err != nil {
+		return err
 	}
+	d.ID = scand.ID
+	d.PackageID = scand.PackageID
+	d.DependentPackageID = scand.DependentPackageID
+	d.VersionRange = scand.VersionRange
+	d.DependencyType = scand.DependencyType
+	d.Justification = scand.Justification
+	d.Origin = scand.Origin
+	d.Collector = scand.Collector
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the Dependency.
-// This includes values selected through modifiers, order, etc.
-func (d *Dependency) Value(name string) (ent.Value, error) {
-	return d.selectValues.Get(name)
 }
 
 // QueryPackage queries the "package" edge of the Dependency entity.
@@ -221,3 +162,36 @@ func (d *Dependency) String() string {
 
 // Dependencies is a parsable slice of Dependency.
 type Dependencies []*Dependency
+
+// FromResponse scans the gremlin response data into Dependencies.
+func (d *Dependencies) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scand []struct {
+		ID                 int                       `json:"id,omitempty"`
+		PackageID          int                       `json:"package_id,omitempty"`
+		DependentPackageID int                       `json:"dependent_package_id,omitempty"`
+		VersionRange       string                    `json:"version_range,omitempty"`
+		DependencyType     dependency.DependencyType `json:"dependency_type,omitempty"`
+		Justification      string                    `json:"justification,omitempty"`
+		Origin             string                    `json:"origin,omitempty"`
+		Collector          string                    `json:"collector,omitempty"`
+	}
+	if err := vmap.Decode(&scand); err != nil {
+		return err
+	}
+	for _, v := range scand {
+		node := &Dependency{ID: v.ID}
+		node.PackageID = v.PackageID
+		node.DependentPackageID = v.DependentPackageID
+		node.VersionRange = v.VersionRange
+		node.DependencyType = v.DependencyType
+		node.Justification = v.Justification
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		*d = append(*d, node)
+	}
+	return nil
+}

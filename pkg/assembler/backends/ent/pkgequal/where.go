@@ -3,370 +3,468 @@
 package pkgequal
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
 func ID(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(id)
+	})
 }
 
 // IDEQ applies the EQ predicate on the ID field.
 func IDEQ(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(p.EQ(id))
+	})
 }
 
 // IDNEQ applies the NEQ predicate on the ID field.
 func IDNEQ(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNEQ(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(p.NEQ(id))
+	})
 }
 
 // IDIn applies the In predicate on the ID field.
 func IDIn(ids ...int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldIn(FieldID, ids...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Within(v...))
+	})
 }
 
 // IDNotIn applies the NotIn predicate on the ID field.
 func IDNotIn(ids ...int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNotIn(FieldID, ids...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		v := make([]any, len(ids))
+		for i := range v {
+			v[i] = ids[i]
+		}
+		t.HasID(p.Without(v...))
+	})
 }
 
 // IDGT applies the GT predicate on the ID field.
 func IDGT(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGT(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(p.GT(id))
+	})
 }
 
 // IDGTE applies the GTE predicate on the ID field.
 func IDGTE(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGTE(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(p.GTE(id))
+	})
 }
 
 // IDLT applies the LT predicate on the ID field.
 func IDLT(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLT(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(p.LT(id))
+	})
 }
 
 // IDLTE applies the LTE predicate on the ID field.
 func IDLTE(id int) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLTE(FieldID, id))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.HasID(p.LTE(id))
+	})
 }
 
 // Origin applies equality check predicate on the "origin" field. It's identical to OriginEQ.
 func Origin(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // Collector applies equality check predicate on the "collector" field. It's identical to CollectorEQ.
 func Collector(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // Justification applies equality check predicate on the "justification" field. It's identical to JustificationEQ.
 func Justification(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // PackagesHash applies equality check predicate on the "packages_hash" field. It's identical to PackagesHashEQ.
 func PackagesHash(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.EQ(v))
+	})
 }
 
 // OriginEQ applies the EQ predicate on the "origin" field.
 func OriginEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EQ(v))
+	})
 }
 
 // OriginNEQ applies the NEQ predicate on the "origin" field.
 func OriginNEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNEQ(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.NEQ(v))
+	})
 }
 
 // OriginIn applies the In predicate on the "origin" field.
 func OriginIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldIn(FieldOrigin, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Within(vs...))
+	})
 }
 
 // OriginNotIn applies the NotIn predicate on the "origin" field.
 func OriginNotIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNotIn(FieldOrigin, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Without(vs...))
+	})
 }
 
 // OriginGT applies the GT predicate on the "origin" field.
 func OriginGT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGT(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GT(v))
+	})
 }
 
 // OriginGTE applies the GTE predicate on the "origin" field.
 func OriginGTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGTE(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.GTE(v))
+	})
 }
 
 // OriginLT applies the LT predicate on the "origin" field.
 func OriginLT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLT(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LT(v))
+	})
 }
 
 // OriginLTE applies the LTE predicate on the "origin" field.
 func OriginLTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLTE(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.LTE(v))
+	})
 }
 
 // OriginContains applies the Contains predicate on the "origin" field.
 func OriginContains(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContains(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.Containing(v))
+	})
 }
 
 // OriginHasPrefix applies the HasPrefix predicate on the "origin" field.
 func OriginHasPrefix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasPrefix(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.StartingWith(v))
+	})
 }
 
 // OriginHasSuffix applies the HasSuffix predicate on the "origin" field.
 func OriginHasSuffix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasSuffix(FieldOrigin, v))
-}
-
-// OriginEqualFold applies the EqualFold predicate on the "origin" field.
-func OriginEqualFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEqualFold(FieldOrigin, v))
-}
-
-// OriginContainsFold applies the ContainsFold predicate on the "origin" field.
-func OriginContainsFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContainsFold(FieldOrigin, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldOrigin, p.EndingWith(v))
+	})
 }
 
 // CollectorEQ applies the EQ predicate on the "collector" field.
 func CollectorEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EQ(v))
+	})
 }
 
 // CollectorNEQ applies the NEQ predicate on the "collector" field.
 func CollectorNEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNEQ(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.NEQ(v))
+	})
 }
 
 // CollectorIn applies the In predicate on the "collector" field.
 func CollectorIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldIn(FieldCollector, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Within(vs...))
+	})
 }
 
 // CollectorNotIn applies the NotIn predicate on the "collector" field.
 func CollectorNotIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNotIn(FieldCollector, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Without(vs...))
+	})
 }
 
 // CollectorGT applies the GT predicate on the "collector" field.
 func CollectorGT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGT(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GT(v))
+	})
 }
 
 // CollectorGTE applies the GTE predicate on the "collector" field.
 func CollectorGTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGTE(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.GTE(v))
+	})
 }
 
 // CollectorLT applies the LT predicate on the "collector" field.
 func CollectorLT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLT(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LT(v))
+	})
 }
 
 // CollectorLTE applies the LTE predicate on the "collector" field.
 func CollectorLTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLTE(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.LTE(v))
+	})
 }
 
 // CollectorContains applies the Contains predicate on the "collector" field.
 func CollectorContains(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContains(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.Containing(v))
+	})
 }
 
 // CollectorHasPrefix applies the HasPrefix predicate on the "collector" field.
 func CollectorHasPrefix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasPrefix(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.StartingWith(v))
+	})
 }
 
 // CollectorHasSuffix applies the HasSuffix predicate on the "collector" field.
 func CollectorHasSuffix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasSuffix(FieldCollector, v))
-}
-
-// CollectorEqualFold applies the EqualFold predicate on the "collector" field.
-func CollectorEqualFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEqualFold(FieldCollector, v))
-}
-
-// CollectorContainsFold applies the ContainsFold predicate on the "collector" field.
-func CollectorContainsFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContainsFold(FieldCollector, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldCollector, p.EndingWith(v))
+	})
 }
 
 // JustificationEQ applies the EQ predicate on the "justification" field.
 func JustificationEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EQ(v))
+	})
 }
 
 // JustificationNEQ applies the NEQ predicate on the "justification" field.
 func JustificationNEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNEQ(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.NEQ(v))
+	})
 }
 
 // JustificationIn applies the In predicate on the "justification" field.
 func JustificationIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldIn(FieldJustification, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Within(vs...))
+	})
 }
 
 // JustificationNotIn applies the NotIn predicate on the "justification" field.
 func JustificationNotIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNotIn(FieldJustification, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Without(vs...))
+	})
 }
 
 // JustificationGT applies the GT predicate on the "justification" field.
 func JustificationGT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGT(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GT(v))
+	})
 }
 
 // JustificationGTE applies the GTE predicate on the "justification" field.
 func JustificationGTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGTE(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.GTE(v))
+	})
 }
 
 // JustificationLT applies the LT predicate on the "justification" field.
 func JustificationLT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLT(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LT(v))
+	})
 }
 
 // JustificationLTE applies the LTE predicate on the "justification" field.
 func JustificationLTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLTE(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.LTE(v))
+	})
 }
 
 // JustificationContains applies the Contains predicate on the "justification" field.
 func JustificationContains(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContains(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.Containing(v))
+	})
 }
 
 // JustificationHasPrefix applies the HasPrefix predicate on the "justification" field.
 func JustificationHasPrefix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasPrefix(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.StartingWith(v))
+	})
 }
 
 // JustificationHasSuffix applies the HasSuffix predicate on the "justification" field.
 func JustificationHasSuffix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasSuffix(FieldJustification, v))
-}
-
-// JustificationEqualFold applies the EqualFold predicate on the "justification" field.
-func JustificationEqualFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEqualFold(FieldJustification, v))
-}
-
-// JustificationContainsFold applies the ContainsFold predicate on the "justification" field.
-func JustificationContainsFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContainsFold(FieldJustification, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldJustification, p.EndingWith(v))
+	})
 }
 
 // PackagesHashEQ applies the EQ predicate on the "packages_hash" field.
 func PackagesHashEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEQ(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.EQ(v))
+	})
 }
 
 // PackagesHashNEQ applies the NEQ predicate on the "packages_hash" field.
 func PackagesHashNEQ(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNEQ(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.NEQ(v))
+	})
 }
 
 // PackagesHashIn applies the In predicate on the "packages_hash" field.
 func PackagesHashIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldIn(FieldPackagesHash, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.Within(vs...))
+	})
 }
 
 // PackagesHashNotIn applies the NotIn predicate on the "packages_hash" field.
 func PackagesHashNotIn(vs ...string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldNotIn(FieldPackagesHash, vs...))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.Without(vs...))
+	})
 }
 
 // PackagesHashGT applies the GT predicate on the "packages_hash" field.
 func PackagesHashGT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGT(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.GT(v))
+	})
 }
 
 // PackagesHashGTE applies the GTE predicate on the "packages_hash" field.
 func PackagesHashGTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldGTE(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.GTE(v))
+	})
 }
 
 // PackagesHashLT applies the LT predicate on the "packages_hash" field.
 func PackagesHashLT(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLT(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.LT(v))
+	})
 }
 
 // PackagesHashLTE applies the LTE predicate on the "packages_hash" field.
 func PackagesHashLTE(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldLTE(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.LTE(v))
+	})
 }
 
 // PackagesHashContains applies the Contains predicate on the "packages_hash" field.
 func PackagesHashContains(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContains(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.Containing(v))
+	})
 }
 
 // PackagesHashHasPrefix applies the HasPrefix predicate on the "packages_hash" field.
 func PackagesHashHasPrefix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasPrefix(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.StartingWith(v))
+	})
 }
 
 // PackagesHashHasSuffix applies the HasSuffix predicate on the "packages_hash" field.
 func PackagesHashHasSuffix(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldHasSuffix(FieldPackagesHash, v))
-}
-
-// PackagesHashEqualFold applies the EqualFold predicate on the "packages_hash" field.
-func PackagesHashEqualFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldEqualFold(FieldPackagesHash, v))
-}
-
-// PackagesHashContainsFold applies the ContainsFold predicate on the "packages_hash" field.
-func PackagesHashContainsFold(v string) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.FieldContainsFold(FieldPackagesHash, v))
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.Has(Label, FieldPackagesHash, p.EndingWith(v))
+	})
 }
 
 // HasPackages applies the HasEdge predicate on the "packages" edge.
 func HasPackages() predicate.PkgEqual {
-	return predicate.PkgEqual(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, false, PackagesTable, PackagesPrimaryKey...),
-		)
-		sqlgraph.HasNeighbors(s, step)
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		t.OutE(PackagesLabel).OutV()
 	})
 }
 
 // HasPackagesWith applies the HasEdge predicate on the "packages" edge with a given conditions (other predicates).
 func HasPackagesWith(preds ...predicate.PackageVersion) predicate.PkgEqual {
-	return predicate.PkgEqual(func(s *sql.Selector) {
-		step := newPackagesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
+	return predicate.PkgEqual(func(t *dsl.Traversal) {
+		tr := __.InV()
+		for _, p := range preds {
+			p(tr)
+		}
+		t.OutE(PackagesLabel).Where(tr).OutV()
 	})
 }
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.PkgEqual) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.AndPredicates(predicates...))
+	return predicate.PkgEqual(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.And(trs...))
+	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.PkgEqual) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.OrPredicates(predicates...))
+	return predicate.PkgEqual(func(tr *dsl.Traversal) {
+		trs := make([]any, 0, len(predicates))
+		for _, p := range predicates {
+			t := __.New()
+			p(t)
+			trs = append(trs, t)
+		}
+		tr.Where(__.Or(trs...))
+	})
 }
 
 // Not applies the not operator on the given predicate.
 func Not(p predicate.PkgEqual) predicate.PkgEqual {
-	return predicate.PkgEqual(sql.NotPredicates(p))
+	return predicate.PkgEqual(func(tr *dsl.Traversal) {
+		t := __.New()
+		p(t)
+		tr.Where(__.Not(t))
+	})
 }

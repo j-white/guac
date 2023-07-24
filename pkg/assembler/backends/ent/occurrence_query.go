@@ -7,14 +7,12 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 )
 
 // OccurrenceQuery is the builder for querying Occurrence entities.
@@ -27,11 +25,9 @@ type OccurrenceQuery struct {
 	withArtifact *ArtifactQuery
 	withPackage  *PackageVersionQuery
 	withSource   *SourceNameQuery
-	modifiers    []func(*sql.Selector)
-	loadTotal    []func(context.Context, []*Occurrence) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the OccurrenceQuery builder.
@@ -68,20 +64,12 @@ func (oq *OccurrenceQuery) Order(o ...occurrence.OrderOption) *OccurrenceQuery {
 // QueryArtifact chains the current query on the "artifact" edge.
 func (oq *OccurrenceQuery) QueryArtifact() *ArtifactQuery {
 	query := (&ArtifactClient{config: oq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := oq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := oq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(occurrence.Table, occurrence.FieldID, selector),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, occurrence.ArtifactTable, occurrence.ArtifactColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(oq.driver.Dialect(), step)
+		gremlin := oq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(occurrence.ArtifactLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -90,20 +78,12 @@ func (oq *OccurrenceQuery) QueryArtifact() *ArtifactQuery {
 // QueryPackage chains the current query on the "package" edge.
 func (oq *OccurrenceQuery) QueryPackage() *PackageVersionQuery {
 	query := (&PackageVersionClient{config: oq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := oq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := oq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(occurrence.Table, occurrence.FieldID, selector),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, occurrence.PackageTable, occurrence.PackageColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(oq.driver.Dialect(), step)
+		gremlin := oq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(occurrence.PackageLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -112,20 +92,12 @@ func (oq *OccurrenceQuery) QueryPackage() *PackageVersionQuery {
 // QuerySource chains the current query on the "source" edge.
 func (oq *OccurrenceQuery) QuerySource() *SourceNameQuery {
 	query := (&SourceNameClient{config: oq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := oq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := oq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(occurrence.Table, occurrence.FieldID, selector),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, occurrence.SourceTable, occurrence.SourceColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(oq.driver.Dialect(), step)
+		gremlin := oq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(occurrence.SourceLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -327,8 +299,8 @@ func (oq *OccurrenceQuery) Clone() *OccurrenceQuery {
 		withPackage:  oq.withPackage.Clone(),
 		withSource:   oq.withSource.Clone(),
 		// clone intermediate query.
-		sql:  oq.sql.Clone(),
-		path: oq.path,
+		gremlin: oq.gremlin.Clone(),
+		path:    oq.path,
 	}
 }
 
@@ -424,263 +396,77 @@ func (oq *OccurrenceQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range oq.ctx.Fields {
-		if !occurrence.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if oq.path != nil {
 		prev, err := oq.path(ctx)
 		if err != nil {
 			return err
 		}
-		oq.sql = prev
+		oq.gremlin = prev
 	}
 	return nil
 }
 
-func (oq *OccurrenceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Occurrence, error) {
-	var (
-		nodes       = []*Occurrence{}
-		_spec       = oq.querySpec()
-		loadedTypes = [3]bool{
-			oq.withArtifact != nil,
-			oq.withPackage != nil,
-			oq.withSource != nil,
+func (oq *OccurrenceQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*Occurrence, error) {
+	res := &gremlin.Response{}
+	traversal := oq.gremlinQuery(ctx)
+	if len(oq.ctx.Fields) > 0 {
+		fields := make([]any, len(oq.ctx.Fields))
+		for i, f := range oq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*Occurrence).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &Occurrence{config: oq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(oq.modifiers) > 0 {
-		_spec.Modifiers = oq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, oq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := oq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var os Occurrences
+	if err := os.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := oq.withArtifact; query != nil {
-		if err := oq.loadArtifact(ctx, query, nodes, nil,
-			func(n *Occurrence, e *Artifact) { n.Edges.Artifact = e }); err != nil {
-			return nil, err
-		}
+	for i := range os {
+		os[i].config = oq.config
 	}
-	if query := oq.withPackage; query != nil {
-		if err := oq.loadPackage(ctx, query, nodes, nil,
-			func(n *Occurrence, e *PackageVersion) { n.Edges.Package = e }); err != nil {
-			return nil, err
-		}
-	}
-	if query := oq.withSource; query != nil {
-		if err := oq.loadSource(ctx, query, nodes, nil,
-			func(n *Occurrence, e *SourceName) { n.Edges.Source = e }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range oq.loadTotal {
-		if err := oq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return os, nil
 }
 
-func (oq *OccurrenceQuery) loadArtifact(ctx context.Context, query *ArtifactQuery, nodes []*Occurrence, init func(*Occurrence), assign func(*Occurrence, *Artifact)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Occurrence)
-	for i := range nodes {
-		fk := nodes[i].ArtifactID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (oq *OccurrenceQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := oq.gremlinQuery(ctx).Count().Query()
+	if err := oq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(artifact.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "artifact_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (oq *OccurrenceQuery) loadPackage(ctx context.Context, query *PackageVersionQuery, nodes []*Occurrence, init func(*Occurrence), assign func(*Occurrence, *PackageVersion)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Occurrence)
-	for i := range nodes {
-		if nodes[i].PackageID == nil {
-			continue
-		}
-		fk := *nodes[i].PackageID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packageversion.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "package_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (oq *OccurrenceQuery) loadSource(ctx context.Context, query *SourceNameQuery, nodes []*Occurrence, init func(*Occurrence), assign func(*Occurrence, *SourceName)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Occurrence)
-	for i := range nodes {
-		if nodes[i].SourceID == nil {
-			continue
-		}
-		fk := *nodes[i].SourceID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(sourcename.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "source_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (oq *OccurrenceQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := oq.querySpec()
-	if len(oq.modifiers) > 0 {
-		_spec.Modifiers = oq.modifiers
-	}
-	_spec.Node.Columns = oq.ctx.Fields
-	if len(oq.ctx.Fields) > 0 {
-		_spec.Unique = oq.ctx.Unique != nil && *oq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, oq.driver, _spec)
-}
-
-func (oq *OccurrenceQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(occurrence.Table, occurrence.Columns, sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt))
-	_spec.From = oq.sql
-	if unique := oq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if oq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := oq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, occurrence.FieldID)
-		for i := range fields {
-			if fields[i] != occurrence.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if oq.withArtifact != nil {
-			_spec.Node.AddColumnOnce(occurrence.FieldArtifactID)
-		}
-		if oq.withPackage != nil {
-			_spec.Node.AddColumnOnce(occurrence.FieldPackageID)
-		}
-		if oq.withSource != nil {
-			_spec.Node.AddColumnOnce(occurrence.FieldSourceID)
-		}
-	}
-	if ps := oq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := oq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := oq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := oq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (oq *OccurrenceQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(oq.driver.Dialect())
-	t1 := builder.Table(occurrence.Table)
-	columns := oq.ctx.Fields
-	if len(columns) == 0 {
-		columns = occurrence.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if oq.sql != nil {
-		selector = oq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if oq.ctx.Unique != nil && *oq.ctx.Unique {
-		selector.Distinct()
+func (oq *OccurrenceQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(occurrence.Label)
+	if oq.gremlin != nil {
+		v = oq.gremlin.Clone()
 	}
 	for _, p := range oq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range oq.order {
-		p(selector)
+	if len(oq.order) > 0 {
+		v.Order()
+		for _, p := range oq.order {
+			p(v)
+		}
 	}
-	if offset := oq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := oq.ctx.Limit, oq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := oq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := oq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // OccurrenceGroupBy is the group-by builder for Occurrence entities.
@@ -704,31 +490,38 @@ func (ogb *OccurrenceGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*OccurrenceQuery, *OccurrenceGroupBy](ctx, ogb.build, ogb, ogb.build.inters, v)
 }
 
-func (ogb *OccurrenceGroupBy) sqlScan(ctx context.Context, root *OccurrenceQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(ogb.fns))
+func (ogb *OccurrenceGroupBy) gremlinScan(ctx context.Context, root *OccurrenceQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range ogb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*ogb.flds)+len(ogb.fns))
-		for _, f := range *ogb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *ogb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*ogb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*ogb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := ogb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := ogb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*ogb.flds)+len(ogb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // OccurrenceSelect is the builder for selecting fields of Occurrence entities.
@@ -752,23 +545,34 @@ func (os *OccurrenceSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*OccurrenceQuery, *OccurrenceSelect](ctx, os.OccurrenceQuery, os, os.inters, v)
 }
 
-func (os *OccurrenceSelect) sqlScan(ctx context.Context, root *OccurrenceQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(os.fns))
-	for _, fn := range os.fns {
-		aggregation = append(aggregation, fn(selector))
+func (os *OccurrenceSelect) gremlinScan(ctx context.Context, root *OccurrenceQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := os.ctx.Fields; len(fields) == 1 {
+		if fields[0] != occurrence.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(os.ctx.Fields))
+		for i, f := range os.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*os.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := os.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := os.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/dependency"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
 
@@ -25,11 +24,9 @@ type DependencyQuery struct {
 	predicates           []predicate.Dependency
 	withPackage          *PackageVersionQuery
 	withDependentPackage *PackageNameQuery
-	modifiers            []func(*sql.Selector)
-	loadTotal            []func(context.Context, []*Dependency) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the DependencyQuery builder.
@@ -66,20 +63,12 @@ func (dq *DependencyQuery) Order(o ...dependency.OrderOption) *DependencyQuery {
 // QueryPackage chains the current query on the "package" edge.
 func (dq *DependencyQuery) QueryPackage() *PackageVersionQuery {
 	query := (&PackageVersionClient{config: dq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := dq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := dq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(dependency.Table, dependency.FieldID, selector),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, dependency.PackageTable, dependency.PackageColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(dq.driver.Dialect(), step)
+		gremlin := dq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(dependency.PackageLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -88,20 +77,12 @@ func (dq *DependencyQuery) QueryPackage() *PackageVersionQuery {
 // QueryDependentPackage chains the current query on the "dependent_package" edge.
 func (dq *DependencyQuery) QueryDependentPackage() *PackageNameQuery {
 	query := (&PackageNameClient{config: dq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := dq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := dq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(dependency.Table, dependency.FieldID, selector),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, dependency.DependentPackageTable, dependency.DependentPackageColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(dq.driver.Dialect(), step)
+		gremlin := dq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(dependency.DependentPackageLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -302,8 +283,8 @@ func (dq *DependencyQuery) Clone() *DependencyQuery {
 		withPackage:          dq.withPackage.Clone(),
 		withDependentPackage: dq.withDependentPackage.Clone(),
 		// clone intermediate query.
-		sql:  dq.sql.Clone(),
-		path: dq.path,
+		gremlin: dq.gremlin.Clone(),
+		path:    dq.path,
 	}
 }
 
@@ -388,218 +369,77 @@ func (dq *DependencyQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range dq.ctx.Fields {
-		if !dependency.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if dq.path != nil {
 		prev, err := dq.path(ctx)
 		if err != nil {
 			return err
 		}
-		dq.sql = prev
+		dq.gremlin = prev
 	}
 	return nil
 }
 
-func (dq *DependencyQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Dependency, error) {
-	var (
-		nodes       = []*Dependency{}
-		_spec       = dq.querySpec()
-		loadedTypes = [2]bool{
-			dq.withPackage != nil,
-			dq.withDependentPackage != nil,
+func (dq *DependencyQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*Dependency, error) {
+	res := &gremlin.Response{}
+	traversal := dq.gremlinQuery(ctx)
+	if len(dq.ctx.Fields) > 0 {
+		fields := make([]any, len(dq.ctx.Fields))
+		for i, f := range dq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*Dependency).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &Dependency{config: dq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(dq.modifiers) > 0 {
-		_spec.Modifiers = dq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, dq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := dq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var ds Dependencies
+	if err := ds.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := dq.withPackage; query != nil {
-		if err := dq.loadPackage(ctx, query, nodes, nil,
-			func(n *Dependency, e *PackageVersion) { n.Edges.Package = e }); err != nil {
-			return nil, err
-		}
+	for i := range ds {
+		ds[i].config = dq.config
 	}
-	if query := dq.withDependentPackage; query != nil {
-		if err := dq.loadDependentPackage(ctx, query, nodes, nil,
-			func(n *Dependency, e *PackageName) { n.Edges.DependentPackage = e }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range dq.loadTotal {
-		if err := dq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return ds, nil
 }
 
-func (dq *DependencyQuery) loadPackage(ctx context.Context, query *PackageVersionQuery, nodes []*Dependency, init func(*Dependency), assign func(*Dependency, *PackageVersion)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Dependency)
-	for i := range nodes {
-		fk := nodes[i].PackageID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
+func (dq *DependencyQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := dq.gremlinQuery(ctx).Count().Query()
+	if err := dq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packageversion.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "package_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
-}
-func (dq *DependencyQuery) loadDependentPackage(ctx context.Context, query *PackageNameQuery, nodes []*Dependency, init func(*Dependency), assign func(*Dependency, *PackageName)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*Dependency)
-	for i := range nodes {
-		fk := nodes[i].DependentPackageID
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(packagename.IDIn(ids...))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "dependent_package_id" returned %v`, n.ID)
-		}
-		for i := range nodes {
-			assign(nodes[i], n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (dq *DependencyQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := dq.querySpec()
-	if len(dq.modifiers) > 0 {
-		_spec.Modifiers = dq.modifiers
-	}
-	_spec.Node.Columns = dq.ctx.Fields
-	if len(dq.ctx.Fields) > 0 {
-		_spec.Unique = dq.ctx.Unique != nil && *dq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, dq.driver, _spec)
-}
-
-func (dq *DependencyQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(dependency.Table, dependency.Columns, sqlgraph.NewFieldSpec(dependency.FieldID, field.TypeInt))
-	_spec.From = dq.sql
-	if unique := dq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if dq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := dq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, dependency.FieldID)
-		for i := range fields {
-			if fields[i] != dependency.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-		if dq.withPackage != nil {
-			_spec.Node.AddColumnOnce(dependency.FieldPackageID)
-		}
-		if dq.withDependentPackage != nil {
-			_spec.Node.AddColumnOnce(dependency.FieldDependentPackageID)
-		}
-	}
-	if ps := dq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := dq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := dq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := dq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (dq *DependencyQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(dq.driver.Dialect())
-	t1 := builder.Table(dependency.Table)
-	columns := dq.ctx.Fields
-	if len(columns) == 0 {
-		columns = dependency.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if dq.sql != nil {
-		selector = dq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if dq.ctx.Unique != nil && *dq.ctx.Unique {
-		selector.Distinct()
+func (dq *DependencyQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(dependency.Label)
+	if dq.gremlin != nil {
+		v = dq.gremlin.Clone()
 	}
 	for _, p := range dq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range dq.order {
-		p(selector)
+	if len(dq.order) > 0 {
+		v.Order()
+		for _, p := range dq.order {
+			p(v)
+		}
 	}
-	if offset := dq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := dq.ctx.Limit, dq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := dq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := dq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // DependencyGroupBy is the group-by builder for Dependency entities.
@@ -623,31 +463,38 @@ func (dgb *DependencyGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*DependencyQuery, *DependencyGroupBy](ctx, dgb.build, dgb, dgb.build.inters, v)
 }
 
-func (dgb *DependencyGroupBy) sqlScan(ctx context.Context, root *DependencyQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(dgb.fns))
+func (dgb *DependencyGroupBy) gremlinScan(ctx context.Context, root *DependencyQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range dgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*dgb.flds)+len(dgb.fns))
-		for _, f := range *dgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *dgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*dgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*dgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := dgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := dgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*dgb.flds)+len(dgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // DependencySelect is the builder for selecting fields of Dependency entities.
@@ -671,23 +518,34 @@ func (ds *DependencySelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*DependencyQuery, *DependencySelect](ctx, ds.DependencyQuery, ds, ds.inters, v)
 }
 
-func (ds *DependencySelect) sqlScan(ctx context.Context, root *DependencyQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(ds.fns))
-	for _, fn := range ds.fns {
-		aggregation = append(aggregation, fn(selector))
+func (ds *DependencySelect) gremlinScan(ctx context.Context, root *DependencyQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := ds.ctx.Fields; len(fields) == 1 {
+		if fields[0] != dependency.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(ds.ctx.Fields))
+		for i, f := range ds.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*ds.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := ds.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := ds.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

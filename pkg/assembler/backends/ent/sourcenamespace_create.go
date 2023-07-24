@@ -5,14 +5,14 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
 )
 
 // SourceNamespaceCreate is the builder for creating a SourceNamespace entity.
@@ -20,7 +20,6 @@ type SourceNamespaceCreate struct {
 	config
 	mutation *SourceNamespaceMutation
 	hooks    []Hook
-	conflict []sql.ConflictOption
 }
 
 // SetNamespace sets the "namespace" field.
@@ -68,7 +67,7 @@ func (snc *SourceNamespaceCreate) Mutation() *SourceNamespaceMutation {
 
 // Save creates the SourceNamespace in the database.
 func (snc *SourceNamespaceCreate) Save(ctx context.Context) (*SourceNamespace, error) {
-	return withHooks(ctx, snc.sqlSave, snc.mutation, snc.hooks)
+	return withHooks(ctx, snc.gremlinSave, snc.mutation, snc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -107,454 +106,59 @@ func (snc *SourceNamespaceCreate) check() error {
 	return nil
 }
 
-func (snc *SourceNamespaceCreate) sqlSave(ctx context.Context) (*SourceNamespace, error) {
+func (snc *SourceNamespaceCreate) gremlinSave(ctx context.Context) (*SourceNamespace, error) {
 	if err := snc.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := snc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, snc.driver, _spec); err != nil {
-		if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	res := &gremlin.Response{}
+	query, bindings := snc.gremlin().Query()
+	if err := snc.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
-	snc.mutation.id = &_node.ID
+	if err, ok := isConstantError(res); ok {
+		return nil, err
+	}
+	rnode := &SourceNamespace{config: snc.config}
+	if err := rnode.FromResponse(res); err != nil {
+		return nil, err
+	}
+	snc.mutation.id = &rnode.ID
 	snc.mutation.done = true
-	return _node, nil
+	return rnode, nil
 }
 
-func (snc *SourceNamespaceCreate) createSpec() (*SourceNamespace, *sqlgraph.CreateSpec) {
-	var (
-		_node = &SourceNamespace{config: snc.config}
-		_spec = sqlgraph.NewCreateSpec(sourcenamespace.Table, sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt))
-	)
-	_spec.OnConflict = snc.conflict
+func (snc *SourceNamespaceCreate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 1)
+	v := g.AddV(sourcenamespace.Label)
 	if value, ok := snc.mutation.Namespace(); ok {
-		_spec.SetField(sourcenamespace.FieldNamespace, field.TypeString, value)
-		_node.Namespace = value
+		v.Property(dsl.Single, sourcenamespace.FieldNamespace, value)
 	}
-	if nodes := snc.mutation.SourceTypeIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   sourcenamespace.SourceTypeTable,
-			Columns: []string{sourcenamespace.SourceTypeColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_node.SourceID = nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range snc.mutation.SourceTypeIDs() {
+		v.AddE(sourcenamespace.SourceTypeLabel).To(g.V(id)).OutV()
 	}
-	if nodes := snc.mutation.NamesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcenamespace.NamesTable,
-			Columns: []string{sourcenamespace.NamesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcename.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range snc.mutation.NamesIDs() {
+		v.AddE(sourcename.NamespaceLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(sourcename.NamespaceLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(sourcenamespace.Label, sourcename.NamespaceLabel, id)),
+		})
 	}
-	return _node, _spec
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.SourceNamespace.Create().
-//		SetNamespace(v).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.SourceNamespaceUpsert) {
-//			SetNamespace(v+v).
-//		}).
-//		Exec(ctx)
-func (snc *SourceNamespaceCreate) OnConflict(opts ...sql.ConflictOption) *SourceNamespaceUpsertOne {
-	snc.conflict = opts
-	return &SourceNamespaceUpsertOne{
-		create: snc,
+	if len(constraints) == 0 {
+		return v.ValueMap(true)
 	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.SourceNamespace.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (snc *SourceNamespaceCreate) OnConflictColumns(columns ...string) *SourceNamespaceUpsertOne {
-	snc.conflict = append(snc.conflict, sql.ConflictColumns(columns...))
-	return &SourceNamespaceUpsertOne{
-		create: snc,
+	tr := constraints[0].pred.Coalesce(constraints[0].test, v.ValueMap(true))
+	for _, cr := range constraints[1:] {
+		tr = cr.pred.Coalesce(cr.test, tr)
 	}
-}
-
-type (
-	// SourceNamespaceUpsertOne is the builder for "upsert"-ing
-	//  one SourceNamespace node.
-	SourceNamespaceUpsertOne struct {
-		create *SourceNamespaceCreate
-	}
-
-	// SourceNamespaceUpsert is the "OnConflict" setter.
-	SourceNamespaceUpsert struct {
-		*sql.UpdateSet
-	}
-)
-
-// SetNamespace sets the "namespace" field.
-func (u *SourceNamespaceUpsert) SetNamespace(v string) *SourceNamespaceUpsert {
-	u.Set(sourcenamespace.FieldNamespace, v)
-	return u
-}
-
-// UpdateNamespace sets the "namespace" field to the value that was provided on create.
-func (u *SourceNamespaceUpsert) UpdateNamespace() *SourceNamespaceUpsert {
-	u.SetExcluded(sourcenamespace.FieldNamespace)
-	return u
-}
-
-// SetSourceID sets the "source_id" field.
-func (u *SourceNamespaceUpsert) SetSourceID(v int) *SourceNamespaceUpsert {
-	u.Set(sourcenamespace.FieldSourceID, v)
-	return u
-}
-
-// UpdateSourceID sets the "source_id" field to the value that was provided on create.
-func (u *SourceNamespaceUpsert) UpdateSourceID() *SourceNamespaceUpsert {
-	u.SetExcluded(sourcenamespace.FieldSourceID)
-	return u
-}
-
-// UpdateNewValues updates the mutable fields using the new values that were set on create.
-// Using this option is equivalent to using:
-//
-//	client.SourceNamespace.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *SourceNamespaceUpsertOne) UpdateNewValues() *SourceNamespaceUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.SourceNamespace.Create().
-//	    OnConflict(sql.ResolveWithIgnore()).
-//	    Exec(ctx)
-func (u *SourceNamespaceUpsertOne) Ignore() *SourceNamespaceUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *SourceNamespaceUpsertOne) DoNothing() *SourceNamespaceUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the SourceNamespaceCreate.OnConflict
-// documentation for more info.
-func (u *SourceNamespaceUpsertOne) Update(set func(*SourceNamespaceUpsert)) *SourceNamespaceUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&SourceNamespaceUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetNamespace sets the "namespace" field.
-func (u *SourceNamespaceUpsertOne) SetNamespace(v string) *SourceNamespaceUpsertOne {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.SetNamespace(v)
-	})
-}
-
-// UpdateNamespace sets the "namespace" field to the value that was provided on create.
-func (u *SourceNamespaceUpsertOne) UpdateNamespace() *SourceNamespaceUpsertOne {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.UpdateNamespace()
-	})
-}
-
-// SetSourceID sets the "source_id" field.
-func (u *SourceNamespaceUpsertOne) SetSourceID(v int) *SourceNamespaceUpsertOne {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.SetSourceID(v)
-	})
-}
-
-// UpdateSourceID sets the "source_id" field to the value that was provided on create.
-func (u *SourceNamespaceUpsertOne) UpdateSourceID() *SourceNamespaceUpsertOne {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.UpdateSourceID()
-	})
-}
-
-// Exec executes the query.
-func (u *SourceNamespaceUpsertOne) Exec(ctx context.Context) error {
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for SourceNamespaceCreate.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *SourceNamespaceUpsertOne) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// Exec executes the UPSERT query and returns the inserted/updated ID.
-func (u *SourceNamespaceUpsertOne) ID(ctx context.Context) (id int, err error) {
-	node, err := u.create.Save(ctx)
-	if err != nil {
-		return id, err
-	}
-	return node.ID, nil
-}
-
-// IDX is like ID, but panics if an error occurs.
-func (u *SourceNamespaceUpsertOne) IDX(ctx context.Context) int {
-	id, err := u.ID(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return id
+	return tr
 }
 
 // SourceNamespaceCreateBulk is the builder for creating many SourceNamespace entities in bulk.
 type SourceNamespaceCreateBulk struct {
 	config
 	builders []*SourceNamespaceCreate
-	conflict []sql.ConflictOption
-}
-
-// Save creates the SourceNamespace entities in the database.
-func (sncb *SourceNamespaceCreateBulk) Save(ctx context.Context) ([]*SourceNamespace, error) {
-	specs := make([]*sqlgraph.CreateSpec, len(sncb.builders))
-	nodes := make([]*SourceNamespace, len(sncb.builders))
-	mutators := make([]Mutator, len(sncb.builders))
-	for i := range sncb.builders {
-		func(i int, root context.Context) {
-			builder := sncb.builders[i]
-			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-				mutation, ok := m.(*SourceNamespaceMutation)
-				if !ok {
-					return nil, fmt.Errorf("unexpected mutation type %T", m)
-				}
-				if err := builder.check(); err != nil {
-					return nil, err
-				}
-				builder.mutation = mutation
-				var err error
-				nodes[i], specs[i] = builder.createSpec()
-				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, sncb.builders[i+1].mutation)
-				} else {
-					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
-					spec.OnConflict = sncb.conflict
-					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, sncb.driver, spec); err != nil {
-						if sqlgraph.IsConstraintError(err) {
-							err = &ConstraintError{msg: err.Error(), wrap: err}
-						}
-					}
-				}
-				if err != nil {
-					return nil, err
-				}
-				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
-				mutation.done = true
-				return nodes[i], nil
-			})
-			for i := len(builder.hooks) - 1; i >= 0; i-- {
-				mut = builder.hooks[i](mut)
-			}
-			mutators[i] = mut
-		}(i, ctx)
-	}
-	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, sncb.builders[0].mutation); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
-}
-
-// SaveX is like Save, but panics if an error occurs.
-func (sncb *SourceNamespaceCreateBulk) SaveX(ctx context.Context) []*SourceNamespace {
-	v, err := sncb.Save(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-// Exec executes the query.
-func (sncb *SourceNamespaceCreateBulk) Exec(ctx context.Context) error {
-	_, err := sncb.Save(ctx)
-	return err
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (sncb *SourceNamespaceCreateBulk) ExecX(ctx context.Context) {
-	if err := sncb.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.SourceNamespace.CreateBulk(builders...).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.SourceNamespaceUpsert) {
-//			SetNamespace(v+v).
-//		}).
-//		Exec(ctx)
-func (sncb *SourceNamespaceCreateBulk) OnConflict(opts ...sql.ConflictOption) *SourceNamespaceUpsertBulk {
-	sncb.conflict = opts
-	return &SourceNamespaceUpsertBulk{
-		create: sncb,
-	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.SourceNamespace.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (sncb *SourceNamespaceCreateBulk) OnConflictColumns(columns ...string) *SourceNamespaceUpsertBulk {
-	sncb.conflict = append(sncb.conflict, sql.ConflictColumns(columns...))
-	return &SourceNamespaceUpsertBulk{
-		create: sncb,
-	}
-}
-
-// SourceNamespaceUpsertBulk is the builder for "upsert"-ing
-// a bulk of SourceNamespace nodes.
-type SourceNamespaceUpsertBulk struct {
-	create *SourceNamespaceCreateBulk
-}
-
-// UpdateNewValues updates the mutable fields using the new values that
-// were set on create. Using this option is equivalent to using:
-//
-//	client.SourceNamespace.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *SourceNamespaceUpsertBulk) UpdateNewValues() *SourceNamespaceUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.SourceNamespace.Create().
-//		OnConflict(sql.ResolveWithIgnore()).
-//		Exec(ctx)
-func (u *SourceNamespaceUpsertBulk) Ignore() *SourceNamespaceUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *SourceNamespaceUpsertBulk) DoNothing() *SourceNamespaceUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the SourceNamespaceCreateBulk.OnConflict
-// documentation for more info.
-func (u *SourceNamespaceUpsertBulk) Update(set func(*SourceNamespaceUpsert)) *SourceNamespaceUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&SourceNamespaceUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetNamespace sets the "namespace" field.
-func (u *SourceNamespaceUpsertBulk) SetNamespace(v string) *SourceNamespaceUpsertBulk {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.SetNamespace(v)
-	})
-}
-
-// UpdateNamespace sets the "namespace" field to the value that was provided on create.
-func (u *SourceNamespaceUpsertBulk) UpdateNamespace() *SourceNamespaceUpsertBulk {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.UpdateNamespace()
-	})
-}
-
-// SetSourceID sets the "source_id" field.
-func (u *SourceNamespaceUpsertBulk) SetSourceID(v int) *SourceNamespaceUpsertBulk {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.SetSourceID(v)
-	})
-}
-
-// UpdateSourceID sets the "source_id" field to the value that was provided on create.
-func (u *SourceNamespaceUpsertBulk) UpdateSourceID() *SourceNamespaceUpsertBulk {
-	return u.Update(func(s *SourceNamespaceUpsert) {
-		s.UpdateSourceID()
-	})
-}
-
-// Exec executes the query.
-func (u *SourceNamespaceUpsertBulk) Exec(ctx context.Context) error {
-	for i, b := range u.create.builders {
-		if len(b.conflict) != 0 {
-			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the SourceNamespaceCreateBulk instead", i)
-		}
-	}
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for SourceNamespaceCreateBulk.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *SourceNamespaceUpsertBulk) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
 }

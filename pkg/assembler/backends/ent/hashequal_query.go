@@ -4,14 +4,13 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/hashequal"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -19,17 +18,14 @@ import (
 // HashEqualQuery is the builder for querying HashEqual entities.
 type HashEqualQuery struct {
 	config
-	ctx                *QueryContext
-	order              []hashequal.OrderOption
-	inters             []Interceptor
-	predicates         []predicate.HashEqual
-	withArtifacts      *ArtifactQuery
-	modifiers          []func(*sql.Selector)
-	loadTotal          []func(context.Context, []*HashEqual) error
-	withNamedArtifacts map[string]*ArtifactQuery
+	ctx           *QueryContext
+	order         []hashequal.OrderOption
+	inters        []Interceptor
+	predicates    []predicate.HashEqual
+	withArtifacts *ArtifactQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the HashEqualQuery builder.
@@ -66,20 +62,12 @@ func (heq *HashEqualQuery) Order(o ...hashequal.OrderOption) *HashEqualQuery {
 // QueryArtifacts chains the current query on the "artifacts" edge.
 func (heq *HashEqualQuery) QueryArtifacts() *ArtifactQuery {
 	query := (&ArtifactClient{config: heq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := heq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := heq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(hashequal.Table, hashequal.FieldID, selector),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, false, hashequal.ArtifactsTable, hashequal.ArtifactsPrimaryKey...),
-		)
-		fromU = sqlgraph.SetNeighbors(heq.driver.Dialect(), step)
+		gremlin := heq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(hashequal.ArtifactsLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -279,8 +267,8 @@ func (heq *HashEqualQuery) Clone() *HashEqualQuery {
 		predicates:    append([]predicate.HashEqual{}, heq.predicates...),
 		withArtifacts: heq.withArtifacts.Clone(),
 		// clone intermediate query.
-		sql:  heq.sql.Clone(),
-		path: heq.path,
+		gremlin: heq.gremlin.Clone(),
+		path:    heq.path,
 	}
 }
 
@@ -354,230 +342,77 @@ func (heq *HashEqualQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range heq.ctx.Fields {
-		if !hashequal.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if heq.path != nil {
 		prev, err := heq.path(ctx)
 		if err != nil {
 			return err
 		}
-		heq.sql = prev
+		heq.gremlin = prev
 	}
 	return nil
 }
 
-func (heq *HashEqualQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*HashEqual, error) {
-	var (
-		nodes       = []*HashEqual{}
-		_spec       = heq.querySpec()
-		loadedTypes = [1]bool{
-			heq.withArtifacts != nil,
+func (heq *HashEqualQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*HashEqual, error) {
+	res := &gremlin.Response{}
+	traversal := heq.gremlinQuery(ctx)
+	if len(heq.ctx.Fields) > 0 {
+		fields := make([]any, len(heq.ctx.Fields))
+		for i, f := range heq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*HashEqual).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &HashEqual{config: heq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(heq.modifiers) > 0 {
-		_spec.Modifiers = heq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, heq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := heq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var hes HashEquals
+	if err := hes.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := heq.withArtifacts; query != nil {
-		if err := heq.loadArtifacts(ctx, query, nodes,
-			func(n *HashEqual) { n.Edges.Artifacts = []*Artifact{} },
-			func(n *HashEqual, e *Artifact) { n.Edges.Artifacts = append(n.Edges.Artifacts, e) }); err != nil {
-			return nil, err
-		}
+	for i := range hes {
+		hes[i].config = heq.config
 	}
-	for name, query := range heq.withNamedArtifacts {
-		if err := heq.loadArtifacts(ctx, query, nodes,
-			func(n *HashEqual) { n.appendNamedArtifacts(name) },
-			func(n *HashEqual, e *Artifact) { n.appendNamedArtifacts(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range heq.loadTotal {
-		if err := heq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return hes, nil
 }
 
-func (heq *HashEqualQuery) loadArtifacts(ctx context.Context, query *ArtifactQuery, nodes []*HashEqual, init func(*HashEqual), assign func(*HashEqual, *Artifact)) error {
-	edgeIDs := make([]driver.Value, len(nodes))
-	byID := make(map[int]*HashEqual)
-	nids := make(map[int]map[*HashEqual]struct{})
-	for i, node := range nodes {
-		edgeIDs[i] = node.ID
-		byID[node.ID] = node
-		if init != nil {
-			init(node)
-		}
+func (heq *HashEqualQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := heq.gremlinQuery(ctx).Count().Query()
+	if err := heq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	query.Where(func(s *sql.Selector) {
-		joinT := sql.Table(hashequal.ArtifactsTable)
-		s.Join(joinT).On(s.C(artifact.FieldID), joinT.C(hashequal.ArtifactsPrimaryKey[1]))
-		s.Where(sql.InValues(joinT.C(hashequal.ArtifactsPrimaryKey[0]), edgeIDs...))
-		columns := s.SelectedColumns()
-		s.Select(joinT.C(hashequal.ArtifactsPrimaryKey[0]))
-		s.AppendSelect(columns...)
-		s.SetDistinct(false)
-	})
-	if err := query.prepareQuery(ctx); err != nil {
-		return err
-	}
-	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
-		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
-			assign := spec.Assign
-			values := spec.ScanValues
-			spec.ScanValues = func(columns []string) ([]any, error) {
-				values, err := values(columns[1:])
-				if err != nil {
-					return nil, err
-				}
-				return append([]any{new(sql.NullInt64)}, values...), nil
-			}
-			spec.Assign = func(columns []string, values []any) error {
-				outValue := int(values[0].(*sql.NullInt64).Int64)
-				inValue := int(values[1].(*sql.NullInt64).Int64)
-				if nids[inValue] == nil {
-					nids[inValue] = map[*HashEqual]struct{}{byID[outValue]: {}}
-					return assign(columns[1:], values[1:])
-				}
-				nids[inValue][byID[outValue]] = struct{}{}
-				return nil
-			}
-		})
-	})
-	neighbors, err := withInterceptors[[]*Artifact](ctx, query, qr, query.inters)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		nodes, ok := nids[n.ID]
-		if !ok {
-			return fmt.Errorf(`unexpected "artifacts" node returned %v`, n.ID)
-		}
-		for kn := range nodes {
-			assign(kn, n)
-		}
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (heq *HashEqualQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := heq.querySpec()
-	if len(heq.modifiers) > 0 {
-		_spec.Modifiers = heq.modifiers
-	}
-	_spec.Node.Columns = heq.ctx.Fields
-	if len(heq.ctx.Fields) > 0 {
-		_spec.Unique = heq.ctx.Unique != nil && *heq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, heq.driver, _spec)
-}
-
-func (heq *HashEqualQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(hashequal.Table, hashequal.Columns, sqlgraph.NewFieldSpec(hashequal.FieldID, field.TypeInt))
-	_spec.From = heq.sql
-	if unique := heq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if heq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := heq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, hashequal.FieldID)
-		for i := range fields {
-			if fields[i] != hashequal.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-	}
-	if ps := heq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := heq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := heq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := heq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (heq *HashEqualQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(heq.driver.Dialect())
-	t1 := builder.Table(hashequal.Table)
-	columns := heq.ctx.Fields
-	if len(columns) == 0 {
-		columns = hashequal.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if heq.sql != nil {
-		selector = heq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if heq.ctx.Unique != nil && *heq.ctx.Unique {
-		selector.Distinct()
+func (heq *HashEqualQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(hashequal.Label)
+	if heq.gremlin != nil {
+		v = heq.gremlin.Clone()
 	}
 	for _, p := range heq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range heq.order {
-		p(selector)
+	if len(heq.order) > 0 {
+		v.Order()
+		for _, p := range heq.order {
+			p(v)
+		}
 	}
-	if offset := heq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := heq.ctx.Limit, heq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := heq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := heq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedArtifacts tells the query-builder to eager-load the nodes that are connected to the "artifacts"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (heq *HashEqualQuery) WithNamedArtifacts(name string, opts ...func(*ArtifactQuery)) *HashEqualQuery {
-	query := (&ArtifactClient{config: heq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if heq.withNamedArtifacts == nil {
-		heq.withNamedArtifacts = make(map[string]*ArtifactQuery)
-	}
-	heq.withNamedArtifacts[name] = query
-	return heq
+	return v
 }
 
 // HashEqualGroupBy is the group-by builder for HashEqual entities.
@@ -601,31 +436,38 @@ func (hegb *HashEqualGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*HashEqualQuery, *HashEqualGroupBy](ctx, hegb.build, hegb, hegb.build.inters, v)
 }
 
-func (hegb *HashEqualGroupBy) sqlScan(ctx context.Context, root *HashEqualQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(hegb.fns))
+func (hegb *HashEqualGroupBy) gremlinScan(ctx context.Context, root *HashEqualQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range hegb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*hegb.flds)+len(hegb.fns))
-		for _, f := range *hegb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *hegb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*hegb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*hegb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := hegb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := hegb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*hegb.flds)+len(hegb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // HashEqualSelect is the builder for selecting fields of HashEqual entities.
@@ -649,23 +491,34 @@ func (hes *HashEqualSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*HashEqualQuery, *HashEqualSelect](ctx, hes.HashEqualQuery, hes, hes.inters, v)
 }
 
-func (hes *HashEqualSelect) sqlScan(ctx context.Context, root *HashEqualQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(hes.fns))
-	for _, fn := range hes.fns {
-		aggregation = append(aggregation, fn(selector))
+func (hes *HashEqualSelect) gremlinScan(ctx context.Context, root *HashEqualQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := hes.ctx.Fields; len(fields) == 1 {
+		if fields[0] != hashequal.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(hes.ctx.Fields))
+		for i, f := range hes.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*hes.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := hes.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := hes.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

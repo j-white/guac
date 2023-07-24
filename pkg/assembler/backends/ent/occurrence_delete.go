@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/occurrence"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (od *OccurrenceDelete) Where(ps ...predicate.Occurrence) *OccurrenceDelete 
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (od *OccurrenceDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, od.sqlExec, od.mutation, od.hooks)
+	return withHooks(ctx, od.gremlinExec, od.mutation, od.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (od *OccurrenceDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (od *OccurrenceDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(occurrence.Table, sqlgraph.NewFieldSpec(occurrence.FieldID, field.TypeInt))
-	if ps := od.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, od.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (od *OccurrenceDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := od.gremlin().Query()
+	if err := od.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	od.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (od *OccurrenceDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(occurrence.Label)
+	for _, p := range od.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // OccurrenceDeleteOne is the builder for deleting a single Occurrence entity.

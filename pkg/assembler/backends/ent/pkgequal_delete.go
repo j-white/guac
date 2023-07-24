@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/pkgequal"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 )
@@ -27,7 +28,7 @@ func (ped *PkgEqualDelete) Where(ps ...predicate.PkgEqual) *PkgEqualDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (ped *PkgEqualDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, ped.sqlExec, ped.mutation, ped.hooks)
+	return withHooks(ctx, ped.gremlinExec, ped.mutation, ped.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (ped *PkgEqualDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (ped *PkgEqualDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(pkgequal.Table, sqlgraph.NewFieldSpec(pkgequal.FieldID, field.TypeInt))
-	if ps := ped.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, ped.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (ped *PkgEqualDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := ped.gremlin().Query()
+	if err := ped.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	ped.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (ped *PkgEqualDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(pkgequal.Label)
+	for _, p := range ped.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // PkgEqualDeleteOne is the builder for deleting a single PkgEqual entity.

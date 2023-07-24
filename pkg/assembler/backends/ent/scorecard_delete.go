@@ -5,9 +5,10 @@ package ent
 import (
 	"context"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
 )
@@ -27,7 +28,7 @@ func (sd *ScorecardDelete) Where(ps ...predicate.Scorecard) *ScorecardDelete {
 
 // Exec executes the deletion query and returns how many vertices were deleted.
 func (sd *ScorecardDelete) Exec(ctx context.Context) (int, error) {
-	return withHooks(ctx, sd.sqlExec, sd.mutation, sd.hooks)
+	return withHooks(ctx, sd.gremlinExec, sd.mutation, sd.hooks)
 }
 
 // ExecX is like Exec, but panics if an error occurs.
@@ -39,21 +40,22 @@ func (sd *ScorecardDelete) ExecX(ctx context.Context) int {
 	return n
 }
 
-func (sd *ScorecardDelete) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec(scorecard.Table, sqlgraph.NewFieldSpec(scorecard.FieldID, field.TypeInt))
-	if ps := sd.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	affected, err := sqlgraph.DeleteNodes(ctx, sd.driver, _spec)
-	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+func (sd *ScorecardDelete) gremlinExec(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := sd.gremlin().Query()
+	if err := sd.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
 	sd.mutation.done = true
-	return affected, err
+	return res.ReadInt()
+}
+
+func (sd *ScorecardDelete) gremlin() *dsl.Traversal {
+	t := g.V().HasLabel(scorecard.Label)
+	for _, p := range sd.mutation.predicates {
+		p(t)
+	}
+	return t.SideEffect(__.Drop()).Count()
 }
 
 // ScorecardDeleteOne is the builder for deleting a single Scorecard entity.

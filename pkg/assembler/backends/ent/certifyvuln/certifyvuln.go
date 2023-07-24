@@ -3,8 +3,7 @@
 package certifyvuln
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 const (
@@ -34,125 +33,11 @@ const (
 	EdgeVulnerability = "vulnerability"
 	// EdgePackage holds the string denoting the package edge name in mutations.
 	EdgePackage = "package"
-	// Table holds the table name of the certifyvuln in the database.
-	Table = "certify_vulns"
-	// VulnerabilityTable is the table that holds the vulnerability relation/edge.
-	VulnerabilityTable = "certify_vulns"
-	// VulnerabilityInverseTable is the table name for the SecurityAdvisory entity.
-	// It exists in this package in order to avoid circular dependency with the "securityadvisory" package.
-	VulnerabilityInverseTable = "security_advisories"
-	// VulnerabilityColumn is the table column denoting the vulnerability relation/edge.
-	VulnerabilityColumn = "vulnerability_id"
-	// PackageTable is the table that holds the package relation/edge.
-	PackageTable = "certify_vulns"
-	// PackageInverseTable is the table name for the PackageVersion entity.
-	// It exists in this package in order to avoid circular dependency with the "packageversion" package.
-	PackageInverseTable = "package_versions"
-	// PackageColumn is the table column denoting the package relation/edge.
-	PackageColumn = "package_id"
+	// VulnerabilityLabel holds the string label denoting the vulnerability edge type in the database.
+	VulnerabilityLabel = "certify_vuln_vulnerability"
+	// PackageLabel holds the string label denoting the package edge type in the database.
+	PackageLabel = "certify_vuln_package"
 )
 
-// Columns holds all SQL columns for certifyvuln fields.
-var Columns = []string{
-	FieldID,
-	FieldVulnerabilityID,
-	FieldPackageID,
-	FieldTimeScanned,
-	FieldDbURI,
-	FieldDbVersion,
-	FieldScannerURI,
-	FieldScannerVersion,
-	FieldOrigin,
-	FieldCollector,
-}
-
-// ValidColumn reports if the column name is valid (part of the table columns).
-func ValidColumn(column string) bool {
-	for i := range Columns {
-		if column == Columns[i] {
-			return true
-		}
-	}
-	return false
-}
-
 // OrderOption defines the ordering options for the CertifyVuln queries.
-type OrderOption func(*sql.Selector)
-
-// ByID orders the results by the id field.
-func ByID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldID, opts...).ToFunc()
-}
-
-// ByVulnerabilityID orders the results by the vulnerability_id field.
-func ByVulnerabilityID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVulnerabilityID, opts...).ToFunc()
-}
-
-// ByPackageID orders the results by the package_id field.
-func ByPackageID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPackageID, opts...).ToFunc()
-}
-
-// ByTimeScanned orders the results by the time_scanned field.
-func ByTimeScanned(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTimeScanned, opts...).ToFunc()
-}
-
-// ByDbURI orders the results by the db_uri field.
-func ByDbURI(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDbURI, opts...).ToFunc()
-}
-
-// ByDbVersion orders the results by the db_version field.
-func ByDbVersion(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDbVersion, opts...).ToFunc()
-}
-
-// ByScannerURI orders the results by the scanner_uri field.
-func ByScannerURI(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldScannerURI, opts...).ToFunc()
-}
-
-// ByScannerVersion orders the results by the scanner_version field.
-func ByScannerVersion(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldScannerVersion, opts...).ToFunc()
-}
-
-// ByOrigin orders the results by the origin field.
-func ByOrigin(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOrigin, opts...).ToFunc()
-}
-
-// ByCollector orders the results by the collector field.
-func ByCollector(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCollector, opts...).ToFunc()
-}
-
-// ByVulnerabilityField orders the results by vulnerability field.
-func ByVulnerabilityField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newVulnerabilityStep(), sql.OrderByField(field, opts...))
-	}
-}
-
-// ByPackageField orders the results by package field.
-func ByPackageField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newPackageStep(), sql.OrderByField(field, opts...))
-	}
-}
-func newVulnerabilityStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(VulnerabilityInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, VulnerabilityTable, VulnerabilityColumn),
-	)
-}
-func newPackageStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(PackageInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-	)
-}
+type OrderOption func(*dsl.Traversal)

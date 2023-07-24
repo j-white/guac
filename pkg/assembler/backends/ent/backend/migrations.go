@@ -32,7 +32,7 @@ func SetupBackend(ctx context.Context, options BackendOptions) (*ent.Client, err
 	// Grrrrrr
 	if driver == dialect.Gremlin {
 		logger.Infof("connecting to gremlin server: %s", options.Address)
-		client, err := ent.Open("gremlin", options.Address)
+		client, err := ent.Open(dialect.Gremlin, options.Address)
 		if err != nil {
 			return nil, err
 		}

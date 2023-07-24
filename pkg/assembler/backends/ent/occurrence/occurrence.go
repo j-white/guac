@@ -3,8 +3,7 @@
 package occurrence
 
 import (
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 const (
@@ -30,128 +29,13 @@ const (
 	EdgePackage = "package"
 	// EdgeSource holds the string denoting the source edge name in mutations.
 	EdgeSource = "source"
-	// Table holds the table name of the occurrence in the database.
-	Table = "occurrences"
-	// ArtifactTable is the table that holds the artifact relation/edge.
-	ArtifactTable = "occurrences"
-	// ArtifactInverseTable is the table name for the Artifact entity.
-	// It exists in this package in order to avoid circular dependency with the "artifact" package.
-	ArtifactInverseTable = "artifacts"
-	// ArtifactColumn is the table column denoting the artifact relation/edge.
-	ArtifactColumn = "artifact_id"
-	// PackageTable is the table that holds the package relation/edge.
-	PackageTable = "occurrences"
-	// PackageInverseTable is the table name for the PackageVersion entity.
-	// It exists in this package in order to avoid circular dependency with the "packageversion" package.
-	PackageInverseTable = "package_versions"
-	// PackageColumn is the table column denoting the package relation/edge.
-	PackageColumn = "package_id"
-	// SourceTable is the table that holds the source relation/edge.
-	SourceTable = "occurrences"
-	// SourceInverseTable is the table name for the SourceName entity.
-	// It exists in this package in order to avoid circular dependency with the "sourcename" package.
-	SourceInverseTable = "source_names"
-	// SourceColumn is the table column denoting the source relation/edge.
-	SourceColumn = "source_id"
+	// ArtifactLabel holds the string label denoting the artifact edge type in the database.
+	ArtifactLabel = "occurrence_artifact"
+	// PackageLabel holds the string label denoting the package edge type in the database.
+	PackageLabel = "occurrence_package"
+	// SourceLabel holds the string label denoting the source edge type in the database.
+	SourceLabel = "occurrence_source"
 )
 
-// Columns holds all SQL columns for occurrence fields.
-var Columns = []string{
-	FieldID,
-	FieldArtifactID,
-	FieldJustification,
-	FieldOrigin,
-	FieldCollector,
-	FieldSourceID,
-	FieldPackageID,
-}
-
-// ValidColumn reports if the column name is valid (part of the table columns).
-func ValidColumn(column string) bool {
-	for i := range Columns {
-		if column == Columns[i] {
-			return true
-		}
-	}
-	return false
-}
-
 // OrderOption defines the ordering options for the Occurrence queries.
-type OrderOption func(*sql.Selector)
-
-// ByID orders the results by the id field.
-func ByID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldID, opts...).ToFunc()
-}
-
-// ByArtifactID orders the results by the artifact_id field.
-func ByArtifactID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldArtifactID, opts...).ToFunc()
-}
-
-// ByJustification orders the results by the justification field.
-func ByJustification(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldJustification, opts...).ToFunc()
-}
-
-// ByOrigin orders the results by the origin field.
-func ByOrigin(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOrigin, opts...).ToFunc()
-}
-
-// ByCollector orders the results by the collector field.
-func ByCollector(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCollector, opts...).ToFunc()
-}
-
-// BySourceID orders the results by the source_id field.
-func BySourceID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldSourceID, opts...).ToFunc()
-}
-
-// ByPackageID orders the results by the package_id field.
-func ByPackageID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPackageID, opts...).ToFunc()
-}
-
-// ByArtifactField orders the results by artifact field.
-func ByArtifactField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newArtifactStep(), sql.OrderByField(field, opts...))
-	}
-}
-
-// ByPackageField orders the results by package field.
-func ByPackageField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newPackageStep(), sql.OrderByField(field, opts...))
-	}
-}
-
-// BySourceField orders the results by source field.
-func BySourceField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newSourceStep(), sql.OrderByField(field, opts...))
-	}
-}
-func newArtifactStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(ArtifactInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, ArtifactTable, ArtifactColumn),
-	)
-}
-func newPackageStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(PackageInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, PackageTable, PackageColumn),
-	)
-}
-func newSourceStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(SourceInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, false, SourceTable, SourceColumn),
-	)
-}
+type OrderOption func(*dsl.Traversal)

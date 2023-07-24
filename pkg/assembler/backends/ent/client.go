@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/migrate"
+	"net/url"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/billofmaterials"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
@@ -41,8 +41,6 @@ import (
 // Client is the client that holds all ent builders.
 type Client struct {
 	config
-	// Schema is the client for creating, migrating and dropping schema.
-	Schema *migrate.Schema
 	// Artifact is the client for interacting with the Artifact builders.
 	Artifact *ArtifactClient
 	// BillOfMaterials is the client for interacting with the BillOfMaterials builders.
@@ -87,8 +85,6 @@ type Client struct {
 	SourceNamespace *SourceNamespaceClient
 	// SourceType is the client for interacting with the SourceType builders.
 	SourceType *SourceTypeClient
-	// additional fields for node api
-	tables tables
 }
 
 // NewClient creates a new client configured with the given options.
@@ -101,7 +97,6 @@ func NewClient(opts ...Option) *Client {
 }
 
 func (c *Client) init() {
-	c.Schema = migrate.NewSchema(c.driver)
 	c.Artifact = NewArtifactClient(c.config)
 	c.BillOfMaterials = NewBillOfMaterialsClient(c.config)
 	c.Builder = NewBuilderClient(c.config)
@@ -180,22 +175,34 @@ func Driver(driver dialect.Driver) Option {
 // Optional parameters can be added for configuring the client.
 func Open(driverName, dataSourceName string, options ...Option) (*Client, error) {
 	switch driverName {
-	case dialect.MySQL, dialect.Postgres, dialect.SQLite:
-		drv, err := sql.Open(driverName, dataSourceName)
+	case dialect.Gremlin:
+		u, err := url.Parse(dataSourceName)
 		if err != nil {
 			return nil, err
 		}
+		c, err := gremlin.NewClient(gremlin.Config{
+			Endpoint: gremlin.Endpoint{
+				URL: u,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		drv := gremlin.NewDriver(c)
 		return NewClient(append(options, Driver(drv))...), nil
 	default:
 		return nil, fmt.Errorf("unsupported driver: %q", driverName)
 	}
 }
 
+// ErrTxStarted is returned when trying to start a new transaction from a transactional client.
+var ErrTxStarted = errors.New("ent: cannot start a transaction within a transaction")
+
 // Tx returns a new transactional client. The provided context
 // is used until the transaction is committed or rolled back.
 func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	if _, ok := c.driver.(*txDriver); ok {
-		return nil, errors.New("ent: cannot start a transaction within a transaction")
+		return nil, ErrTxStarted
 	}
 	tx, err := newTx(ctx, c.driver)
 	if err != nil {
@@ -203,47 +210,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	}
 	cfg := c.config
 	cfg.driver = tx
-	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		Artifact:         NewArtifactClient(cfg),
-		BillOfMaterials:  NewBillOfMaterialsClient(cfg),
-		Builder:          NewBuilderClient(cfg),
-		Certification:    NewCertificationClient(cfg),
-		CertifyScorecard: NewCertifyScorecardClient(cfg),
-		CertifyVuln:      NewCertifyVulnClient(cfg),
-		Dependency:       NewDependencyClient(cfg),
-		HasSourceAt:      NewHasSourceAtClient(cfg),
-		HashEqual:        NewHashEqualClient(cfg),
-		IsVulnerability:  NewIsVulnerabilityClient(cfg),
-		Occurrence:       NewOccurrenceClient(cfg),
-		PackageName:      NewPackageNameClient(cfg),
-		PackageNamespace: NewPackageNamespaceClient(cfg),
-		PackageType:      NewPackageTypeClient(cfg),
-		PackageVersion:   NewPackageVersionClient(cfg),
-		PkgEqual:         NewPkgEqualClient(cfg),
-		SLSAAttestation:  NewSLSAAttestationClient(cfg),
-		Scorecard:        NewScorecardClient(cfg),
-		SecurityAdvisory: NewSecurityAdvisoryClient(cfg),
-		SourceName:       NewSourceNameClient(cfg),
-		SourceNamespace:  NewSourceNamespaceClient(cfg),
-		SourceType:       NewSourceTypeClient(cfg),
-	}, nil
-}
-
-// BeginTx returns a transactional client with specified options.
-func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
-	if _, ok := c.driver.(*txDriver); ok {
-		return nil, errors.New("ent: cannot start a transaction within a transaction")
-	}
-	tx, err := c.driver.(interface {
-		BeginTx(context.Context, *sql.TxOptions) (dialect.Tx, error)
-	}).BeginTx(ctx, opts)
-	if err != nil {
-		return nil, fmt.Errorf("ent: starting a transaction: %w", err)
-	}
-	cfg := c.config
-	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
 		ctx:              ctx,
 		config:           cfg,
@@ -470,14 +436,9 @@ func (c *ArtifactClient) GetX(ctx context.Context, id int) *Artifact {
 // QueryOccurrences queries the occurrences edge of a Artifact.
 func (c *ArtifactClient) QueryOccurrences(a *Artifact) *OccurrenceQuery {
 	query := (&OccurrenceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := a.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, id),
-			sqlgraph.To(occurrence.Table, occurrence.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, artifact.OccurrencesTable, artifact.OccurrencesColumn),
-		)
-		fromV = sqlgraph.Neighbors(a.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(a.ID).InE(occurrence.ArtifactLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -486,14 +447,9 @@ func (c *ArtifactClient) QueryOccurrences(a *Artifact) *OccurrenceQuery {
 // QuerySbom queries the sbom edge of a Artifact.
 func (c *ArtifactClient) QuerySbom(a *Artifact) *BillOfMaterialsQuery {
 	query := (&BillOfMaterialsClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := a.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, id),
-			sqlgraph.To(billofmaterials.Table, billofmaterials.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, artifact.SbomTable, artifact.SbomColumn),
-		)
-		fromV = sqlgraph.Neighbors(a.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(a.ID).InE(billofmaterials.ArtifactLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -502,14 +458,9 @@ func (c *ArtifactClient) QuerySbom(a *Artifact) *BillOfMaterialsQuery {
 // QueryAttestations queries the attestations edge of a Artifact.
 func (c *ArtifactClient) QueryAttestations(a *Artifact) *SLSAAttestationQuery {
 	query := (&SLSAAttestationClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := a.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, id),
-			sqlgraph.To(slsaattestation.Table, slsaattestation.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, artifact.AttestationsTable, artifact.AttestationsPrimaryKey...),
-		)
-		fromV = sqlgraph.Neighbors(a.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(a.ID).InE(slsaattestation.BuiltFromLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -518,14 +469,9 @@ func (c *ArtifactClient) QueryAttestations(a *Artifact) *SLSAAttestationQuery {
 // QuerySame queries the same edge of a Artifact.
 func (c *ArtifactClient) QuerySame(a *Artifact) *HashEqualQuery {
 	query := (&HashEqualClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := a.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(artifact.Table, artifact.FieldID, id),
-			sqlgraph.To(hashequal.Table, hashequal.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, artifact.SameTable, artifact.SamePrimaryKey...),
-		)
-		fromV = sqlgraph.Neighbors(a.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(a.ID).InE(hashequal.ArtifactsLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -652,14 +598,9 @@ func (c *BillOfMaterialsClient) GetX(ctx context.Context, id int) *BillOfMateria
 // QueryPackage queries the package edge of a BillOfMaterials.
 func (c *BillOfMaterialsClient) QueryPackage(bom *BillOfMaterials) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := bom.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(billofmaterials.Table, billofmaterials.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, billofmaterials.PackageTable, billofmaterials.PackageColumn),
-		)
-		fromV = sqlgraph.Neighbors(bom.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(bom.ID).OutE(billofmaterials.PackageLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -668,14 +609,9 @@ func (c *BillOfMaterialsClient) QueryPackage(bom *BillOfMaterials) *PackageVersi
 // QueryArtifact queries the artifact edge of a BillOfMaterials.
 func (c *BillOfMaterialsClient) QueryArtifact(bom *BillOfMaterials) *ArtifactQuery {
 	query := (&ArtifactClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := bom.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(billofmaterials.Table, billofmaterials.FieldID, id),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, billofmaterials.ArtifactTable, billofmaterials.ArtifactColumn),
-		)
-		fromV = sqlgraph.Neighbors(bom.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(bom.ID).OutE(billofmaterials.ArtifactLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -802,14 +738,9 @@ func (c *BuilderClient) GetX(ctx context.Context, id int) *Builder {
 // QuerySlsaAttestations queries the slsa_attestations edge of a Builder.
 func (c *BuilderClient) QuerySlsaAttestations(b *Builder) *SLSAAttestationQuery {
 	query := (&SLSAAttestationClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := b.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(builder.Table, builder.FieldID, id),
-			sqlgraph.To(slsaattestation.Table, slsaattestation.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, builder.SlsaAttestationsTable, builder.SlsaAttestationsColumn),
-		)
-		fromV = sqlgraph.Neighbors(b.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(b.ID).InE(slsaattestation.BuiltByLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -936,14 +867,9 @@ func (c *CertificationClient) GetX(ctx context.Context, id int) *Certification {
 // QuerySource queries the source edge of a Certification.
 func (c *CertificationClient) QuerySource(ce *Certification) *SourceNameQuery {
 	query := (&SourceNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := ce.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, id),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.SourceTable, certification.SourceColumn),
-		)
-		fromV = sqlgraph.Neighbors(ce.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(ce.ID).OutE(certification.SourceLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -952,14 +878,9 @@ func (c *CertificationClient) QuerySource(ce *Certification) *SourceNameQuery {
 // QueryPackageVersion queries the package_version edge of a Certification.
 func (c *CertificationClient) QueryPackageVersion(ce *Certification) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := ce.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.PackageVersionTable, certification.PackageVersionColumn),
-		)
-		fromV = sqlgraph.Neighbors(ce.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(ce.ID).OutE(certification.PackageVersionLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -968,14 +889,9 @@ func (c *CertificationClient) QueryPackageVersion(ce *Certification) *PackageVer
 // QueryAllVersions queries the all_versions edge of a Certification.
 func (c *CertificationClient) QueryAllVersions(ce *Certification) *PackageNameQuery {
 	query := (&PackageNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := ce.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, id),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.AllVersionsTable, certification.AllVersionsColumn),
-		)
-		fromV = sqlgraph.Neighbors(ce.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(ce.ID).OutE(certification.AllVersionsLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -984,14 +900,9 @@ func (c *CertificationClient) QueryAllVersions(ce *Certification) *PackageNameQu
 // QueryArtifact queries the artifact edge of a Certification.
 func (c *CertificationClient) QueryArtifact(ce *Certification) *ArtifactQuery {
 	query := (&ArtifactClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := ce.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certification.Table, certification.FieldID, id),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certification.ArtifactTable, certification.ArtifactColumn),
-		)
-		fromV = sqlgraph.Neighbors(ce.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(ce.ID).OutE(certification.ArtifactLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1118,14 +1029,9 @@ func (c *CertifyScorecardClient) GetX(ctx context.Context, id int) *CertifyScore
 // QueryScorecard queries the scorecard edge of a CertifyScorecard.
 func (c *CertifyScorecardClient) QueryScorecard(cs *CertifyScorecard) *ScorecardQuery {
 	query := (&ScorecardClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := cs.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyscorecard.Table, certifyscorecard.FieldID, id),
-			sqlgraph.To(scorecard.Table, scorecard.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, certifyscorecard.ScorecardTable, certifyscorecard.ScorecardColumn),
-		)
-		fromV = sqlgraph.Neighbors(cs.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(cs.ID).InE(scorecard.CertificationsLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -1134,14 +1040,9 @@ func (c *CertifyScorecardClient) QueryScorecard(cs *CertifyScorecard) *Scorecard
 // QuerySource queries the source edge of a CertifyScorecard.
 func (c *CertifyScorecardClient) QuerySource(cs *CertifyScorecard) *SourceNameQuery {
 	query := (&SourceNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := cs.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyscorecard.Table, certifyscorecard.FieldID, id),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certifyscorecard.SourceTable, certifyscorecard.SourceColumn),
-		)
-		fromV = sqlgraph.Neighbors(cs.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(cs.ID).OutE(certifyscorecard.SourceLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1268,14 +1169,9 @@ func (c *CertifyVulnClient) GetX(ctx context.Context, id int) *CertifyVuln {
 // QueryVulnerability queries the vulnerability edge of a CertifyVuln.
 func (c *CertifyVulnClient) QueryVulnerability(cv *CertifyVuln) *SecurityAdvisoryQuery {
 	query := (&SecurityAdvisoryClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := cv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyvuln.Table, certifyvuln.FieldID, id),
-			sqlgraph.To(securityadvisory.Table, securityadvisory.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certifyvuln.VulnerabilityTable, certifyvuln.VulnerabilityColumn),
-		)
-		fromV = sqlgraph.Neighbors(cv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(cv.ID).OutE(certifyvuln.VulnerabilityLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1284,14 +1180,9 @@ func (c *CertifyVulnClient) QueryVulnerability(cv *CertifyVuln) *SecurityAdvisor
 // QueryPackage queries the package edge of a CertifyVuln.
 func (c *CertifyVulnClient) QueryPackage(cv *CertifyVuln) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := cv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(certifyvuln.Table, certifyvuln.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, certifyvuln.PackageTable, certifyvuln.PackageColumn),
-		)
-		fromV = sqlgraph.Neighbors(cv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(cv.ID).OutE(certifyvuln.PackageLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1418,14 +1309,9 @@ func (c *DependencyClient) GetX(ctx context.Context, id int) *Dependency {
 // QueryPackage queries the package edge of a Dependency.
 func (c *DependencyClient) QueryPackage(d *Dependency) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := d.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(dependency.Table, dependency.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, dependency.PackageTable, dependency.PackageColumn),
-		)
-		fromV = sqlgraph.Neighbors(d.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(d.ID).OutE(dependency.PackageLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1434,14 +1320,9 @@ func (c *DependencyClient) QueryPackage(d *Dependency) *PackageVersionQuery {
 // QueryDependentPackage queries the dependent_package edge of a Dependency.
 func (c *DependencyClient) QueryDependentPackage(d *Dependency) *PackageNameQuery {
 	query := (&PackageNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := d.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(dependency.Table, dependency.FieldID, id),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, dependency.DependentPackageTable, dependency.DependentPackageColumn),
-		)
-		fromV = sqlgraph.Neighbors(d.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(d.ID).OutE(dependency.DependentPackageLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1568,14 +1449,9 @@ func (c *HasSourceAtClient) GetX(ctx context.Context, id int) *HasSourceAt {
 // QueryPackageVersion queries the package_version edge of a HasSourceAt.
 func (c *HasSourceAtClient) QueryPackageVersion(hsa *HasSourceAt) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := hsa.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(hassourceat.Table, hassourceat.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, hassourceat.PackageVersionTable, hassourceat.PackageVersionColumn),
-		)
-		fromV = sqlgraph.Neighbors(hsa.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(hsa.ID).OutE(hassourceat.PackageVersionLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1584,14 +1460,9 @@ func (c *HasSourceAtClient) QueryPackageVersion(hsa *HasSourceAt) *PackageVersio
 // QueryAllVersions queries the all_versions edge of a HasSourceAt.
 func (c *HasSourceAtClient) QueryAllVersions(hsa *HasSourceAt) *PackageNameQuery {
 	query := (&PackageNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := hsa.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(hassourceat.Table, hassourceat.FieldID, id),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, hassourceat.AllVersionsTable, hassourceat.AllVersionsColumn),
-		)
-		fromV = sqlgraph.Neighbors(hsa.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(hsa.ID).OutE(hassourceat.AllVersionsLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1600,14 +1471,9 @@ func (c *HasSourceAtClient) QueryAllVersions(hsa *HasSourceAt) *PackageNameQuery
 // QuerySource queries the source edge of a HasSourceAt.
 func (c *HasSourceAtClient) QuerySource(hsa *HasSourceAt) *SourceNameQuery {
 	query := (&SourceNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := hsa.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(hassourceat.Table, hassourceat.FieldID, id),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, hassourceat.SourceTable, hassourceat.SourceColumn),
-		)
-		fromV = sqlgraph.Neighbors(hsa.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(hsa.ID).OutE(hassourceat.SourceLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1734,14 +1600,9 @@ func (c *HashEqualClient) GetX(ctx context.Context, id int) *HashEqual {
 // QueryArtifacts queries the artifacts edge of a HashEqual.
 func (c *HashEqualClient) QueryArtifacts(he *HashEqual) *ArtifactQuery {
 	query := (&ArtifactClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := he.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(hashequal.Table, hashequal.FieldID, id),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, false, hashequal.ArtifactsTable, hashequal.ArtifactsPrimaryKey...),
-		)
-		fromV = sqlgraph.Neighbors(he.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(he.ID).OutE(hashequal.ArtifactsLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1868,14 +1729,9 @@ func (c *IsVulnerabilityClient) GetX(ctx context.Context, id int) *IsVulnerabili
 // QueryOsv queries the osv edge of a IsVulnerability.
 func (c *IsVulnerabilityClient) QueryOsv(iv *IsVulnerability) *SecurityAdvisoryQuery {
 	query := (&SecurityAdvisoryClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := iv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(isvulnerability.Table, isvulnerability.FieldID, id),
-			sqlgraph.To(securityadvisory.Table, securityadvisory.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, isvulnerability.OsvTable, isvulnerability.OsvColumn),
-		)
-		fromV = sqlgraph.Neighbors(iv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(iv.ID).OutE(isvulnerability.OsvLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -1884,14 +1740,9 @@ func (c *IsVulnerabilityClient) QueryOsv(iv *IsVulnerability) *SecurityAdvisoryQ
 // QueryVulnerability queries the vulnerability edge of a IsVulnerability.
 func (c *IsVulnerabilityClient) QueryVulnerability(iv *IsVulnerability) *SecurityAdvisoryQuery {
 	query := (&SecurityAdvisoryClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := iv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(isvulnerability.Table, isvulnerability.FieldID, id),
-			sqlgraph.To(securityadvisory.Table, securityadvisory.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, isvulnerability.VulnerabilityTable, isvulnerability.VulnerabilityColumn),
-		)
-		fromV = sqlgraph.Neighbors(iv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(iv.ID).OutE(isvulnerability.VulnerabilityLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2018,14 +1869,9 @@ func (c *OccurrenceClient) GetX(ctx context.Context, id int) *Occurrence {
 // QueryArtifact queries the artifact edge of a Occurrence.
 func (c *OccurrenceClient) QueryArtifact(o *Occurrence) *ArtifactQuery {
 	query := (&ArtifactClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := o.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(occurrence.Table, occurrence.FieldID, id),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, occurrence.ArtifactTable, occurrence.ArtifactColumn),
-		)
-		fromV = sqlgraph.Neighbors(o.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(o.ID).OutE(occurrence.ArtifactLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2034,14 +1880,9 @@ func (c *OccurrenceClient) QueryArtifact(o *Occurrence) *ArtifactQuery {
 // QueryPackage queries the package edge of a Occurrence.
 func (c *OccurrenceClient) QueryPackage(o *Occurrence) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := o.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(occurrence.Table, occurrence.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, occurrence.PackageTable, occurrence.PackageColumn),
-		)
-		fromV = sqlgraph.Neighbors(o.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(o.ID).OutE(occurrence.PackageLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2050,14 +1891,9 @@ func (c *OccurrenceClient) QueryPackage(o *Occurrence) *PackageVersionQuery {
 // QuerySource queries the source edge of a Occurrence.
 func (c *OccurrenceClient) QuerySource(o *Occurrence) *SourceNameQuery {
 	query := (&SourceNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := o.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(occurrence.Table, occurrence.FieldID, id),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, occurrence.SourceTable, occurrence.SourceColumn),
-		)
-		fromV = sqlgraph.Neighbors(o.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(o.ID).OutE(occurrence.SourceLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2184,14 +2020,9 @@ func (c *PackageNameClient) GetX(ctx context.Context, id int) *PackageName {
 // QueryNamespace queries the namespace edge of a PackageName.
 func (c *PackageNameClient) QueryNamespace(pn *PackageName) *PackageNamespaceQuery {
 	query := (&PackageNamespaceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagename.Table, packagename.FieldID, id),
-			sqlgraph.To(packagenamespace.Table, packagenamespace.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, packagename.NamespaceTable, packagename.NamespaceColumn),
-		)
-		fromV = sqlgraph.Neighbors(pn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pn.ID).InE(packagenamespace.NamesLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -2200,14 +2031,9 @@ func (c *PackageNameClient) QueryNamespace(pn *PackageName) *PackageNamespaceQue
 // QueryVersions queries the versions edge of a PackageName.
 func (c *PackageNameClient) QueryVersions(pn *PackageName) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagename.Table, packagename.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, packagename.VersionsTable, packagename.VersionsColumn),
-		)
-		fromV = sqlgraph.Neighbors(pn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pn.ID).OutE(packagename.VersionsLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2334,14 +2160,9 @@ func (c *PackageNamespaceClient) GetX(ctx context.Context, id int) *PackageNames
 // QueryPackage queries the package edge of a PackageNamespace.
 func (c *PackageNamespaceClient) QueryPackage(pn *PackageNamespace) *PackageTypeQuery {
 	query := (&PackageTypeClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagenamespace.Table, packagenamespace.FieldID, id),
-			sqlgraph.To(packagetype.Table, packagetype.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, packagenamespace.PackageTable, packagenamespace.PackageColumn),
-		)
-		fromV = sqlgraph.Neighbors(pn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pn.ID).InE(packagetype.NamespacesLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -2350,14 +2171,9 @@ func (c *PackageNamespaceClient) QueryPackage(pn *PackageNamespace) *PackageType
 // QueryNames queries the names edge of a PackageNamespace.
 func (c *PackageNamespaceClient) QueryNames(pn *PackageNamespace) *PackageNameQuery {
 	query := (&PackageNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagenamespace.Table, packagenamespace.FieldID, id),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, packagenamespace.NamesTable, packagenamespace.NamesColumn),
-		)
-		fromV = sqlgraph.Neighbors(pn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pn.ID).OutE(packagenamespace.NamesLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2484,14 +2300,9 @@ func (c *PackageTypeClient) GetX(ctx context.Context, id int) *PackageType {
 // QueryNamespaces queries the namespaces edge of a PackageType.
 func (c *PackageTypeClient) QueryNamespaces(pt *PackageType) *PackageNamespaceQuery {
 	query := (&PackageNamespaceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pt.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packagetype.Table, packagetype.FieldID, id),
-			sqlgraph.To(packagenamespace.Table, packagenamespace.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, packagetype.NamespacesTable, packagetype.NamespacesColumn),
-		)
-		fromV = sqlgraph.Neighbors(pt.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pt.ID).OutE(packagetype.NamespacesLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2618,14 +2429,9 @@ func (c *PackageVersionClient) GetX(ctx context.Context, id int) *PackageVersion
 // QueryName queries the name edge of a PackageVersion.
 func (c *PackageVersionClient) QueryName(pv *PackageVersion) *PackageNameQuery {
 	query := (&PackageNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packageversion.Table, packageversion.FieldID, id),
-			sqlgraph.To(packagename.Table, packagename.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, packageversion.NameTable, packageversion.NameColumn),
-		)
-		fromV = sqlgraph.Neighbors(pv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pv.ID).InE(packagename.VersionsLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -2634,14 +2440,9 @@ func (c *PackageVersionClient) QueryName(pv *PackageVersion) *PackageNameQuery {
 // QueryOccurrences queries the occurrences edge of a PackageVersion.
 func (c *PackageVersionClient) QueryOccurrences(pv *PackageVersion) *OccurrenceQuery {
 	query := (&OccurrenceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packageversion.Table, packageversion.FieldID, id),
-			sqlgraph.To(occurrence.Table, occurrence.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, packageversion.OccurrencesTable, packageversion.OccurrencesColumn),
-		)
-		fromV = sqlgraph.Neighbors(pv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pv.ID).InE(occurrence.PackageLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -2650,14 +2451,9 @@ func (c *PackageVersionClient) QueryOccurrences(pv *PackageVersion) *OccurrenceQ
 // QuerySbom queries the sbom edge of a PackageVersion.
 func (c *PackageVersionClient) QuerySbom(pv *PackageVersion) *BillOfMaterialsQuery {
 	query := (&BillOfMaterialsClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packageversion.Table, packageversion.FieldID, id),
-			sqlgraph.To(billofmaterials.Table, billofmaterials.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, packageversion.SbomTable, packageversion.SbomColumn),
-		)
-		fromV = sqlgraph.Neighbors(pv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pv.ID).InE(billofmaterials.PackageLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -2666,14 +2462,9 @@ func (c *PackageVersionClient) QuerySbom(pv *PackageVersion) *BillOfMaterialsQue
 // QueryEqualPackages queries the equal_packages edge of a PackageVersion.
 func (c *PackageVersionClient) QueryEqualPackages(pv *PackageVersion) *PkgEqualQuery {
 	query := (&PkgEqualClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pv.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(packageversion.Table, packageversion.FieldID, id),
-			sqlgraph.To(pkgequal.Table, pkgequal.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, true, packageversion.EqualPackagesTable, packageversion.EqualPackagesPrimaryKey...),
-		)
-		fromV = sqlgraph.Neighbors(pv.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pv.ID).InE(pkgequal.PackagesLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -2800,14 +2591,9 @@ func (c *PkgEqualClient) GetX(ctx context.Context, id int) *PkgEqual {
 // QueryPackages queries the packages edge of a PkgEqual.
 func (c *PkgEqualClient) QueryPackages(pe *PkgEqual) *PackageVersionQuery {
 	query := (&PackageVersionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := pe.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(pkgequal.Table, pkgequal.FieldID, id),
-			sqlgraph.To(packageversion.Table, packageversion.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, false, pkgequal.PackagesTable, pkgequal.PackagesPrimaryKey...),
-		)
-		fromV = sqlgraph.Neighbors(pe.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(pe.ID).OutE(pkgequal.PackagesLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2934,14 +2720,9 @@ func (c *SLSAAttestationClient) GetX(ctx context.Context, id int) *SLSAAttestati
 // QueryBuiltFrom queries the built_from edge of a SLSAAttestation.
 func (c *SLSAAttestationClient) QueryBuiltFrom(sa *SLSAAttestation) *ArtifactQuery {
 	query := (&ArtifactClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sa.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(slsaattestation.Table, slsaattestation.FieldID, id),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2M, false, slsaattestation.BuiltFromTable, slsaattestation.BuiltFromPrimaryKey...),
-		)
-		fromV = sqlgraph.Neighbors(sa.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sa.ID).OutE(slsaattestation.BuiltFromLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2950,14 +2731,9 @@ func (c *SLSAAttestationClient) QueryBuiltFrom(sa *SLSAAttestation) *ArtifactQue
 // QueryBuiltBy queries the built_by edge of a SLSAAttestation.
 func (c *SLSAAttestationClient) QueryBuiltBy(sa *SLSAAttestation) *BuilderQuery {
 	query := (&BuilderClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sa.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(slsaattestation.Table, slsaattestation.FieldID, id),
-			sqlgraph.To(builder.Table, builder.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, slsaattestation.BuiltByTable, slsaattestation.BuiltByColumn),
-		)
-		fromV = sqlgraph.Neighbors(sa.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sa.ID).OutE(slsaattestation.BuiltByLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -2966,14 +2742,9 @@ func (c *SLSAAttestationClient) QueryBuiltBy(sa *SLSAAttestation) *BuilderQuery 
 // QuerySubject queries the subject edge of a SLSAAttestation.
 func (c *SLSAAttestationClient) QuerySubject(sa *SLSAAttestation) *ArtifactQuery {
 	query := (&ArtifactClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sa.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(slsaattestation.Table, slsaattestation.FieldID, id),
-			sqlgraph.To(artifact.Table, artifact.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, slsaattestation.SubjectTable, slsaattestation.SubjectColumn),
-		)
-		fromV = sqlgraph.Neighbors(sa.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sa.ID).OutE(slsaattestation.SubjectLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -3100,14 +2871,9 @@ func (c *ScorecardClient) GetX(ctx context.Context, id int) *Scorecard {
 // QueryCertifications queries the certifications edge of a Scorecard.
 func (c *ScorecardClient) QueryCertifications(s *Scorecard) *CertifyScorecardQuery {
 	query := (&CertifyScorecardClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := s.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(scorecard.Table, scorecard.FieldID, id),
-			sqlgraph.To(certifyscorecard.Table, certifyscorecard.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, scorecard.CertificationsTable, scorecard.CertificationsColumn),
-		)
-		fromV = sqlgraph.Neighbors(s.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(s.ID).OutE(scorecard.CertificationsLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -3352,14 +3118,9 @@ func (c *SourceNameClient) GetX(ctx context.Context, id int) *SourceName {
 // QueryNamespace queries the namespace edge of a SourceName.
 func (c *SourceNameClient) QueryNamespace(sn *SourceName) *SourceNamespaceQuery {
 	query := (&SourceNamespaceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcename.Table, sourcename.FieldID, id),
-			sqlgraph.To(sourcenamespace.Table, sourcenamespace.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, sourcename.NamespaceTable, sourcename.NamespaceColumn),
-		)
-		fromV = sqlgraph.Neighbors(sn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sn.ID).OutE(sourcename.NamespaceLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -3368,14 +3129,9 @@ func (c *SourceNameClient) QueryNamespace(sn *SourceName) *SourceNamespaceQuery 
 // QueryOccurrences queries the occurrences edge of a SourceName.
 func (c *SourceNameClient) QueryOccurrences(sn *SourceName) *OccurrenceQuery {
 	query := (&OccurrenceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcename.Table, sourcename.FieldID, id),
-			sqlgraph.To(occurrence.Table, occurrence.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, sourcename.OccurrencesTable, sourcename.OccurrencesColumn),
-		)
-		fromV = sqlgraph.Neighbors(sn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sn.ID).InE(occurrence.SourceLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -3502,14 +3258,9 @@ func (c *SourceNamespaceClient) GetX(ctx context.Context, id int) *SourceNamespa
 // QuerySourceType queries the source_type edge of a SourceNamespace.
 func (c *SourceNamespaceClient) QuerySourceType(sn *SourceNamespace) *SourceTypeQuery {
 	query := (&SourceTypeClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcenamespace.Table, sourcenamespace.FieldID, id),
-			sqlgraph.To(sourcetype.Table, sourcetype.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, false, sourcenamespace.SourceTypeTable, sourcenamespace.SourceTypeColumn),
-		)
-		fromV = sqlgraph.Neighbors(sn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sn.ID).OutE(sourcenamespace.SourceTypeLabel).InV()
 		return fromV, nil
 	}
 	return query
@@ -3518,14 +3269,9 @@ func (c *SourceNamespaceClient) QuerySourceType(sn *SourceNamespace) *SourceType
 // QueryNames queries the names edge of a SourceNamespace.
 func (c *SourceNamespaceClient) QueryNames(sn *SourceNamespace) *SourceNameQuery {
 	query := (&SourceNameClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := sn.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcenamespace.Table, sourcenamespace.FieldID, id),
-			sqlgraph.To(sourcename.Table, sourcename.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, sourcenamespace.NamesTable, sourcenamespace.NamesColumn),
-		)
-		fromV = sqlgraph.Neighbors(sn.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(sn.ID).InE(sourcename.NamespaceLabel).OutV()
 		return fromV, nil
 	}
 	return query
@@ -3652,14 +3398,9 @@ func (c *SourceTypeClient) GetX(ctx context.Context, id int) *SourceType {
 // QueryNamespaces queries the namespaces edge of a SourceType.
 func (c *SourceTypeClient) QueryNamespaces(st *SourceType) *SourceNamespaceQuery {
 	query := (&SourceNamespaceClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := st.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(sourcetype.Table, sourcetype.FieldID, id),
-			sqlgraph.To(sourcenamespace.Table, sourcenamespace.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, true, sourcetype.NamespacesTable, sourcetype.NamespacesColumn),
-		)
-		fromV = sqlgraph.Neighbors(st.driver.Dialect(), step)
+	query.path = func(context.Context) (fromV *dsl.Traversal, _ error) {
+
+		fromV = g.V(st.ID).InE(sourcenamespace.SourceTypeLabel).OutV()
 		return fromV, nil
 	}
 	return query

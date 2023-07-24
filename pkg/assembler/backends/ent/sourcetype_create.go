@@ -5,11 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/p"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcenamespace"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
 )
@@ -19,7 +20,6 @@ type SourceTypeCreate struct {
 	config
 	mutation *SourceTypeMutation
 	hooks    []Hook
-	conflict []sql.ConflictOption
 }
 
 // SetType sets the "type" field.
@@ -50,7 +50,7 @@ func (stc *SourceTypeCreate) Mutation() *SourceTypeMutation {
 
 // Save creates the SourceType in the database.
 func (stc *SourceTypeCreate) Save(ctx context.Context) (*SourceType, error) {
-	return withHooks(ctx, stc.sqlSave, stc.mutation, stc.hooks)
+	return withHooks(ctx, stc.gremlinSave, stc.mutation, stc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -83,397 +83,60 @@ func (stc *SourceTypeCreate) check() error {
 	return nil
 }
 
-func (stc *SourceTypeCreate) sqlSave(ctx context.Context) (*SourceType, error) {
+func (stc *SourceTypeCreate) gremlinSave(ctx context.Context) (*SourceType, error) {
 	if err := stc.check(); err != nil {
 		return nil, err
 	}
-	_node, _spec := stc.createSpec()
-	if err := sqlgraph.CreateNode(ctx, stc.driver, _spec); err != nil {
-		if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	res := &gremlin.Response{}
+	query, bindings := stc.gremlin().Query()
+	if err := stc.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
-	stc.mutation.id = &_node.ID
+	if err, ok := isConstantError(res); ok {
+		return nil, err
+	}
+	rnode := &SourceType{config: stc.config}
+	if err := rnode.FromResponse(res); err != nil {
+		return nil, err
+	}
+	stc.mutation.id = &rnode.ID
 	stc.mutation.done = true
-	return _node, nil
+	return rnode, nil
 }
 
-func (stc *SourceTypeCreate) createSpec() (*SourceType, *sqlgraph.CreateSpec) {
-	var (
-		_node = &SourceType{config: stc.config}
-		_spec = sqlgraph.NewCreateSpec(sourcetype.Table, sqlgraph.NewFieldSpec(sourcetype.FieldID, field.TypeInt))
-	)
-	_spec.OnConflict = stc.conflict
+func (stc *SourceTypeCreate) gremlin() *dsl.Traversal {
+	type constraint struct {
+		pred *dsl.Traversal // constraint predicate.
+		test *dsl.Traversal // test matches and its constant.
+	}
+	constraints := make([]*constraint, 0, 2)
+	v := g.AddV(sourcetype.Label)
 	if value, ok := stc.mutation.GetType(); ok {
-		_spec.SetField(sourcetype.FieldType, field.TypeString, value)
-		_node.Type = value
+		constraints = append(constraints, &constraint{
+			pred: g.V().Has(sourcetype.Label, sourcetype.FieldType, value).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueField(sourcetype.Label, sourcetype.FieldType, value)),
+		})
+		v.Property(dsl.Single, sourcetype.FieldType, value)
 	}
-	if nodes := stc.mutation.NamespacesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: true,
-			Table:   sourcetype.NamespacesTable,
-			Columns: []string{sourcetype.NamespacesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(sourcenamespace.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
+	for _, id := range stc.mutation.NamespacesIDs() {
+		v.AddE(sourcenamespace.SourceTypeLabel).From(g.V(id)).InV()
+		constraints = append(constraints, &constraint{
+			pred: g.E().HasLabel(sourcenamespace.SourceTypeLabel).OutV().HasID(id).Count(),
+			test: __.Is(p.NEQ(0)).Constant(NewErrUniqueEdge(sourcetype.Label, sourcenamespace.SourceTypeLabel, id)),
+		})
 	}
-	return _node, _spec
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.SourceType.Create().
-//		SetType(v).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.SourceTypeUpsert) {
-//			SetType(v+v).
-//		}).
-//		Exec(ctx)
-func (stc *SourceTypeCreate) OnConflict(opts ...sql.ConflictOption) *SourceTypeUpsertOne {
-	stc.conflict = opts
-	return &SourceTypeUpsertOne{
-		create: stc,
+	if len(constraints) == 0 {
+		return v.ValueMap(true)
 	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.SourceType.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (stc *SourceTypeCreate) OnConflictColumns(columns ...string) *SourceTypeUpsertOne {
-	stc.conflict = append(stc.conflict, sql.ConflictColumns(columns...))
-	return &SourceTypeUpsertOne{
-		create: stc,
+	tr := constraints[0].pred.Coalesce(constraints[0].test, v.ValueMap(true))
+	for _, cr := range constraints[1:] {
+		tr = cr.pred.Coalesce(cr.test, tr)
 	}
-}
-
-type (
-	// SourceTypeUpsertOne is the builder for "upsert"-ing
-	//  one SourceType node.
-	SourceTypeUpsertOne struct {
-		create *SourceTypeCreate
-	}
-
-	// SourceTypeUpsert is the "OnConflict" setter.
-	SourceTypeUpsert struct {
-		*sql.UpdateSet
-	}
-)
-
-// SetType sets the "type" field.
-func (u *SourceTypeUpsert) SetType(v string) *SourceTypeUpsert {
-	u.Set(sourcetype.FieldType, v)
-	return u
-}
-
-// UpdateType sets the "type" field to the value that was provided on create.
-func (u *SourceTypeUpsert) UpdateType() *SourceTypeUpsert {
-	u.SetExcluded(sourcetype.FieldType)
-	return u
-}
-
-// UpdateNewValues updates the mutable fields using the new values that were set on create.
-// Using this option is equivalent to using:
-//
-//	client.SourceType.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *SourceTypeUpsertOne) UpdateNewValues() *SourceTypeUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.SourceType.Create().
-//	    OnConflict(sql.ResolveWithIgnore()).
-//	    Exec(ctx)
-func (u *SourceTypeUpsertOne) Ignore() *SourceTypeUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *SourceTypeUpsertOne) DoNothing() *SourceTypeUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the SourceTypeCreate.OnConflict
-// documentation for more info.
-func (u *SourceTypeUpsertOne) Update(set func(*SourceTypeUpsert)) *SourceTypeUpsertOne {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&SourceTypeUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetType sets the "type" field.
-func (u *SourceTypeUpsertOne) SetType(v string) *SourceTypeUpsertOne {
-	return u.Update(func(s *SourceTypeUpsert) {
-		s.SetType(v)
-	})
-}
-
-// UpdateType sets the "type" field to the value that was provided on create.
-func (u *SourceTypeUpsertOne) UpdateType() *SourceTypeUpsertOne {
-	return u.Update(func(s *SourceTypeUpsert) {
-		s.UpdateType()
-	})
-}
-
-// Exec executes the query.
-func (u *SourceTypeUpsertOne) Exec(ctx context.Context) error {
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for SourceTypeCreate.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *SourceTypeUpsertOne) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// Exec executes the UPSERT query and returns the inserted/updated ID.
-func (u *SourceTypeUpsertOne) ID(ctx context.Context) (id int, err error) {
-	node, err := u.create.Save(ctx)
-	if err != nil {
-		return id, err
-	}
-	return node.ID, nil
-}
-
-// IDX is like ID, but panics if an error occurs.
-func (u *SourceTypeUpsertOne) IDX(ctx context.Context) int {
-	id, err := u.ID(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return id
+	return tr
 }
 
 // SourceTypeCreateBulk is the builder for creating many SourceType entities in bulk.
 type SourceTypeCreateBulk struct {
 	config
 	builders []*SourceTypeCreate
-	conflict []sql.ConflictOption
-}
-
-// Save creates the SourceType entities in the database.
-func (stcb *SourceTypeCreateBulk) Save(ctx context.Context) ([]*SourceType, error) {
-	specs := make([]*sqlgraph.CreateSpec, len(stcb.builders))
-	nodes := make([]*SourceType, len(stcb.builders))
-	mutators := make([]Mutator, len(stcb.builders))
-	for i := range stcb.builders {
-		func(i int, root context.Context) {
-			builder := stcb.builders[i]
-			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-				mutation, ok := m.(*SourceTypeMutation)
-				if !ok {
-					return nil, fmt.Errorf("unexpected mutation type %T", m)
-				}
-				if err := builder.check(); err != nil {
-					return nil, err
-				}
-				builder.mutation = mutation
-				var err error
-				nodes[i], specs[i] = builder.createSpec()
-				if i < len(mutators)-1 {
-					_, err = mutators[i+1].Mutate(root, stcb.builders[i+1].mutation)
-				} else {
-					spec := &sqlgraph.BatchCreateSpec{Nodes: specs}
-					spec.OnConflict = stcb.conflict
-					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, stcb.driver, spec); err != nil {
-						if sqlgraph.IsConstraintError(err) {
-							err = &ConstraintError{msg: err.Error(), wrap: err}
-						}
-					}
-				}
-				if err != nil {
-					return nil, err
-				}
-				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
-				mutation.done = true
-				return nodes[i], nil
-			})
-			for i := len(builder.hooks) - 1; i >= 0; i-- {
-				mut = builder.hooks[i](mut)
-			}
-			mutators[i] = mut
-		}(i, ctx)
-	}
-	if len(mutators) > 0 {
-		if _, err := mutators[0].Mutate(ctx, stcb.builders[0].mutation); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
-}
-
-// SaveX is like Save, but panics if an error occurs.
-func (stcb *SourceTypeCreateBulk) SaveX(ctx context.Context) []*SourceType {
-	v, err := stcb.Save(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-// Exec executes the query.
-func (stcb *SourceTypeCreateBulk) Exec(ctx context.Context) error {
-	_, err := stcb.Save(ctx)
-	return err
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (stcb *SourceTypeCreateBulk) ExecX(ctx context.Context) {
-	if err := stcb.Exec(ctx); err != nil {
-		panic(err)
-	}
-}
-
-// OnConflict allows configuring the `ON CONFLICT` / `ON DUPLICATE KEY` clause
-// of the `INSERT` statement. For example:
-//
-//	client.SourceType.CreateBulk(builders...).
-//		OnConflict(
-//			// Update the row with the new values
-//			// the was proposed for insertion.
-//			sql.ResolveWithNewValues(),
-//		).
-//		// Override some of the fields with custom
-//		// update values.
-//		Update(func(u *ent.SourceTypeUpsert) {
-//			SetType(v+v).
-//		}).
-//		Exec(ctx)
-func (stcb *SourceTypeCreateBulk) OnConflict(opts ...sql.ConflictOption) *SourceTypeUpsertBulk {
-	stcb.conflict = opts
-	return &SourceTypeUpsertBulk{
-		create: stcb,
-	}
-}
-
-// OnConflictColumns calls `OnConflict` and configures the columns
-// as conflict target. Using this option is equivalent to using:
-//
-//	client.SourceType.Create().
-//		OnConflict(sql.ConflictColumns(columns...)).
-//		Exec(ctx)
-func (stcb *SourceTypeCreateBulk) OnConflictColumns(columns ...string) *SourceTypeUpsertBulk {
-	stcb.conflict = append(stcb.conflict, sql.ConflictColumns(columns...))
-	return &SourceTypeUpsertBulk{
-		create: stcb,
-	}
-}
-
-// SourceTypeUpsertBulk is the builder for "upsert"-ing
-// a bulk of SourceType nodes.
-type SourceTypeUpsertBulk struct {
-	create *SourceTypeCreateBulk
-}
-
-// UpdateNewValues updates the mutable fields using the new values that
-// were set on create. Using this option is equivalent to using:
-//
-//	client.SourceType.Create().
-//		OnConflict(
-//			sql.ResolveWithNewValues(),
-//		).
-//		Exec(ctx)
-func (u *SourceTypeUpsertBulk) UpdateNewValues() *SourceTypeUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
-	return u
-}
-
-// Ignore sets each column to itself in case of conflict.
-// Using this option is equivalent to using:
-//
-//	client.SourceType.Create().
-//		OnConflict(sql.ResolveWithIgnore()).
-//		Exec(ctx)
-func (u *SourceTypeUpsertBulk) Ignore() *SourceTypeUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWithIgnore())
-	return u
-}
-
-// DoNothing configures the conflict_action to `DO NOTHING`.
-// Supported only by SQLite and PostgreSQL.
-func (u *SourceTypeUpsertBulk) DoNothing() *SourceTypeUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.DoNothing())
-	return u
-}
-
-// Update allows overriding fields `UPDATE` values. See the SourceTypeCreateBulk.OnConflict
-// documentation for more info.
-func (u *SourceTypeUpsertBulk) Update(set func(*SourceTypeUpsert)) *SourceTypeUpsertBulk {
-	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(update *sql.UpdateSet) {
-		set(&SourceTypeUpsert{UpdateSet: update})
-	}))
-	return u
-}
-
-// SetType sets the "type" field.
-func (u *SourceTypeUpsertBulk) SetType(v string) *SourceTypeUpsertBulk {
-	return u.Update(func(s *SourceTypeUpsert) {
-		s.SetType(v)
-	})
-}
-
-// UpdateType sets the "type" field to the value that was provided on create.
-func (u *SourceTypeUpsertBulk) UpdateType() *SourceTypeUpsertBulk {
-	return u.Update(func(s *SourceTypeUpsert) {
-		s.UpdateType()
-	})
-}
-
-// Exec executes the query.
-func (u *SourceTypeUpsertBulk) Exec(ctx context.Context) error {
-	for i, b := range u.create.builders {
-		if len(b.conflict) != 0 {
-			return fmt.Errorf("ent: OnConflict was set for builder %d. Set it on the SourceTypeCreateBulk instead", i)
-		}
-	}
-	if len(u.create.conflict) == 0 {
-		return errors.New("ent: missing options for SourceTypeCreateBulk.OnConflict")
-	}
-	return u.create.Exec(ctx)
-}
-
-// ExecX is like Exec, but panics if an error occurs.
-func (u *SourceTypeUpsertBulk) ExecX(ctx context.Context) {
-	if err := u.create.Exec(ctx); err != nil {
-		panic(err)
-	}
 }

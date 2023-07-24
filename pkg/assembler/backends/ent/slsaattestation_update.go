@@ -5,15 +5,12 @@ package ent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/dialect/sql/sqljson"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/artifact"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/builder"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/slsaattestation"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
@@ -197,7 +194,7 @@ func (sau *SLSAAttestationUpdate) ClearSubject() *SLSAAttestationUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (sau *SLSAAttestationUpdate) Save(ctx context.Context) (int, error) {
-	return withHooks(ctx, sau.sqlSave, sau.mutation, sau.hooks)
+	return withHooks(ctx, sau.gremlinSave, sau.mutation, sau.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -233,169 +230,94 @@ func (sau *SLSAAttestationUpdate) check() error {
 	return nil
 }
 
-func (sau *SLSAAttestationUpdate) sqlSave(ctx context.Context) (n int, err error) {
+func (sau *SLSAAttestationUpdate) gremlinSave(ctx context.Context) (int, error) {
 	if err := sau.check(); err != nil {
-		return n, err
+		return 0, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(slsaattestation.Table, slsaattestation.Columns, sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt))
-	if ps := sau.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
+	res := &gremlin.Response{}
+	query, bindings := sau.gremlin().Query()
+	if err := sau.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if value, ok := sau.mutation.BuildType(); ok {
-		_spec.SetField(slsaattestation.FieldBuildType, field.TypeString, value)
-	}
-	if value, ok := sau.mutation.SlsaPredicate(); ok {
-		_spec.SetField(slsaattestation.FieldSlsaPredicate, field.TypeJSON, value)
-	}
-	if value, ok := sau.mutation.AppendedSlsaPredicate(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, slsaattestation.FieldSlsaPredicate, value)
-		})
-	}
-	if sau.mutation.SlsaPredicateCleared() {
-		_spec.ClearField(slsaattestation.FieldSlsaPredicate, field.TypeJSON)
-	}
-	if value, ok := sau.mutation.SlsaVersion(); ok {
-		_spec.SetField(slsaattestation.FieldSlsaVersion, field.TypeString, value)
-	}
-	if value, ok := sau.mutation.StartedOn(); ok {
-		_spec.SetField(slsaattestation.FieldStartedOn, field.TypeTime, value)
-	}
-	if sau.mutation.StartedOnCleared() {
-		_spec.ClearField(slsaattestation.FieldStartedOn, field.TypeTime)
-	}
-	if value, ok := sau.mutation.FinishedOn(); ok {
-		_spec.SetField(slsaattestation.FieldFinishedOn, field.TypeTime, value)
-	}
-	if sau.mutation.FinishedOnCleared() {
-		_spec.ClearField(slsaattestation.FieldFinishedOn, field.TypeTime)
-	}
-	if value, ok := sau.mutation.Origin(); ok {
-		_spec.SetField(slsaattestation.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := sau.mutation.Collector(); ok {
-		_spec.SetField(slsaattestation.FieldCollector, field.TypeString, value)
-	}
-	if value, ok := sau.mutation.BuiltFromHash(); ok {
-		_spec.SetField(slsaattestation.FieldBuiltFromHash, field.TypeString, value)
-	}
-	if sau.mutation.BuiltFromCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: false,
-			Table:   slsaattestation.BuiltFromTable,
-			Columns: slsaattestation.BuiltFromPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sau.mutation.RemovedBuiltFromIDs(); len(nodes) > 0 && !sau.mutation.BuiltFromCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: false,
-			Table:   slsaattestation.BuiltFromTable,
-			Columns: slsaattestation.BuiltFromPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sau.mutation.BuiltFromIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: false,
-			Table:   slsaattestation.BuiltFromTable,
-			Columns: slsaattestation.BuiltFromPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if sau.mutation.BuiltByCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.BuiltByTable,
-			Columns: []string{slsaattestation.BuiltByColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sau.mutation.BuiltByIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.BuiltByTable,
-			Columns: []string{slsaattestation.BuiltByColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if sau.mutation.SubjectCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.SubjectTable,
-			Columns: []string{slsaattestation.SubjectColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sau.mutation.SubjectIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.SubjectTable,
-			Columns: []string{slsaattestation.SubjectColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if n, err = sqlgraph.UpdateNodes(ctx, sau.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{slsaattestation.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return 0, err
 	}
 	sau.mutation.done = true
-	return n, nil
+	return res.ReadInt()
+}
+
+func (sau *SLSAAttestationUpdate) gremlin() *dsl.Traversal {
+	v := g.V().HasLabel(slsaattestation.Label)
+	for _, p := range sau.mutation.predicates {
+		p(v)
+	}
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := sau.mutation.BuildType(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldBuildType, value)
+	}
+	if value, ok := sau.mutation.SlsaPredicate(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldSlsaPredicate, value)
+	}
+	if value, ok := sau.mutation.SlsaVersion(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldSlsaVersion, value)
+	}
+	if value, ok := sau.mutation.StartedOn(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldStartedOn, value)
+	}
+	if value, ok := sau.mutation.FinishedOn(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldFinishedOn, value)
+	}
+	if value, ok := sau.mutation.Origin(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldOrigin, value)
+	}
+	if value, ok := sau.mutation.Collector(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldCollector, value)
+	}
+	if value, ok := sau.mutation.BuiltFromHash(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldBuiltFromHash, value)
+	}
+	var properties []any
+	if sau.mutation.SlsaPredicateCleared() {
+		properties = append(properties, slsaattestation.FieldSlsaPredicate)
+	}
+	if sau.mutation.StartedOnCleared() {
+		properties = append(properties, slsaattestation.FieldStartedOn)
+	}
+	if sau.mutation.FinishedOnCleared() {
+		properties = append(properties, slsaattestation.FieldFinishedOn)
+	}
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	for _, id := range sau.mutation.RemovedBuiltFromIDs() {
+		tr := rv.Clone().OutE(slsaattestation.BuiltFromLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range sau.mutation.BuiltFromIDs() {
+		v.AddE(slsaattestation.BuiltFromLabel).To(g.V(id)).OutV()
+	}
+	if sau.mutation.BuiltByCleared() {
+		tr := rv.Clone().OutE(slsaattestation.BuiltByLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range sau.mutation.BuiltByIDs() {
+		v.AddE(slsaattestation.BuiltByLabel).To(g.V(id)).OutV()
+	}
+	if sau.mutation.SubjectCleared() {
+		tr := rv.Clone().OutE(slsaattestation.SubjectLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range sau.mutation.SubjectIDs() {
+		v.AddE(slsaattestation.SubjectLabel).To(g.V(id)).OutV()
+	}
+	v.Count()
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }
 
 // SLSAAttestationUpdateOne is the builder for updating a single SLSAAttestation entity.
@@ -584,7 +506,7 @@ func (sauo *SLSAAttestationUpdateOne) Select(field string, fields ...string) *SL
 
 // Save executes the query and returns the updated SLSAAttestation entity.
 func (sauo *SLSAAttestationUpdateOne) Save(ctx context.Context) (*SLSAAttestation, error) {
-	return withHooks(ctx, sauo.sqlSave, sauo.mutation, sauo.hooks)
+	return withHooks(ctx, sauo.gremlinSave, sauo.mutation, sauo.hooks)
 }
 
 // SaveX is like Save, but panics if an error occurs.
@@ -620,187 +542,106 @@ func (sauo *SLSAAttestationUpdateOne) check() error {
 	return nil
 }
 
-func (sauo *SLSAAttestationUpdateOne) sqlSave(ctx context.Context) (_node *SLSAAttestation, err error) {
+func (sauo *SLSAAttestationUpdateOne) gremlinSave(ctx context.Context) (*SLSAAttestation, error) {
 	if err := sauo.check(); err != nil {
-		return _node, err
+		return nil, err
 	}
-	_spec := sqlgraph.NewUpdateSpec(slsaattestation.Table, slsaattestation.Columns, sqlgraph.NewFieldSpec(slsaattestation.FieldID, field.TypeInt))
+	res := &gremlin.Response{}
 	id, ok := sauo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "SLSAAttestation.id" for update`)}
 	}
-	_spec.Node.ID.Value = id
-	if fields := sauo.fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, slsaattestation.FieldID)
-		for _, f := range fields {
-			if !slsaattestation.ValidColumn(f) {
-				return nil, &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-			}
-			if f != slsaattestation.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, f)
-			}
-		}
+	query, bindings := sauo.gremlin(id).Query()
+	if err := sauo.driver.Exec(ctx, query, bindings, res); err != nil {
+		return nil, err
 	}
-	if ps := sauo.mutation.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if value, ok := sauo.mutation.BuildType(); ok {
-		_spec.SetField(slsaattestation.FieldBuildType, field.TypeString, value)
-	}
-	if value, ok := sauo.mutation.SlsaPredicate(); ok {
-		_spec.SetField(slsaattestation.FieldSlsaPredicate, field.TypeJSON, value)
-	}
-	if value, ok := sauo.mutation.AppendedSlsaPredicate(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, slsaattestation.FieldSlsaPredicate, value)
-		})
-	}
-	if sauo.mutation.SlsaPredicateCleared() {
-		_spec.ClearField(slsaattestation.FieldSlsaPredicate, field.TypeJSON)
-	}
-	if value, ok := sauo.mutation.SlsaVersion(); ok {
-		_spec.SetField(slsaattestation.FieldSlsaVersion, field.TypeString, value)
-	}
-	if value, ok := sauo.mutation.StartedOn(); ok {
-		_spec.SetField(slsaattestation.FieldStartedOn, field.TypeTime, value)
-	}
-	if sauo.mutation.StartedOnCleared() {
-		_spec.ClearField(slsaattestation.FieldStartedOn, field.TypeTime)
-	}
-	if value, ok := sauo.mutation.FinishedOn(); ok {
-		_spec.SetField(slsaattestation.FieldFinishedOn, field.TypeTime, value)
-	}
-	if sauo.mutation.FinishedOnCleared() {
-		_spec.ClearField(slsaattestation.FieldFinishedOn, field.TypeTime)
-	}
-	if value, ok := sauo.mutation.Origin(); ok {
-		_spec.SetField(slsaattestation.FieldOrigin, field.TypeString, value)
-	}
-	if value, ok := sauo.mutation.Collector(); ok {
-		_spec.SetField(slsaattestation.FieldCollector, field.TypeString, value)
-	}
-	if value, ok := sauo.mutation.BuiltFromHash(); ok {
-		_spec.SetField(slsaattestation.FieldBuiltFromHash, field.TypeString, value)
-	}
-	if sauo.mutation.BuiltFromCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: false,
-			Table:   slsaattestation.BuiltFromTable,
-			Columns: slsaattestation.BuiltFromPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sauo.mutation.RemovedBuiltFromIDs(); len(nodes) > 0 && !sauo.mutation.BuiltFromCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: false,
-			Table:   slsaattestation.BuiltFromTable,
-			Columns: slsaattestation.BuiltFromPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sauo.mutation.BuiltFromIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2M,
-			Inverse: false,
-			Table:   slsaattestation.BuiltFromTable,
-			Columns: slsaattestation.BuiltFromPrimaryKey,
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if sauo.mutation.BuiltByCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.BuiltByTable,
-			Columns: []string{slsaattestation.BuiltByColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sauo.mutation.BuiltByIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.BuiltByTable,
-			Columns: []string{slsaattestation.BuiltByColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(builder.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if sauo.mutation.SubjectCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.SubjectTable,
-			Columns: []string{slsaattestation.SubjectColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := sauo.mutation.SubjectIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: false,
-			Table:   slsaattestation.SubjectTable,
-			Columns: []string{slsaattestation.SubjectColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(artifact.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	_node = &SLSAAttestation{config: sauo.config}
-	_spec.Assign = _node.assignValues
-	_spec.ScanValues = _node.scanValues
-	if err = sqlgraph.UpdateNode(ctx, sauo.driver, _spec); err != nil {
-		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{slsaattestation.Label}
-		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
-		}
+	if err, ok := isConstantError(res); ok {
 		return nil, err
 	}
 	sauo.mutation.done = true
-	return _node, nil
+	sa := &SLSAAttestation{config: sauo.config}
+	if err := sa.FromResponse(res); err != nil {
+		return nil, err
+	}
+	return sa, nil
+}
+
+func (sauo *SLSAAttestationUpdateOne) gremlin(id int) *dsl.Traversal {
+	v := g.V(id)
+	var (
+		rv = v.Clone()
+		_  = rv
+
+		trs []*dsl.Traversal
+	)
+	if value, ok := sauo.mutation.BuildType(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldBuildType, value)
+	}
+	if value, ok := sauo.mutation.SlsaPredicate(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldSlsaPredicate, value)
+	}
+	if value, ok := sauo.mutation.SlsaVersion(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldSlsaVersion, value)
+	}
+	if value, ok := sauo.mutation.StartedOn(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldStartedOn, value)
+	}
+	if value, ok := sauo.mutation.FinishedOn(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldFinishedOn, value)
+	}
+	if value, ok := sauo.mutation.Origin(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldOrigin, value)
+	}
+	if value, ok := sauo.mutation.Collector(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldCollector, value)
+	}
+	if value, ok := sauo.mutation.BuiltFromHash(); ok {
+		v.Property(dsl.Single, slsaattestation.FieldBuiltFromHash, value)
+	}
+	var properties []any
+	if sauo.mutation.SlsaPredicateCleared() {
+		properties = append(properties, slsaattestation.FieldSlsaPredicate)
+	}
+	if sauo.mutation.StartedOnCleared() {
+		properties = append(properties, slsaattestation.FieldStartedOn)
+	}
+	if sauo.mutation.FinishedOnCleared() {
+		properties = append(properties, slsaattestation.FieldFinishedOn)
+	}
+	if len(properties) > 0 {
+		v.SideEffect(__.Properties(properties...).Drop())
+	}
+	for _, id := range sauo.mutation.RemovedBuiltFromIDs() {
+		tr := rv.Clone().OutE(slsaattestation.BuiltFromLabel).Where(__.OtherV().HasID(id)).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range sauo.mutation.BuiltFromIDs() {
+		v.AddE(slsaattestation.BuiltFromLabel).To(g.V(id)).OutV()
+	}
+	if sauo.mutation.BuiltByCleared() {
+		tr := rv.Clone().OutE(slsaattestation.BuiltByLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range sauo.mutation.BuiltByIDs() {
+		v.AddE(slsaattestation.BuiltByLabel).To(g.V(id)).OutV()
+	}
+	if sauo.mutation.SubjectCleared() {
+		tr := rv.Clone().OutE(slsaattestation.SubjectLabel).Drop().Iterate()
+		trs = append(trs, tr)
+	}
+	for _, id := range sauo.mutation.SubjectIDs() {
+		v.AddE(slsaattestation.SubjectLabel).To(g.V(id)).OutV()
+	}
+	if len(sauo.fields) > 0 {
+		fields := make([]any, 0, len(sauo.fields)+1)
+		fields = append(fields, true)
+		for _, f := range sauo.fields {
+			fields = append(fields, f)
+		}
+		v.ValueMap(fields...)
+	} else {
+		v.ValueMap(true)
+	}
+	trs = append(trs, v)
+	return dsl.Join(trs...)
 }

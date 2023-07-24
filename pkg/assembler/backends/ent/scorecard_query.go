@@ -4,14 +4,13 @@ package ent
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyscorecard"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/scorecard"
 )
@@ -19,17 +18,14 @@ import (
 // ScorecardQuery is the builder for querying Scorecard entities.
 type ScorecardQuery struct {
 	config
-	ctx                     *QueryContext
-	order                   []scorecard.OrderOption
-	inters                  []Interceptor
-	predicates              []predicate.Scorecard
-	withCertifications      *CertifyScorecardQuery
-	modifiers               []func(*sql.Selector)
-	loadTotal               []func(context.Context, []*Scorecard) error
-	withNamedCertifications map[string]*CertifyScorecardQuery
+	ctx                *QueryContext
+	order              []scorecard.OrderOption
+	inters             []Interceptor
+	predicates         []predicate.Scorecard
+	withCertifications *CertifyScorecardQuery
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the ScorecardQuery builder.
@@ -66,20 +62,12 @@ func (sq *ScorecardQuery) Order(o ...scorecard.OrderOption) *ScorecardQuery {
 // QueryCertifications chains the current query on the "certifications" edge.
 func (sq *ScorecardQuery) QueryCertifications() *CertifyScorecardQuery {
 	query := (&CertifyScorecardClient{config: sq.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+	query.path = func(ctx context.Context) (fromU *dsl.Traversal, err error) {
 		if err := sq.prepareQuery(ctx); err != nil {
 			return nil, err
 		}
-		selector := sq.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(scorecard.Table, scorecard.FieldID, selector),
-			sqlgraph.To(certifyscorecard.Table, certifyscorecard.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, scorecard.CertificationsTable, scorecard.CertificationsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(sq.driver.Dialect(), step)
+		gremlin := sq.gremlinQuery(ctx)
+		fromU = gremlin.OutE(scorecard.CertificationsLabel).InV()
 		return fromU, nil
 	}
 	return query
@@ -279,8 +267,8 @@ func (sq *ScorecardQuery) Clone() *ScorecardQuery {
 		predicates:         append([]predicate.Scorecard{}, sq.predicates...),
 		withCertifications: sq.withCertifications.Clone(),
 		// clone intermediate query.
-		sql:  sq.sql.Clone(),
-		path: sq.path,
+		gremlin: sq.gremlin.Clone(),
+		path:    sq.path,
 	}
 }
 
@@ -354,199 +342,77 @@ func (sq *ScorecardQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range sq.ctx.Fields {
-		if !scorecard.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if sq.path != nil {
 		prev, err := sq.path(ctx)
 		if err != nil {
 			return err
 		}
-		sq.sql = prev
+		sq.gremlin = prev
 	}
 	return nil
 }
 
-func (sq *ScorecardQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Scorecard, error) {
-	var (
-		nodes       = []*Scorecard{}
-		_spec       = sq.querySpec()
-		loadedTypes = [1]bool{
-			sq.withCertifications != nil,
+func (sq *ScorecardQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*Scorecard, error) {
+	res := &gremlin.Response{}
+	traversal := sq.gremlinQuery(ctx)
+	if len(sq.ctx.Fields) > 0 {
+		fields := make([]any, len(sq.ctx.Fields))
+		for i, f := range sq.ctx.Fields {
+			fields[i] = f
 		}
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*Scorecard).scanValues(nil, columns)
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &Scorecard{config: sq.config}
-		nodes = append(nodes, node)
-		node.Edges.loadedTypes = loadedTypes
-		return node.assignValues(columns, values)
-	}
-	if len(sq.modifiers) > 0 {
-		_spec.Modifiers = sq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, sq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := sq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var sSlice Scorecards
+	if err := sSlice.FromResponse(res); err != nil {
+		return nil, err
 	}
-	if query := sq.withCertifications; query != nil {
-		if err := sq.loadCertifications(ctx, query, nodes,
-			func(n *Scorecard) { n.Edges.Certifications = []*CertifyScorecard{} },
-			func(n *Scorecard, e *CertifyScorecard) { n.Edges.Certifications = append(n.Edges.Certifications, e) }); err != nil {
-			return nil, err
-		}
+	for i := range sSlice {
+		sSlice[i].config = sq.config
 	}
-	for name, query := range sq.withNamedCertifications {
-		if err := sq.loadCertifications(ctx, query, nodes,
-			func(n *Scorecard) { n.appendNamedCertifications(name) },
-			func(n *Scorecard, e *CertifyScorecard) { n.appendNamedCertifications(name, e) }); err != nil {
-			return nil, err
-		}
-	}
-	for i := range sq.loadTotal {
-		if err := sq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
-	}
-	return nodes, nil
+	return sSlice, nil
 }
 
-func (sq *ScorecardQuery) loadCertifications(ctx context.Context, query *CertifyScorecardQuery, nodes []*Scorecard, init func(*Scorecard), assign func(*Scorecard, *CertifyScorecard)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int]*Scorecard)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
+func (sq *ScorecardQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := sq.gremlinQuery(ctx).Count().Query()
+	if err := sq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(certifyscorecard.FieldScorecardID)
-	}
-	query.Where(predicate.CertifyScorecard(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(scorecard.CertificationsColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.ScorecardID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "scorecard_id" returned %v for node %v`, fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
+	return res.ReadInt()
 }
 
-func (sq *ScorecardQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := sq.querySpec()
-	if len(sq.modifiers) > 0 {
-		_spec.Modifiers = sq.modifiers
-	}
-	_spec.Node.Columns = sq.ctx.Fields
-	if len(sq.ctx.Fields) > 0 {
-		_spec.Unique = sq.ctx.Unique != nil && *sq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, sq.driver, _spec)
-}
-
-func (sq *ScorecardQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(scorecard.Table, scorecard.Columns, sqlgraph.NewFieldSpec(scorecard.FieldID, field.TypeInt))
-	_spec.From = sq.sql
-	if unique := sq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if sq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := sq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, scorecard.FieldID)
-		for i := range fields {
-			if fields[i] != scorecard.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-	}
-	if ps := sq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := sq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := sq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := sq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (sq *ScorecardQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(sq.driver.Dialect())
-	t1 := builder.Table(scorecard.Table)
-	columns := sq.ctx.Fields
-	if len(columns) == 0 {
-		columns = scorecard.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if sq.sql != nil {
-		selector = sq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if sq.ctx.Unique != nil && *sq.ctx.Unique {
-		selector.Distinct()
+func (sq *ScorecardQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(scorecard.Label)
+	if sq.gremlin != nil {
+		v = sq.gremlin.Clone()
 	}
 	for _, p := range sq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range sq.order {
-		p(selector)
+	if len(sq.order) > 0 {
+		v.Order()
+		for _, p := range sq.order {
+			p(v)
+		}
 	}
-	if offset := sq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := sq.ctx.Limit, sq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := sq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := sq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
-}
-
-// WithNamedCertifications tells the query-builder to eager-load the nodes that are connected to the "certifications"
-// edge with the given name. The optional arguments are used to configure the query builder of the edge.
-func (sq *ScorecardQuery) WithNamedCertifications(name string, opts ...func(*CertifyScorecardQuery)) *ScorecardQuery {
-	query := (&CertifyScorecardClient{config: sq.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	if sq.withNamedCertifications == nil {
-		sq.withNamedCertifications = make(map[string]*CertifyScorecardQuery)
-	}
-	sq.withNamedCertifications[name] = query
-	return sq
+	return v
 }
 
 // ScorecardGroupBy is the group-by builder for Scorecard entities.
@@ -570,31 +436,38 @@ func (sgb *ScorecardGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*ScorecardQuery, *ScorecardGroupBy](ctx, sgb.build, sgb, sgb.build.inters, v)
 }
 
-func (sgb *ScorecardGroupBy) sqlScan(ctx context.Context, root *ScorecardQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(sgb.fns))
+func (sgb *ScorecardGroupBy) gremlinScan(ctx context.Context, root *ScorecardQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range sgb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*sgb.flds)+len(sgb.fns))
-		for _, f := range *sgb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *sgb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*sgb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*sgb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := sgb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sgb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*sgb.flds)+len(sgb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // ScorecardSelect is the builder for selecting fields of Scorecard entities.
@@ -618,23 +491,34 @@ func (ss *ScorecardSelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*ScorecardQuery, *ScorecardSelect](ctx, ss.ScorecardQuery, ss, ss.inters, v)
 }
 
-func (ss *ScorecardSelect) sqlScan(ctx context.Context, root *ScorecardQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(ss.fns))
-	for _, fn := range ss.fns {
-		aggregation = append(aggregation, fn(selector))
+func (ss *ScorecardSelect) gremlinScan(ctx context.Context, root *ScorecardQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := ss.ctx.Fields; len(fields) == 1 {
+		if fields[0] != scorecard.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(ss.ctx.Fields))
+		for i, f := range ss.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*ss.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := ss.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := ss.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }

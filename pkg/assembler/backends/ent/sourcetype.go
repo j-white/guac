@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcetype"
+	"entgo.io/ent/dialect/gremlin"
 )
 
 // SourceType is the model entity for the SourceType schema.
@@ -20,8 +18,7 @@ type SourceType struct {
 	Type string `json:"type,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the SourceTypeQuery when eager-loading is set.
-	Edges        SourceTypeEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges SourceTypeEdges `json:"edges"`
 }
 
 // SourceTypeEdges holds the relations/edges for other nodes in the graph.
@@ -31,10 +28,6 @@ type SourceTypeEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
-	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
-
-	namedNamespaces map[string][]*SourceNamespace
 }
 
 // NamespacesOrErr returns the Namespaces value or an error if the edge
@@ -46,53 +39,22 @@ func (e SourceTypeEdges) NamespacesOrErr() ([]*SourceNamespace, error) {
 	return nil, &NotLoadedError{edge: "namespaces"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*SourceType) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case sourcetype.FieldID:
-			values[i] = new(sql.NullInt64)
-		case sourcetype.FieldType:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into SourceType.
+func (st *SourceType) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the SourceType fields.
-func (st *SourceType) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanst struct {
+		ID   int    `json:"id,omitempty"`
+		Type string `json:"type,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case sourcetype.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			st.ID = int(value.Int64)
-		case sourcetype.FieldType:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field type", values[i])
-			} else if value.Valid {
-				st.Type = value.String
-			}
-		default:
-			st.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanst); err != nil {
+		return err
 	}
+	st.ID = scanst.ID
+	st.Type = scanst.Type
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the SourceType.
-// This includes values selected through modifiers, order, etc.
-func (st *SourceType) Value(name string) (ent.Value, error) {
-	return st.selectValues.Get(name)
 }
 
 // QueryNamespaces queries the "namespaces" edge of the SourceType entity.
@@ -129,29 +91,26 @@ func (st *SourceType) String() string {
 	return builder.String()
 }
 
-// NamedNamespaces returns the Namespaces named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (st *SourceType) NamedNamespaces(name string) ([]*SourceNamespace, error) {
-	if st.Edges.namedNamespaces == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := st.Edges.namedNamespaces[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (st *SourceType) appendNamedNamespaces(name string, edges ...*SourceNamespace) {
-	if st.Edges.namedNamespaces == nil {
-		st.Edges.namedNamespaces = make(map[string][]*SourceNamespace)
-	}
-	if len(edges) == 0 {
-		st.Edges.namedNamespaces[name] = []*SourceNamespace{}
-	} else {
-		st.Edges.namedNamespaces[name] = append(st.Edges.namedNamespaces[name], edges...)
-	}
-}
-
 // SourceTypes is a parsable slice of SourceType.
 type SourceTypes []*SourceType
+
+// FromResponse scans the gremlin response data into SourceTypes.
+func (st *SourceTypes) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanst []struct {
+		ID   int    `json:"id,omitempty"`
+		Type string `json:"type,omitempty"`
+	}
+	if err := vmap.Decode(&scanst); err != nil {
+		return err
+	}
+	for _, v := range scanst {
+		node := &SourceType{ID: v.ID}
+		node.Type = v.Type
+		*st = append(*st, node)
+	}
+	return nil
+}

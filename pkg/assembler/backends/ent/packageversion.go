@@ -3,14 +3,11 @@
 package ent
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -31,8 +28,7 @@ type PackageVersion struct {
 	Hash string `json:"hash,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the PackageVersionQuery when eager-loading is set.
-	Edges        PackageVersionEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges PackageVersionEdges `json:"edges"`
 }
 
 // PackageVersionEdges holds the relations/edges for other nodes in the graph.
@@ -48,12 +44,6 @@ type PackageVersionEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [4]bool
-	// totalCount holds the count of the edges above.
-	totalCount [4]map[string]int
-
-	namedOccurrences   map[string][]*Occurrence
-	namedSbom          map[string][]*BillOfMaterials
-	namedEqualPackages map[string][]*PkgEqual
 }
 
 // NameOrErr returns the Name value or an error if the edge
@@ -96,81 +86,30 @@ func (e PackageVersionEdges) EqualPackagesOrErr() ([]*PkgEqual, error) {
 	return nil, &NotLoadedError{edge: "equal_packages"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*PackageVersion) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case packageversion.FieldQualifiers:
-			values[i] = new([]byte)
-		case packageversion.FieldID, packageversion.FieldNameID:
-			values[i] = new(sql.NullInt64)
-		case packageversion.FieldVersion, packageversion.FieldSubpath, packageversion.FieldHash:
-			values[i] = new(sql.NullString)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into PackageVersion.
+func (pv *PackageVersion) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the PackageVersion fields.
-func (pv *PackageVersion) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanpv struct {
+		ID         int                      `json:"id,omitempty"`
+		NameID     int                      `json:"name_id,omitempty"`
+		Version    string                   `json:"version,omitempty"`
+		Subpath    string                   `json:"subpath,omitempty"`
+		Qualifiers []model.PackageQualifier `json:"qualifiers,omitempty"`
+		Hash       string                   `json:"hash,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case packageversion.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			pv.ID = int(value.Int64)
-		case packageversion.FieldNameID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field name_id", values[i])
-			} else if value.Valid {
-				pv.NameID = int(value.Int64)
-			}
-		case packageversion.FieldVersion:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field version", values[i])
-			} else if value.Valid {
-				pv.Version = value.String
-			}
-		case packageversion.FieldSubpath:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field subpath", values[i])
-			} else if value.Valid {
-				pv.Subpath = value.String
-			}
-		case packageversion.FieldQualifiers:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field qualifiers", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &pv.Qualifiers); err != nil {
-					return fmt.Errorf("unmarshal field qualifiers: %w", err)
-				}
-			}
-		case packageversion.FieldHash:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field hash", values[i])
-			} else if value.Valid {
-				pv.Hash = value.String
-			}
-		default:
-			pv.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanpv); err != nil {
+		return err
 	}
+	pv.ID = scanpv.ID
+	pv.NameID = scanpv.NameID
+	pv.Version = scanpv.Version
+	pv.Subpath = scanpv.Subpath
+	pv.Qualifiers = scanpv.Qualifiers
+	pv.Hash = scanpv.Hash
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the PackageVersion.
-// This includes values selected through modifiers, order, etc.
-func (pv *PackageVersion) Value(name string) (ent.Value, error) {
-	return pv.selectValues.Get(name)
 }
 
 // QueryName queries the "name" edge of the PackageVersion entity.
@@ -234,77 +173,34 @@ func (pv *PackageVersion) String() string {
 	return builder.String()
 }
 
-// NamedOccurrences returns the Occurrences named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (pv *PackageVersion) NamedOccurrences(name string) ([]*Occurrence, error) {
-	if pv.Edges.namedOccurrences == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := pv.Edges.namedOccurrences[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (pv *PackageVersion) appendNamedOccurrences(name string, edges ...*Occurrence) {
-	if pv.Edges.namedOccurrences == nil {
-		pv.Edges.namedOccurrences = make(map[string][]*Occurrence)
-	}
-	if len(edges) == 0 {
-		pv.Edges.namedOccurrences[name] = []*Occurrence{}
-	} else {
-		pv.Edges.namedOccurrences[name] = append(pv.Edges.namedOccurrences[name], edges...)
-	}
-}
-
-// NamedSbom returns the Sbom named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (pv *PackageVersion) NamedSbom(name string) ([]*BillOfMaterials, error) {
-	if pv.Edges.namedSbom == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := pv.Edges.namedSbom[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (pv *PackageVersion) appendNamedSbom(name string, edges ...*BillOfMaterials) {
-	if pv.Edges.namedSbom == nil {
-		pv.Edges.namedSbom = make(map[string][]*BillOfMaterials)
-	}
-	if len(edges) == 0 {
-		pv.Edges.namedSbom[name] = []*BillOfMaterials{}
-	} else {
-		pv.Edges.namedSbom[name] = append(pv.Edges.namedSbom[name], edges...)
-	}
-}
-
-// NamedEqualPackages returns the EqualPackages named value or an error if the edge was not
-// loaded in eager-loading with this name.
-func (pv *PackageVersion) NamedEqualPackages(name string) ([]*PkgEqual, error) {
-	if pv.Edges.namedEqualPackages == nil {
-		return nil, &NotLoadedError{edge: name}
-	}
-	nodes, ok := pv.Edges.namedEqualPackages[name]
-	if !ok {
-		return nil, &NotLoadedError{edge: name}
-	}
-	return nodes, nil
-}
-
-func (pv *PackageVersion) appendNamedEqualPackages(name string, edges ...*PkgEqual) {
-	if pv.Edges.namedEqualPackages == nil {
-		pv.Edges.namedEqualPackages = make(map[string][]*PkgEqual)
-	}
-	if len(edges) == 0 {
-		pv.Edges.namedEqualPackages[name] = []*PkgEqual{}
-	} else {
-		pv.Edges.namedEqualPackages[name] = append(pv.Edges.namedEqualPackages[name], edges...)
-	}
-}
-
 // PackageVersions is a parsable slice of PackageVersion.
 type PackageVersions []*PackageVersion
+
+// FromResponse scans the gremlin response data into PackageVersions.
+func (pv *PackageVersions) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanpv []struct {
+		ID         int                      `json:"id,omitempty"`
+		NameID     int                      `json:"name_id,omitempty"`
+		Version    string                   `json:"version,omitempty"`
+		Subpath    string                   `json:"subpath,omitempty"`
+		Qualifiers []model.PackageQualifier `json:"qualifiers,omitempty"`
+		Hash       string                   `json:"hash,omitempty"`
+	}
+	if err := vmap.Decode(&scanpv); err != nil {
+		return err
+	}
+	for _, v := range scanpv {
+		node := &PackageVersion{ID: v.ID}
+		node.NameID = v.NameID
+		node.Version = v.Version
+		node.Subpath = v.Subpath
+		node.Qualifiers = v.Qualifiers
+		node.Hash = v.Hash
+		*pv = append(*pv, node)
+	}
+	return nil
+}

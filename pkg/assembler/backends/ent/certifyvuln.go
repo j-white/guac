@@ -7,9 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/certifyvuln"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
 )
@@ -39,8 +37,7 @@ type CertifyVuln struct {
 	Collector string `json:"collector,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the CertifyVulnQuery when eager-loading is set.
-	Edges        CertifyVulnEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges CertifyVulnEdges `json:"edges"`
 }
 
 // CertifyVulnEdges holds the relations/edges for other nodes in the graph.
@@ -52,8 +49,6 @@ type CertifyVulnEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
-	// totalCount holds the count of the edges above.
-	totalCount [2]map[string]int
 }
 
 // VulnerabilityOrErr returns the Vulnerability value or an error if the edge
@@ -82,104 +77,38 @@ func (e CertifyVulnEdges) PackageOrErr() (*PackageVersion, error) {
 	return nil, &NotLoadedError{edge: "package"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*CertifyVuln) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case certifyvuln.FieldID, certifyvuln.FieldVulnerabilityID, certifyvuln.FieldPackageID:
-			values[i] = new(sql.NullInt64)
-		case certifyvuln.FieldDbURI, certifyvuln.FieldDbVersion, certifyvuln.FieldScannerURI, certifyvuln.FieldScannerVersion, certifyvuln.FieldOrigin, certifyvuln.FieldCollector:
-			values[i] = new(sql.NullString)
-		case certifyvuln.FieldTimeScanned:
-			values[i] = new(sql.NullTime)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into CertifyVuln.
+func (cv *CertifyVuln) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the CertifyVuln fields.
-func (cv *CertifyVuln) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scancv struct {
+		ID              int    `json:"id,omitempty"`
+		VulnerabilityID *int   `json:"vulnerability_id,omitempty"`
+		PackageID       int    `json:"package_id,omitempty"`
+		TimeScanned     int64  `json:"time_scanned,omitempty"`
+		DbURI           string `json:"db_uri,omitempty"`
+		DbVersion       string `json:"db_version,omitempty"`
+		ScannerURI      string `json:"scanner_uri,omitempty"`
+		ScannerVersion  string `json:"scanner_version,omitempty"`
+		Origin          string `json:"origin,omitempty"`
+		Collector       string `json:"collector,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case certifyvuln.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			cv.ID = int(value.Int64)
-		case certifyvuln.FieldVulnerabilityID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field vulnerability_id", values[i])
-			} else if value.Valid {
-				cv.VulnerabilityID = new(int)
-				*cv.VulnerabilityID = int(value.Int64)
-			}
-		case certifyvuln.FieldPackageID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_id", values[i])
-			} else if value.Valid {
-				cv.PackageID = int(value.Int64)
-			}
-		case certifyvuln.FieldTimeScanned:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field time_scanned", values[i])
-			} else if value.Valid {
-				cv.TimeScanned = value.Time
-			}
-		case certifyvuln.FieldDbURI:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field db_uri", values[i])
-			} else if value.Valid {
-				cv.DbURI = value.String
-			}
-		case certifyvuln.FieldDbVersion:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field db_version", values[i])
-			} else if value.Valid {
-				cv.DbVersion = value.String
-			}
-		case certifyvuln.FieldScannerURI:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field scanner_uri", values[i])
-			} else if value.Valid {
-				cv.ScannerURI = value.String
-			}
-		case certifyvuln.FieldScannerVersion:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field scanner_version", values[i])
-			} else if value.Valid {
-				cv.ScannerVersion = value.String
-			}
-		case certifyvuln.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				cv.Origin = value.String
-			}
-		case certifyvuln.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				cv.Collector = value.String
-			}
-		default:
-			cv.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scancv); err != nil {
+		return err
 	}
+	cv.ID = scancv.ID
+	cv.VulnerabilityID = scancv.VulnerabilityID
+	cv.PackageID = scancv.PackageID
+	cv.TimeScanned = time.Unix(0, scancv.TimeScanned)
+	cv.DbURI = scancv.DbURI
+	cv.DbVersion = scancv.DbVersion
+	cv.ScannerURI = scancv.ScannerURI
+	cv.ScannerVersion = scancv.ScannerVersion
+	cv.Origin = scancv.Origin
+	cv.Collector = scancv.Collector
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the CertifyVuln.
-// This includes values selected through modifiers, order, etc.
-func (cv *CertifyVuln) Value(name string) (ent.Value, error) {
-	return cv.selectValues.Get(name)
 }
 
 // QueryVulnerability queries the "vulnerability" edge of the CertifyVuln entity.
@@ -249,3 +178,40 @@ func (cv *CertifyVuln) String() string {
 
 // CertifyVulns is a parsable slice of CertifyVuln.
 type CertifyVulns []*CertifyVuln
+
+// FromResponse scans the gremlin response data into CertifyVulns.
+func (cv *CertifyVulns) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scancv []struct {
+		ID              int    `json:"id,omitempty"`
+		VulnerabilityID *int   `json:"vulnerability_id,omitempty"`
+		PackageID       int    `json:"package_id,omitempty"`
+		TimeScanned     int64  `json:"time_scanned,omitempty"`
+		DbURI           string `json:"db_uri,omitempty"`
+		DbVersion       string `json:"db_version,omitempty"`
+		ScannerURI      string `json:"scanner_uri,omitempty"`
+		ScannerVersion  string `json:"scanner_version,omitempty"`
+		Origin          string `json:"origin,omitempty"`
+		Collector       string `json:"collector,omitempty"`
+	}
+	if err := vmap.Decode(&scancv); err != nil {
+		return err
+	}
+	for _, v := range scancv {
+		node := &CertifyVuln{ID: v.ID}
+		node.VulnerabilityID = v.VulnerabilityID
+		node.PackageID = v.PackageID
+		node.TimeScanned = time.Unix(0, v.TimeScanned)
+		node.DbURI = v.DbURI
+		node.DbVersion = v.DbVersion
+		node.ScannerURI = v.ScannerURI
+		node.ScannerVersion = v.ScannerVersion
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		*cv = append(*cv, node)
+	}
+	return nil
+}

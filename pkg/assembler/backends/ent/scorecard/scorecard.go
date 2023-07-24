@@ -5,8 +5,7 @@ package scorecard
 import (
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 )
 
 const (
@@ -30,38 +29,9 @@ const (
 	FieldCollector = "collector"
 	// EdgeCertifications holds the string denoting the certifications edge name in mutations.
 	EdgeCertifications = "certifications"
-	// Table holds the table name of the scorecard in the database.
-	Table = "scorecards"
-	// CertificationsTable is the table that holds the certifications relation/edge.
-	CertificationsTable = "certify_scorecards"
-	// CertificationsInverseTable is the table name for the CertifyScorecard entity.
-	// It exists in this package in order to avoid circular dependency with the "certifyscorecard" package.
-	CertificationsInverseTable = "certify_scorecards"
-	// CertificationsColumn is the table column denoting the certifications relation/edge.
-	CertificationsColumn = "scorecard_id"
+	// CertificationsLabel holds the string label denoting the certifications edge type in the database.
+	CertificationsLabel = "scorecard_certifications"
 )
-
-// Columns holds all SQL columns for scorecard fields.
-var Columns = []string{
-	FieldID,
-	FieldChecks,
-	FieldAggregateScore,
-	FieldTimeScanned,
-	FieldScorecardVersion,
-	FieldScorecardCommit,
-	FieldOrigin,
-	FieldCollector,
-}
-
-// ValidColumn reports if the column name is valid (part of the table columns).
-func ValidColumn(column string) bool {
-	for i := range Columns {
-		if column == Columns[i] {
-			return true
-		}
-	}
-	return false
-}
 
 var (
 	// DefaultAggregateScore holds the default value on creation for the "aggregate_score" field.
@@ -71,60 +41,4 @@ var (
 )
 
 // OrderOption defines the ordering options for the Scorecard queries.
-type OrderOption func(*sql.Selector)
-
-// ByID orders the results by the id field.
-func ByID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldID, opts...).ToFunc()
-}
-
-// ByAggregateScore orders the results by the aggregate_score field.
-func ByAggregateScore(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldAggregateScore, opts...).ToFunc()
-}
-
-// ByTimeScanned orders the results by the time_scanned field.
-func ByTimeScanned(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldTimeScanned, opts...).ToFunc()
-}
-
-// ByScorecardVersion orders the results by the scorecard_version field.
-func ByScorecardVersion(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldScorecardVersion, opts...).ToFunc()
-}
-
-// ByScorecardCommit orders the results by the scorecard_commit field.
-func ByScorecardCommit(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldScorecardCommit, opts...).ToFunc()
-}
-
-// ByOrigin orders the results by the origin field.
-func ByOrigin(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOrigin, opts...).ToFunc()
-}
-
-// ByCollector orders the results by the collector field.
-func ByCollector(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCollector, opts...).ToFunc()
-}
-
-// ByCertificationsCount orders the results by certifications count.
-func ByCertificationsCount(opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborsCount(s, newCertificationsStep(), opts...)
-	}
-}
-
-// ByCertifications orders the results by certifications terms.
-func ByCertifications(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newCertificationsStep(), append([]sql.OrderTerm{term}, terms...)...)
-	}
-}
-func newCertificationsStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(CertificationsInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.O2M, false, CertificationsTable, CertificationsColumn),
-	)
-}
+type OrderOption func(*dsl.Traversal)

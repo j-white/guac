@@ -7,9 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect/sql"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/hassourceat"
+	"entgo.io/ent/dialect/gremlin"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packagename"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/packageversion"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/sourcename"
@@ -36,8 +34,7 @@ type HasSourceAt struct {
 	Collector string `json:"collector,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the HasSourceAtQuery when eager-loading is set.
-	Edges        HasSourceAtEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges HasSourceAtEdges `json:"edges"`
 }
 
 // HasSourceAtEdges holds the relations/edges for other nodes in the graph.
@@ -51,8 +48,6 @@ type HasSourceAtEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [3]bool
-	// totalCount holds the count of the edges above.
-	totalCount [3]map[string]int
 }
 
 // PackageVersionOrErr returns the PackageVersion value or an error if the edge
@@ -94,93 +89,34 @@ func (e HasSourceAtEdges) SourceOrErr() (*SourceName, error) {
 	return nil, &NotLoadedError{edge: "source"}
 }
 
-// scanValues returns the types for scanning values from sql.Rows.
-func (*HasSourceAt) scanValues(columns []string) ([]any, error) {
-	values := make([]any, len(columns))
-	for i := range columns {
-		switch columns[i] {
-		case hassourceat.FieldID, hassourceat.FieldPackageVersionID, hassourceat.FieldPackageNameID, hassourceat.FieldSourceID:
-			values[i] = new(sql.NullInt64)
-		case hassourceat.FieldJustification, hassourceat.FieldOrigin, hassourceat.FieldCollector:
-			values[i] = new(sql.NullString)
-		case hassourceat.FieldKnownSince:
-			values[i] = new(sql.NullTime)
-		default:
-			values[i] = new(sql.UnknownType)
-		}
+// FromResponse scans the gremlin response data into HasSourceAt.
+func (hsa *HasSourceAt) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
 	}
-	return values, nil
-}
-
-// assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the HasSourceAt fields.
-func (hsa *HasSourceAt) assignValues(columns []string, values []any) error {
-	if m, n := len(values), len(columns); m < n {
-		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
+	var scanhsa struct {
+		ID               int    `json:"id,omitempty"`
+		PackageVersionID *int   `json:"package_version_id,omitempty"`
+		PackageNameID    *int   `json:"package_name_id,omitempty"`
+		SourceID         int    `json:"source_id,omitempty"`
+		KnownSince       int64  `json:"known_since,omitempty"`
+		Justification    string `json:"justification,omitempty"`
+		Origin           string `json:"origin,omitempty"`
+		Collector        string `json:"collector,omitempty"`
 	}
-	for i := range columns {
-		switch columns[i] {
-		case hassourceat.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
-			}
-			hsa.ID = int(value.Int64)
-		case hassourceat.FieldPackageVersionID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_version_id", values[i])
-			} else if value.Valid {
-				hsa.PackageVersionID = new(int)
-				*hsa.PackageVersionID = int(value.Int64)
-			}
-		case hassourceat.FieldPackageNameID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field package_name_id", values[i])
-			} else if value.Valid {
-				hsa.PackageNameID = new(int)
-				*hsa.PackageNameID = int(value.Int64)
-			}
-		case hassourceat.FieldSourceID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field source_id", values[i])
-			} else if value.Valid {
-				hsa.SourceID = int(value.Int64)
-			}
-		case hassourceat.FieldKnownSince:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field known_since", values[i])
-			} else if value.Valid {
-				hsa.KnownSince = value.Time
-			}
-		case hassourceat.FieldJustification:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field justification", values[i])
-			} else if value.Valid {
-				hsa.Justification = value.String
-			}
-		case hassourceat.FieldOrigin:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field origin", values[i])
-			} else if value.Valid {
-				hsa.Origin = value.String
-			}
-		case hassourceat.FieldCollector:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field collector", values[i])
-			} else if value.Valid {
-				hsa.Collector = value.String
-			}
-		default:
-			hsa.selectValues.Set(columns[i], values[i])
-		}
+	if err := vmap.Decode(&scanhsa); err != nil {
+		return err
 	}
+	hsa.ID = scanhsa.ID
+	hsa.PackageVersionID = scanhsa.PackageVersionID
+	hsa.PackageNameID = scanhsa.PackageNameID
+	hsa.SourceID = scanhsa.SourceID
+	hsa.KnownSince = time.Unix(0, scanhsa.KnownSince)
+	hsa.Justification = scanhsa.Justification
+	hsa.Origin = scanhsa.Origin
+	hsa.Collector = scanhsa.Collector
 	return nil
-}
-
-// Value returns the ent.Value that was dynamically selected and assigned to the HasSourceAt.
-// This includes values selected through modifiers, order, etc.
-func (hsa *HasSourceAt) Value(name string) (ent.Value, error) {
-	return hsa.selectValues.Get(name)
 }
 
 // QueryPackageVersion queries the "package_version" edge of the HasSourceAt entity.
@@ -251,3 +187,36 @@ func (hsa *HasSourceAt) String() string {
 
 // HasSourceAts is a parsable slice of HasSourceAt.
 type HasSourceAts []*HasSourceAt
+
+// FromResponse scans the gremlin response data into HasSourceAts.
+func (hsa *HasSourceAts) FromResponse(res *gremlin.Response) error {
+	vmap, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	var scanhsa []struct {
+		ID               int    `json:"id,omitempty"`
+		PackageVersionID *int   `json:"package_version_id,omitempty"`
+		PackageNameID    *int   `json:"package_name_id,omitempty"`
+		SourceID         int    `json:"source_id,omitempty"`
+		KnownSince       int64  `json:"known_since,omitempty"`
+		Justification    string `json:"justification,omitempty"`
+		Origin           string `json:"origin,omitempty"`
+		Collector        string `json:"collector,omitempty"`
+	}
+	if err := vmap.Decode(&scanhsa); err != nil {
+		return err
+	}
+	for _, v := range scanhsa {
+		node := &HasSourceAt{ID: v.ID}
+		node.PackageVersionID = v.PackageVersionID
+		node.PackageNameID = v.PackageNameID
+		node.SourceID = v.SourceID
+		node.KnownSince = time.Unix(0, v.KnownSince)
+		node.Justification = v.Justification
+		node.Origin = v.Origin
+		node.Collector = v.Collector
+		*hsa = append(*hsa, node)
+	}
+	return nil
+}

@@ -3,14 +3,9 @@
 package enttest
 
 import (
-	"context"
-
 	"github.com/guacsec/guac/pkg/assembler/backends/ent"
 	// required by schema hooks.
 	_ "github.com/guacsec/guac/pkg/assembler/backends/ent/runtime"
-
-	"entgo.io/ent/dialect/sql/schema"
-	"github.com/guacsec/guac/pkg/assembler/backends/ent/migrate"
 )
 
 type (
@@ -25,8 +20,7 @@ type (
 	Option func(*options)
 
 	options struct {
-		opts        []ent.Option
-		migrateOpts []schema.MigrateOption
+		opts []ent.Option
 	}
 )
 
@@ -34,13 +28,6 @@ type (
 func WithOptions(opts ...ent.Option) Option {
 	return func(o *options) {
 		o.opts = append(o.opts, opts...)
-	}
-}
-
-// WithMigrateOptions forwards options to auto migration.
-func WithMigrateOptions(opts ...schema.MigrateOption) Option {
-	return func(o *options) {
-		o.migrateOpts = append(o.migrateOpts, opts...)
 	}
 }
 
@@ -60,7 +47,6 @@ func Open(t TestingT, driverName, dataSourceName string, opts ...Option) *ent.Cl
 		t.Error(err)
 		t.FailNow()
 	}
-	migrateSchema(t, c, o)
 	return c
 }
 
@@ -68,17 +54,5 @@ func Open(t TestingT, driverName, dataSourceName string, opts ...Option) *ent.Cl
 func NewClient(t TestingT, opts ...Option) *ent.Client {
 	o := newOptions(opts)
 	c := ent.NewClient(o.opts...)
-	migrateSchema(t, c, o)
 	return c
-}
-func migrateSchema(t TestingT, c *ent.Client, o *options) {
-	tables, err := schema.CopyTables(migrate.Tables)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	if err := migrate.Create(context.Background(), c.Schema, tables, o.migrateOpts...); err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
 }

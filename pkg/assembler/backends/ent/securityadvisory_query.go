@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"math"
 
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"entgo.io/ent/dialect/gremlin"
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/__"
+	"entgo.io/ent/dialect/gremlin/graph/dsl/g"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/predicate"
 	"github.com/guacsec/guac/pkg/assembler/backends/ent/securityadvisory"
 )
@@ -21,11 +22,9 @@ type SecurityAdvisoryQuery struct {
 	order      []securityadvisory.OrderOption
 	inters     []Interceptor
 	predicates []predicate.SecurityAdvisory
-	modifiers  []func(*sql.Selector)
-	loadTotal  []func(context.Context, []*SecurityAdvisory) error
 	// intermediate query (i.e. traversal path).
-	sql  *sql.Selector
-	path func(context.Context) (*sql.Selector, error)
+	gremlin *dsl.Traversal
+	path    func(context.Context) (*dsl.Traversal, error)
 }
 
 // Where adds a new predicate for the SecurityAdvisoryQuery builder.
@@ -252,8 +251,8 @@ func (saq *SecurityAdvisoryQuery) Clone() *SecurityAdvisoryQuery {
 		inters:     append([]Interceptor{}, saq.inters...),
 		predicates: append([]predicate.SecurityAdvisory{}, saq.predicates...),
 		// clone intermediate query.
-		sql:  saq.sql.Clone(),
-		path: saq.path,
+		gremlin: saq.gremlin.Clone(),
+		path:    saq.path,
 	}
 }
 
@@ -316,136 +315,77 @@ func (saq *SecurityAdvisoryQuery) prepareQuery(ctx context.Context) error {
 			}
 		}
 	}
-	for _, f := range saq.ctx.Fields {
-		if !securityadvisory.ValidColumn(f) {
-			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
-		}
-	}
 	if saq.path != nil {
 		prev, err := saq.path(ctx)
 		if err != nil {
 			return err
 		}
-		saq.sql = prev
+		saq.gremlin = prev
 	}
 	return nil
 }
 
-func (saq *SecurityAdvisoryQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*SecurityAdvisory, error) {
-	var (
-		nodes = []*SecurityAdvisory{}
-		_spec = saq.querySpec()
-	)
-	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*SecurityAdvisory).scanValues(nil, columns)
+func (saq *SecurityAdvisoryQuery) gremlinAll(ctx context.Context, hooks ...queryHook) ([]*SecurityAdvisory, error) {
+	res := &gremlin.Response{}
+	traversal := saq.gremlinQuery(ctx)
+	if len(saq.ctx.Fields) > 0 {
+		fields := make([]any, len(saq.ctx.Fields))
+		for i, f := range saq.ctx.Fields {
+			fields[i] = f
+		}
+		traversal.ValueMap(fields...)
+	} else {
+		traversal.ValueMap(true)
 	}
-	_spec.Assign = func(columns []string, values []any) error {
-		node := &SecurityAdvisory{config: saq.config}
-		nodes = append(nodes, node)
-		return node.assignValues(columns, values)
-	}
-	if len(saq.modifiers) > 0 {
-		_spec.Modifiers = saq.modifiers
-	}
-	for i := range hooks {
-		hooks[i](ctx, _spec)
-	}
-	if err := sqlgraph.QueryNodes(ctx, saq.driver, _spec); err != nil {
+	query, bindings := traversal.Query()
+	if err := saq.driver.Exec(ctx, query, bindings, res); err != nil {
 		return nil, err
 	}
-	if len(nodes) == 0 {
-		return nodes, nil
+	var sas SecurityAdvisories
+	if err := sas.FromResponse(res); err != nil {
+		return nil, err
 	}
-	for i := range saq.loadTotal {
-		if err := saq.loadTotal[i](ctx, nodes); err != nil {
-			return nil, err
-		}
+	for i := range sas {
+		sas[i].config = saq.config
 	}
-	return nodes, nil
+	return sas, nil
 }
 
-func (saq *SecurityAdvisoryQuery) sqlCount(ctx context.Context) (int, error) {
-	_spec := saq.querySpec()
-	if len(saq.modifiers) > 0 {
-		_spec.Modifiers = saq.modifiers
+func (saq *SecurityAdvisoryQuery) gremlinCount(ctx context.Context) (int, error) {
+	res := &gremlin.Response{}
+	query, bindings := saq.gremlinQuery(ctx).Count().Query()
+	if err := saq.driver.Exec(ctx, query, bindings, res); err != nil {
+		return 0, err
 	}
-	_spec.Node.Columns = saq.ctx.Fields
-	if len(saq.ctx.Fields) > 0 {
-		_spec.Unique = saq.ctx.Unique != nil && *saq.ctx.Unique
-	}
-	return sqlgraph.CountNodes(ctx, saq.driver, _spec)
+	return res.ReadInt()
 }
 
-func (saq *SecurityAdvisoryQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(securityadvisory.Table, securityadvisory.Columns, sqlgraph.NewFieldSpec(securityadvisory.FieldID, field.TypeInt))
-	_spec.From = saq.sql
-	if unique := saq.ctx.Unique; unique != nil {
-		_spec.Unique = *unique
-	} else if saq.path != nil {
-		_spec.Unique = true
-	}
-	if fields := saq.ctx.Fields; len(fields) > 0 {
-		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, securityadvisory.FieldID)
-		for i := range fields {
-			if fields[i] != securityadvisory.FieldID {
-				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
-			}
-		}
-	}
-	if ps := saq.predicates; len(ps) > 0 {
-		_spec.Predicate = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	if limit := saq.ctx.Limit; limit != nil {
-		_spec.Limit = *limit
-	}
-	if offset := saq.ctx.Offset; offset != nil {
-		_spec.Offset = *offset
-	}
-	if ps := saq.order; len(ps) > 0 {
-		_spec.Order = func(selector *sql.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
-	return _spec
-}
-
-func (saq *SecurityAdvisoryQuery) sqlQuery(ctx context.Context) *sql.Selector {
-	builder := sql.Dialect(saq.driver.Dialect())
-	t1 := builder.Table(securityadvisory.Table)
-	columns := saq.ctx.Fields
-	if len(columns) == 0 {
-		columns = securityadvisory.Columns
-	}
-	selector := builder.Select(t1.Columns(columns...)...).From(t1)
-	if saq.sql != nil {
-		selector = saq.sql
-		selector.Select(selector.Columns(columns...)...)
-	}
-	if saq.ctx.Unique != nil && *saq.ctx.Unique {
-		selector.Distinct()
+func (saq *SecurityAdvisoryQuery) gremlinQuery(context.Context) *dsl.Traversal {
+	v := g.V().HasLabel(securityadvisory.Label)
+	if saq.gremlin != nil {
+		v = saq.gremlin.Clone()
 	}
 	for _, p := range saq.predicates {
-		p(selector)
+		p(v)
 	}
-	for _, p := range saq.order {
-		p(selector)
+	if len(saq.order) > 0 {
+		v.Order()
+		for _, p := range saq.order {
+			p(v)
+		}
 	}
-	if offset := saq.ctx.Offset; offset != nil {
-		// limit is mandatory for offset clause. We start
-		// with default value, and override it below if needed.
-		selector.Offset(*offset).Limit(math.MaxInt32)
+	switch limit, offset := saq.ctx.Limit, saq.ctx.Offset; {
+	case limit != nil && offset != nil:
+		v.Range(*offset, *offset+*limit)
+	case offset != nil:
+		v.Range(*offset, math.MaxInt32)
+	case limit != nil:
+		v.Limit(*limit)
 	}
-	if limit := saq.ctx.Limit; limit != nil {
-		selector.Limit(*limit)
+	if unique := saq.ctx.Unique; unique == nil || *unique {
+		v.Dedup()
 	}
-	return selector
+	return v
 }
 
 // SecurityAdvisoryGroupBy is the group-by builder for SecurityAdvisory entities.
@@ -469,31 +409,38 @@ func (sagb *SecurityAdvisoryGroupBy) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*SecurityAdvisoryQuery, *SecurityAdvisoryGroupBy](ctx, sagb.build, sagb, sagb.build.inters, v)
 }
 
-func (sagb *SecurityAdvisoryGroupBy) sqlScan(ctx context.Context, root *SecurityAdvisoryQuery, v any) error {
-	selector := root.sqlQuery(ctx).Select()
-	aggregation := make([]string, 0, len(sagb.fns))
+func (sagb *SecurityAdvisoryGroupBy) gremlinScan(ctx context.Context, root *SecurityAdvisoryQuery, v any) error {
+	var (
+		trs   []any
+		names []any
+	)
 	for _, fn := range sagb.fns {
-		aggregation = append(aggregation, fn(selector))
+		name, tr := fn("p", "")
+		trs = append(trs, tr)
+		names = append(names, name)
 	}
-	if len(selector.SelectedColumns()) == 0 {
-		columns := make([]string, 0, len(*sagb.flds)+len(sagb.fns))
-		for _, f := range *sagb.flds {
-			columns = append(columns, selector.C(f))
-		}
-		columns = append(columns, aggregation...)
-		selector.Select(columns...)
+	for _, f := range *sagb.flds {
+		names = append(names, f)
+		trs = append(trs, __.As("p").Unfold().Values(f).As(f))
 	}
-	selector.GroupBy(selector.Columns(*sagb.flds...)...)
-	if err := selector.Err(); err != nil {
+	query, bindings := root.gremlinQuery(ctx).Group().
+		By(__.Values(*sagb.flds...).Fold()).
+		By(__.Fold().Match(trs...).Select(names...)).
+		Select(dsl.Values).
+		Next().
+		Query()
+	res := &gremlin.Response{}
+	if err := sagb.build.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sagb.build.driver.Query(ctx, query, args, rows); err != nil {
+	if len(*sagb.flds)+len(sagb.fns) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	return vm.Decode(v)
 }
 
 // SecurityAdvisorySelect is the builder for selecting fields of SecurityAdvisory entities.
@@ -517,23 +464,34 @@ func (sas *SecurityAdvisorySelect) Scan(ctx context.Context, v any) error {
 	return scanWithInterceptors[*SecurityAdvisoryQuery, *SecurityAdvisorySelect](ctx, sas.SecurityAdvisoryQuery, sas, sas.inters, v)
 }
 
-func (sas *SecurityAdvisorySelect) sqlScan(ctx context.Context, root *SecurityAdvisoryQuery, v any) error {
-	selector := root.sqlQuery(ctx)
-	aggregation := make([]string, 0, len(sas.fns))
-	for _, fn := range sas.fns {
-		aggregation = append(aggregation, fn(selector))
+func (sas *SecurityAdvisorySelect) gremlinScan(ctx context.Context, root *SecurityAdvisoryQuery, v any) error {
+	var (
+		res       = &gremlin.Response{}
+		traversal = root.gremlinQuery(ctx)
+	)
+	if fields := sas.ctx.Fields; len(fields) == 1 {
+		if fields[0] != securityadvisory.FieldID {
+			traversal = traversal.Values(fields...)
+		} else {
+			traversal = traversal.ID()
+		}
+	} else {
+		fields := make([]any, len(sas.ctx.Fields))
+		for i, f := range sas.ctx.Fields {
+			fields[i] = f
+		}
+		traversal = traversal.ValueMap(fields...)
 	}
-	switch n := len(*sas.selector.flds); {
-	case n == 0 && len(aggregation) > 0:
-		selector.Select(aggregation...)
-	case n != 0 && len(aggregation) > 0:
-		selector.AppendSelect(aggregation...)
-	}
-	rows := &sql.Rows{}
-	query, args := selector.Query()
-	if err := sas.driver.Query(ctx, query, args, rows); err != nil {
+	query, bindings := traversal.Query()
+	if err := sas.driver.Exec(ctx, query, bindings, res); err != nil {
 		return err
 	}
-	defer rows.Close()
-	return sql.ScanSlice(rows, v)
+	if len(root.ctx.Fields) == 1 {
+		return res.ReadVal(v)
+	}
+	vm, err := res.ReadValueMap()
+	if err != nil {
+		return err
+	}
+	return vm.Decode(v)
 }
