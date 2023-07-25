@@ -24,11 +24,6 @@ import (
 )
 
 const (
-	algorithm string = "algorithm"
-	digest    string = "digest"
-)
-
-const (
 	Artifact Label = "artifact"
 )
 

@@ -34,6 +34,25 @@ func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (
 	return r.GetInt64()
 }
 
+//func (c *tinkerpopClient) bulkUpsertVertex(properties []map[interface{}]interface{}) ([]int64, error) {
+//	g := gremlingo.Traversal_().WithRemote(c.remote)
+//	r, err := g.MergeV(properties).Id().Next()
+//	if err != nil {
+//		return -1, err
+//	}
+//	return r.GetInt64()
+//}
+
+func storeMapInVertexProperties(properties map[interface{}]interface{}, propertyName string, mapToStore map[string]string) {
+	mapToStoreJson, _ := json.Marshal(mapToStore)
+	properties[propertyName] = string(mapToStoreJson)
+}
+
+func storeArrayInVertexProperties2(properties map[interface{}]interface{}, propertyName string, mapToStore []string) {
+	mapToStoreJson, _ := json.Marshal(mapToStore)
+	properties[propertyName] = string(mapToStoreJson)
+}
+
 func storeArrayInVertexProperties(checks []*model.ScorecardCheckInputSpec, propertyName string, vertexProperties map[interface{}]interface{}) {
 	// flatten checks into a list keys (check name) and a list of values (the scores)
 	checksMap := map[string]int{}
