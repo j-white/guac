@@ -19,69 +19,35 @@ import (
 	"context"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
-	// FIXME: Bulk insert support
-	var sourceObjects []*model.Source
-	for _, sourceSpec := range sources {
-		source, err := c.IngestSource(ctx, *sourceSpec)
-		if err != nil {
-			return sourceObjects, err
-		}
-		sourceObjects = append(sourceObjects, source)
-	}
-	return sourceObjects, nil
-}
-
-func (c *tinkerpopClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
-	// FIXME: We should be using an upsert pattern
-	// FIXME: How do we differentiate vertices of different "types"
-	//var __ = gremlingo.T__
-	//	v := g.MergeV(__.Id(source.Name).Option()).Property("sourceType", source.Type).Property("namespace", source.Namespace)
-	// FIXME: Make sure we close
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	tx := g.Tx()
-	gtx, _ := tx.Begin()
-
-	v := gtx.AddV(source.Name).Property("sourceType", source.Type).Property("namespace", source.Namespace)
-
-	if source.Commit != nil && source.Tag != nil {
-		if *source.Commit != "" && *source.Tag != "" {
-			return nil, gqlerror.Errorf("Passing both commit and tag selectors is an error")
-		}
-	}
+func getSourceQueryValues(source *model.SourceInputSpec) map[interface{}]interface{} {
+	values := make(map[interface{}]interface{})
+	values[gremlingo.T.Label] = string(Source)
+	values[typeStr] = source.Type
+	values[namespace] = source.Namespace
 
 	if source.Commit != nil {
-		v = v.Property("commit", *source.Commit)
+		values[commit] = *source.Commit
 	} else {
-		v = v.Property("commit", "")
+		values[commit] = ""
 	}
 
 	if source.Tag != nil {
-		v = v.Property("tag", *source.Tag)
+		values[tag] = *source.Tag
 	} else {
-		v = v.Property("tag", "")
+		values[tag] = ""
 	}
 
-	r, err := v.ElementMap().Next()
-	if err != nil {
-		return nil, err
-	}
-	resultMap := r.GetInterface().(map[interface{}]interface{})
+	return values
+}
 
-	err = tx.Commit()
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate the model.Source in the database after process the model.SourceInputSpec
-	return generateModelSource(resultMap["sourceType"].(string),
-		resultMap["namespace"].(string),
-		resultMap["label"].(string),
-		resultMap["commit"].(string),
-		resultMap["tag"].(string)), nil
+func getSourceObject(id int64, values map[interface{}]interface{}) *model.Source {
+	return generateModelSource((values[typeStr].([]interface{}))[0].(string),
+		(values["namespace"].([]interface{}))[0].(string),
+		(values["label"].([]interface{}))[0].(string),
+		(values["commit"].([]interface{}))[0].(string),
+		(values["tag"].([]interface{}))[0].(string))
 }
 
 func generateModelSource(srcType, namespaceStr, nameStr string, commitValue, tagValue interface{}) *model.Source {
@@ -111,4 +77,12 @@ func generateModelSource(srcType, namespaceStr, nameStr string, commitValue, tag
 		Namespaces: []*model.SourceNamespace{namespace},
 	}
 	return &src
+}
+
+func (c *tinkerpopClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
+	return ingestModelObject[*model.SourceInputSpec, *model.Source](c, &source, getSourceQueryValues, getSourceObject)
+}
+
+func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
+	return bulkIngestModelObjects[*model.SourceInputSpec, *model.Source](c, sources, getSourceQueryValues, getSourceObject)
 }

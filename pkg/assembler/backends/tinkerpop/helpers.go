@@ -17,6 +17,8 @@ package tinkerpop
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"sort"
@@ -34,14 +36,78 @@ func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (
 	return r.GetInt64()
 }
 
-//func (c *tinkerpopClient) bulkUpsertVertex(properties []map[interface{}]interface{}) ([]int64, error) {
-//	g := gremlingo.Traversal_().WithRemote(c.remote)
-//	r, err := g.MergeV(properties).Id().Next()
-//	if err != nil {
-//		return -1, err
-//	}
-//	return r.GetInt64()
-//}
+func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]int64, error) {
+	var ids []int64
+	var gt *gremlingo.GraphTraversal
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	// chain all of the upserts
+	for i, properties := range allProperties {
+		vertexRef := fmt.Sprintf("v:%d", i)
+		if i == 0 {
+			gt = g.MergeV(properties).As(vertexRef)
+		} else {
+			gt = gt.MergeV(properties).As(vertexRef)
+		}
+	}
+
+	results, err := gt.ToList()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, result := range results {
+		resultMap := result.GetInterface().(map[interface{}]interface{})
+		ids = append(ids, resultMap[string(gremlingo.T.Id)].(int64))
+	}
+
+	return ids, nil
+}
+
+type MapSerializer[M any] func(model M) (result map[interface{}]interface{})
+
+type ObjectDeserializer[M any] func(id int64, values map[interface{}]interface{}) (model M)
+
+func ingestModelObject[C any, D any](c *tinkerpopClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
+	var object D
+	values := serializer(modelObject)
+	// Verify that label is present
+	if _, ok := values[gremlingo.T.Label]; ok {
+		return object, errors.New("missing label!!! please add it :)")
+	}
+
+	id, err := c.upsertVertex(values)
+	if err != nil {
+		return object, err
+	}
+	object = deserializer(id, values)
+	return object, nil
+}
+
+func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) ([]D, error) {
+	var objects []D
+
+	// serialize
+	var allValues []map[interface{}]interface{}
+	for _, modelObject := range modelObjects {
+		values := serializer(modelObject)
+		allValues = append(allValues, values)
+	}
+
+	ids, err := c.bulkUpsertVertices(allValues)
+	if err != nil {
+		return objects, err
+	}
+
+	if len(ids) != len(modelObjects) {
+		return nil, errors.New("the lengths dont match, I am sad")
+	}
+
+	for k := range modelObjects {
+		object := deserializer(ids[k], allValues[k])
+		objects = append(objects, object)
+	}
+	return objects, nil
+}
 
 func storeMapInVertexProperties(properties map[interface{}]interface{}, propertyName string, mapToStore map[string]string) {
 	mapToStoreJson, _ := json.Marshal(mapToStore)

@@ -27,6 +27,7 @@ const (
 	algorithm string = "algorithm"
 	digest    string = "digest"
 	typeStr   string = "type"
+	uri       string = "uri"
 
 	guacEmpty string = "guac-empty-@@"
 )
