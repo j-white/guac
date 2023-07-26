@@ -172,48 +172,17 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} 
 	return values
 }
 
-func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
-	pkgValues := getPackageQueryValues(&pkg)
-
-	id, err := c.upsertVertex(pkgValues)
-	if err != nil {
-		return nil, err
-	}
-
-	pkgObject := &model.Package{
+func getPackageObject(id int64, values map[interface{}]interface{}) *model.Package {
+	return &model.Package{
 		ID:   strconv.FormatInt(id, 10),
-		Type: pkgValues[typeStr].(string),
+		Type: values[typeStr].(string),
 	}
+}
 
-	return pkgObject, nil
+func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
+	return ingestModelObject[*model.PkgInputSpec, *model.Package](c, &pkg, getPackageQueryValues, getPackageObject)
 }
 
 func (c *tinkerpopClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
-	// map
-	var listOfValues []map[interface{}]interface{}
-	for i := range pkgs {
-		listOfValues = append(listOfValues, getPackageQueryValues(pkgs[i]))
-	}
-
-	// upsert
-	var listOfIds []int64
-	for i := range listOfValues {
-		id, err := c.upsertVertex(listOfValues[i])
-		if err != nil {
-			return nil, err
-		}
-		listOfIds = append(listOfIds, id)
-	}
-
-	// map -> object
-	var listOfPackages []*model.Package
-	for i := range listOfValues {
-		pkg := &model.Package{
-			ID:   strconv.FormatInt(listOfIds[i], 10),
-			Type: listOfValues[i][typeStr].(string),
-		}
-		listOfPackages = append(listOfPackages, pkg)
-	}
-
-	return listOfPackages, nil
+	return bulkIngestModelObjects[*model.PkgInputSpec, *model.Package](c, pkgs, getPackageQueryValues, getPackageObject)
 }

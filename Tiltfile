@@ -15,6 +15,7 @@ k8s_resource(
 k8s_resource(
    workload='guac-graphql',
    port_forwards=[
-      port_forward(8080, 8080, name='graphql')
+      port_forward(8080, 8080, name='graphql'),
+      port_forward(5555, 5555, name='graphql-debug')
    ]
 )

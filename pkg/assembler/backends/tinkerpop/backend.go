@@ -28,7 +28,10 @@ const (
 	digest    string = "digest"
 	typeStr   string = "type"
 	uri       string = "uri"
-
+	year      string = "year"
+	cveId     string = "cveId"
+	osvId     string = "osvId"
+	ghsaId    string = "ghsaId"
 	guacEmpty string = "guac-empty-@@"
 )
 
@@ -101,21 +104,6 @@ func (c *tinkerpopClient) Builders(ctx context.Context, builderSpec *model.Build
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*model.Cve, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) Ghsa(ctx context.Context, ghsaSpec *model.GHSASpec) ([]*model.Ghsa, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) Osv(ctx context.Context, osvSpec *model.OSVSpec) ([]*model.Osv, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
 	//TODO implement me
 	panic("implement me")
@@ -156,11 +144,6 @@ func (c *tinkerpopClient) HashEqual(ctx context.Context, hashEqualSpec *model.Ha
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *model.IsOccurrenceSpec) ([]*model.IsOccurrence, error) {
 	//TODO implement me
 	panic("implement me")
@@ -176,22 +159,7 @@ func (c *tinkerpopClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgE
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) IngestCve(ctx context.Context, cve *model.CVEInputSpec) (*model.Cve, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestGhsa(ctx context.Context, ghsa *model.GHSAInputSpec) (*model.Ghsa, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) IngestMaterials(ctx context.Context, materials []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestOsv(ctx context.Context, osv *model.OSVInputSpec) (*model.Osv, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -202,16 +170,6 @@ func (c *tinkerpopClient) IngestCertifyBad(ctx context.Context, subject model.Pa
 }
 
 func (c *tinkerpopClient) IngestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec) (*model.CertifyGood, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -287,21 +245,6 @@ func (c *tinkerpopClient) FindSoftware(ctx context.Context, searchText string) (
 }
 
 func (c *tinkerpopClient) CertifyBad(ctx context.Context, certifyBadSpec *model.CertifyBadSpec) ([]*model.CertifyBad, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestCVEs(ctx context.Context, cves []*model.CVEInputSpec) ([]*model.Cve, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestGHSAs(ctx context.Context, ghsas []*model.GHSAInputSpec) ([]*model.Ghsa, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestOSVs(ctx context.Context, osvs []*model.OSVInputSpec) ([]*model.Osv, error) {
 	//TODO implement me
 	panic("implement me")
 }

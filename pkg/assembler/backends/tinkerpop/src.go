@@ -24,6 +24,7 @@ import (
 func getSourceQueryValues(source *model.SourceInputSpec) map[interface{}]interface{} {
 	values := make(map[interface{}]interface{})
 	values[gremlingo.T.Label] = string(Source)
+	values[name] = source.Name
 	values[typeStr] = source.Type
 	values[namespace] = source.Namespace
 
@@ -43,11 +44,11 @@ func getSourceQueryValues(source *model.SourceInputSpec) map[interface{}]interfa
 }
 
 func getSourceObject(id int64, values map[interface{}]interface{}) *model.Source {
-	return generateModelSource((values[typeStr].([]interface{}))[0].(string),
-		(values["namespace"].([]interface{}))[0].(string),
-		(values["label"].([]interface{}))[0].(string),
-		(values["commit"].([]interface{}))[0].(string),
-		(values["tag"].([]interface{}))[0].(string))
+	return generateModelSource(values[typeStr].(string),
+		values[namespace].(string),
+		values[name].(string),
+		values[commit].(string),
+		values[tag].(string))
 }
 
 func generateModelSource(srcType, namespaceStr, nameStr string, commitValue, tagValue interface{}) *model.Source {

@@ -30,6 +30,7 @@ type Label string
 func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (int64, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(properties).Id().Next()
+	fmt.Printf("MOO: Upsert results for input props: %v\nResult: %v\nError: %v\n", properties, r, err)
 	if err != nil {
 		return -1, err
 	}
@@ -38,26 +39,31 @@ func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (
 
 func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]int64, error) {
 	var ids []int64
+	var vertexRefs []interface{}
 	var gt *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	// chain all of the upserts
+	// chain the upserts
 	for i, properties := range allProperties {
 		vertexRef := fmt.Sprintf("v:%d", i)
+		vertexRefs = append(vertexRefs, vertexRef)
 		if i == 0 {
 			gt = g.MergeV(properties).As(vertexRef)
 		} else {
 			gt = gt.MergeV(properties).As(vertexRef)
 		}
 	}
-
-	results, err := gt.ToList()
+	results, err := gt.Select(vertexRefs...).Select(gremlingo.Column.Values).Unfold().Id().ToList()
+	fmt.Printf("MOO: Bulk upsert results for input props: %v\nResults: %v\nError: %v\n", allProperties, results, err)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, result := range results {
-		resultMap := result.GetInterface().(map[interface{}]interface{})
-		ids = append(ids, resultMap[string(gremlingo.T.Id)].(int64))
+		id, err := result.GetInt64()
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
 	}
 
 	return ids, nil
@@ -67,11 +73,15 @@ type MapSerializer[M any] func(model M) (result map[interface{}]interface{})
 
 type ObjectDeserializer[M any] func(id int64, values map[interface{}]interface{}) (model M)
 
+/*
+C is typically an InputSpec
+D is model object w/ id after upsert
+*/
 func ingestModelObject[C any, D any](c *tinkerpopClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
 	var object D
 	values := serializer(modelObject)
 	// Verify that label is present
-	if _, ok := values[gremlingo.T.Label]; ok {
+	if _, ok := values[gremlingo.T.Label]; !ok {
 		return object, errors.New("missing label!!! please add it :)")
 	}
 
@@ -85,6 +95,10 @@ func ingestModelObject[C any, D any](c *tinkerpopClient, modelObject C, serializ
 
 func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) ([]D, error) {
 	var objects []D
+	if len(modelObjects) < 1 {
+		// nothing to do
+		return objects, nil
+	}
 
 	// serialize
 	var allValues []map[interface{}]interface{}
@@ -92,6 +106,8 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 		values := serializer(modelObject)
 		allValues = append(allValues, values)
 	}
+
+	fmt.Printf("MOO0 objects: %v\nvalues: %v\n", modelObjects, allValues)
 
 	ids, err := c.bulkUpsertVertices(allValues)
 	if err != nil {

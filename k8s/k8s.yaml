@@ -72,6 +72,8 @@ spec:
           ports:
             - name: http-port
               containerPort: 8080
+            - name: debug-port
+              containerPort: 5555
           readinessProbe:
             httpGet:
               path: /healthz
