@@ -27,6 +27,11 @@ import (
 
 type Label string
 
+// too ugly
+func (c *tinkerpopClient) upsertEdge(srcProps map[interface{}]interface{}, targetProps map[interface{}]interface{}, edgeProps map[interface{}]interface{}) (int64, int64, int64, error) {
+	return 0, 0, 0, nil
+}
+
 func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (int64, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(properties).Id().Next()

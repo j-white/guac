@@ -41,3 +41,8 @@ func (c *tinkerpopClient) IngestSLSA(ctx context.Context, subject model.Artifact
 		},
 	}, nil
 }
+
+func (c *tinkerpopClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
+	//TODO implement me
+	panic("implement me")
+}

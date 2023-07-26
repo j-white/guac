@@ -24,15 +24,16 @@ import (
 )
 
 const (
-	algorithm string = "algorithm"
-	digest    string = "digest"
-	typeStr   string = "type"
-	uri       string = "uri"
-	year      string = "year"
-	cveId     string = "cveId"
-	osvId     string = "osvId"
-	ghsaId    string = "ghsaId"
-	guacEmpty string = "guac-empty-@@"
+	algorithm     string = "algorithm"
+	digest        string = "digest"
+	typeStr       string = "type"
+	uri           string = "uri"
+	year          string = "year"
+	cveId         string = "cveId"
+	osvId         string = "osvId"
+	ghsaId        string = "ghsaId"
+	guacEmpty     string = "guac-empty-@@"
+	justification string = "justification"
 )
 
 type TinkerPopConfig struct {
@@ -43,11 +44,6 @@ type TinkerPopConfig struct {
 type tinkerpopClient struct {
 	config TinkerPopConfig
 	remote *gremlingo.DriverRemoteConnection
-}
-
-func (c *tinkerpopClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
