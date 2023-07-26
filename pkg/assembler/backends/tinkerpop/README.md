@@ -103,6 +103,11 @@ gremlin> :>  g.V().hasLabel("scorecard").as("scorecard").out().hasLabel("source"
 ==>{scorecard=v[147584], source=v[41080]}
 ```
 
+MergeE
+```
+gremlin> :> g.mergeV([(T.label):'Dog',name:'Toby']).as('Toby').mergeV([(T.label):'Dog',name:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').id().toList()
+```
+
 # Demo
 
 * Get local environment up with Tilt
@@ -110,3 +115,5 @@ gremlin> :>  g.V().hasLabel("scorecard").as("scorecard").out().hasLabel("source"
 * Enter Gremlin console, show empty graph: `:> g.V()`
 * GraphQL playground: upsert and search
 * Add `Dedup()` to query, in `scorecard.go:215`, wait for reload, query, error
+
+

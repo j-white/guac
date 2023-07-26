@@ -5,7 +5,6 @@ import (
 	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"strconv"
 )
 
 const (
@@ -33,9 +32,9 @@ func getDependencyQueryValues(pkg *model.PkgInputSpec, depPkg *model.PkgInputSpe
 	return values
 }
 
-func getDependencyObject(id int64, values map[interface{}]interface{}) *model.IsDependency {
+func getDependencyObject(id string, values map[interface{}]interface{}) *model.IsDependency {
 	isDependency := &model.IsDependency{
-		ID: strconv.FormatInt(id, 10),
+		ID: id,
 		//Package:          pkg,
 		//DependentPackage: depPkg,
 		//VersionRange:     createdValue.VersionRange,
@@ -57,21 +56,21 @@ func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInp
 	// upsert (pkg -- (dep) --> deppkg)
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// FIXME: No usert here, should use v.Has() instead
+	fmt.Printf("MOO upsert for edge: %v\n", dependencyEdgeProperties)
+
 	r, err := g.MergeV(pkgVertexProperties).As("pkg").
 		MergeV(depPkgVertexProperties).As("depPkg").
 		MergeE(dependencyEdgeProperties).As("edge").
 		// late bind
 		Option(gremlingo.Merge.InV, gremlingo.T__.Select("pkg")).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("depPkg")).
-		Select("edge").Next()
-	fmt.Printf("MOO upsert: %v %v\n", r, err)
+		Select("edge").Id().ToList()
+	fmt.Printf("MOO upsert for edge has results: %v %v\n", r, err)
 	if err != nil {
 		return nil, err
 	}
-	id, err := r.GetInt64()
-	if err != nil {
-		return nil, err
-	}
+	id := "x" // r.GetString()
+	fmt.Printf("MOO upsert returned id: %v\n", id)
 
 	return getDependencyObject(id, dependencyEdgeProperties), nil
 }
