@@ -19,3 +19,10 @@ k8s_resource(
       port_forward(5555, 5555, name='graphql-debug')
    ]
 )
+
+k8s_resource(
+   workload='janusgraph',
+   port_forwards=[
+      port_forward(5005, 5005, name='java-debug')
+   ]
+)

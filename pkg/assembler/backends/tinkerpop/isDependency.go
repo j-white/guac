@@ -5,6 +5,7 @@ import (
 	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	"strconv"
 )
 
 const (
@@ -64,15 +65,15 @@ func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInp
 		// late bind
 		Option(gremlingo.Merge.InV, gremlingo.T__.Select("pkg")).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("depPkg")).
-		Select("edge").Id().ToList()
+		Select("edge").Id().Next()
 	fmt.Printf("MOO upsert for edge has results: %v %v\n", r, err)
 	if err != nil {
 		return nil, err
 	}
-	id := "x" // r.GetString()
+	id := r.GetInterface().(*gremlingo.JanusRelationIdentifier)
 	fmt.Printf("MOO upsert returned id: %v\n", id)
 
-	return getDependencyObject(id, dependencyEdgeProperties), nil
+	return getDependencyObject(strconv.FormatInt(id.RelationId, 10), dependencyEdgeProperties), nil
 }
 
 func (c *tinkerpopClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
