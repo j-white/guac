@@ -50,6 +50,8 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	ctx := logging.WithLogger(context.Background())
 	logger := logging.FromContext(ctx)
 
+	registerCustomTypeReaders()
+
 	config := args.(*TinkerPopConfig)
 	// FIXME: Make this configurable
 	config.MaxLimit = 1000

@@ -70,10 +70,10 @@ func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInp
 	if err != nil {
 		return nil, err
 	}
-	id := r.GetInterface().(*gremlingo.JanusRelationIdentifier)
+	id := r.GetInterface() //.(*gremlingo.JanusRelationIdentifier)
 	fmt.Printf("MOO upsert returned id: %v\n", id)
 
-	return getDependencyObject(strconv.FormatInt(id.RelationId, 10), dependencyEdgeProperties), nil
+	return getDependencyObject(strconv.FormatInt(1, 10), dependencyEdgeProperties), nil
 }
 
 func (c *tinkerpopClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
