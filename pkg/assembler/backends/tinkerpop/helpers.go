@@ -35,7 +35,6 @@ func (c *tinkerpopClient) upsertEdge(srcProps map[interface{}]interface{}, targe
 func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (int64, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(properties).Id().Next()
-	fmt.Printf("MOO: Upsert results for input props: %v\nResult: %v\nError: %v\n", properties, r, err)
 	if err != nil {
 		return -1, err
 	}
@@ -58,7 +57,6 @@ func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]int
 		}
 	}
 	results, err := gt.Select(vertexRefs...).Select(gremlingo.Column.Values).Unfold().Id().ToList()
-	fmt.Printf("MOO: Bulk upsert results for input props: %v\nResults: %v\nError: %v\n", allProperties, results, err)
 	if err != nil {
 		return nil, err
 	}
@@ -111,8 +109,6 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 		values := serializer(modelObject)
 		allValues = append(allValues, values)
 	}
-
-	fmt.Printf("MOO0 objects: %v\nvalues: %v\n", modelObjects, allValues)
 
 	ids, err := c.bulkUpsertVertices(allValues)
 	if err != nil {

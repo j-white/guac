@@ -57,8 +57,6 @@ func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInp
 	// upsert (pkg -- (dep) --> deppkg)
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// FIXME: No usert here, should use v.Has() instead
-	fmt.Printf("MOO upsert for edge: %v\n", dependencyEdgeProperties)
-
 	r, err := g.MergeV(pkgVertexProperties).As("pkg").
 		MergeV(depPkgVertexProperties).As("depPkg").
 		MergeE(dependencyEdgeProperties).As("edge").
@@ -66,14 +64,11 @@ func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInp
 		Option(gremlingo.Merge.InV, gremlingo.T__.Select("pkg")).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("depPkg")).
 		Select("edge").Id().Next()
-	fmt.Printf("MOO upsert for edge has results: %v %v\n", r, err)
 	if err != nil {
 		return nil, err
 	}
-	id := r.GetInterface() //.(*gremlingo.JanusRelationIdentifier)
-	fmt.Printf("MOO upsert returned id: %v\n", id)
-
-	return getDependencyObject(strconv.FormatInt(1, 10), dependencyEdgeProperties), nil
+	edgeId := r.GetInterface().(*janusgraphRelationIdentifier)
+	return getDependencyObject(strconv.FormatInt(edgeId.RelationId, 10), dependencyEdgeProperties), nil
 }
 
 func (c *tinkerpopClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {

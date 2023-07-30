@@ -15,7 +15,7 @@ const (
 	valueFlagNone          byte   = 0
 )
 
-type JanusgraphRelationIdentifier struct {
+type janusgraphRelationIdentifier struct {
 	OutVertexIdLong   int64
 	OutVertexIdString string
 	TypeId            int64
@@ -29,7 +29,7 @@ func registerCustomTypeReaders() {
 }
 
 func janusgraphRelationIdentifierReader(data *[]byte, i *int) (interface{}, error) {
-	r := new(JanusgraphRelationIdentifier)
+	r := new(janusgraphRelationIdentifier)
 
 	// expect type code
 	customDataTyp := readUint32Safe(data, i)
