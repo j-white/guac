@@ -137,11 +137,6 @@ func (c *tinkerpopClient) HashEqual(ctx context.Context, hashEqualSpec *model.Ha
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *model.IsOccurrenceSpec) ([]*model.IsOccurrence, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) IsVulnerability(ctx context.Context, isVulnerabilitySpec *model.IsVulnerabilitySpec) ([]*model.IsVulnerability, error) {
 	//TODO implement me
 	panic("implement me")
@@ -178,16 +173,6 @@ func (c *tinkerpopClient) IngestHashEqual(ctx context.Context, artifact model.Ar
 }
 
 func (c *tinkerpopClient) IngestIsVulnerability(ctx context.Context, osv model.OSVInputSpec, vulnerability model.CveOrGhsaInput, isVulnerability model.IsVulnerabilityInputSpec) (*model.IsVulnerability, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestOccurrence(ctx context.Context, subject model.PackageOrSourceInput, artifact model.ArtifactInputSpec, occurrence model.IsOccurrenceInputSpec) (*model.IsOccurrence, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestOccurrences(ctx context.Context, subjects model.PackageOrSourceInputs, artifacts []*model.ArtifactInputSpec, occurrences []*model.IsOccurrenceInputSpec) ([]*model.IsOccurrence, error) {
 	//TODO implement me
 	panic("implement me")
 }

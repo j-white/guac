@@ -29,20 +29,24 @@ func (c *tinkerpopClient) IngestSLSA(ctx context.Context, subject model.Artifact
 		ID:      "1",
 		Subject: artifact,
 		Slsa: &model.Slsa{
-			//BuiltFrom:     builtFrom.,
-			//BuiltBy:       c.convBuilder(bb),
-			BuildType: slsa.BuildType,
-			//SlsaPredicate: predicate,
-			SlsaVersion: slsa.SlsaVersion,
-			StartedOn:   slsa.StartedOn,
-			FinishedOn:  slsa.FinishedOn,
-			Origin:      slsa.Origin,
-			Collector:   slsa.Collector,
+			BuiltFrom:     nil,
+			BuiltBy:       &model.Builder{},
+			BuildType:     slsa.BuildType,
+			SlsaPredicate: nil,
+			SlsaVersion:   slsa.SlsaVersion,
+			StartedOn:     slsa.StartedOn,
+			FinishedOn:    slsa.FinishedOn,
+			Origin:        slsa.Origin,
+			Collector:     slsa.Collector,
 		},
 	}, nil
 }
 
 func (c *tinkerpopClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
-	//TODO implement me
-	panic("implement me")
+	var hasSlsaList []*model.HasSlsa
+	for k := range subjects {
+		hasSlsa, _ := c.IngestSLSA(ctx, *subjects[k], builtFromList[k], *builtByList[k], *slsaList[k])
+		hasSlsaList = append(hasSlsaList, hasSlsa)
+	}
+	return hasSlsaList, nil
 }

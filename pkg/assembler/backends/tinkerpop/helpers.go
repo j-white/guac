@@ -90,6 +90,7 @@ func ingestModelObject[C any, D any](c *tinkerpopClient, modelObject C, serializ
 
 	id, err := c.upsertVertex(values)
 	if err != nil {
+		fmt.Println("MOO_ERR", err)
 		return object, err
 	}
 	object = deserializer(id, values)
@@ -110,18 +111,26 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 		allValues = append(allValues, values)
 	}
 
-	var ids []int64
-	var err error
-	if len(allValues) == 1 {
-		id, err := c.upsertVertex(allValues[0])
-		if err != nil {
-			return objects, err
-		}
-		ids = []int64{id}
-	} else {
-		ids, err = c.bulkUpsertVertices(allValues)
-		if err != nil {
-			return objects, err
+	// split in chunk to limit websocket frame size
+	// FIXME: make this configurable
+	// FIXME: given these span multiple requests, we should wrap them in a single transaction
+	// FIXME: can we do these in parallel? (probably not if they are in a single transaction)
+	var ids = make([]int64, 0)
+	const MaxChunkSize = 100
+	for _, chunk := range chunkSlice(allValues, MaxChunkSize) {
+		if len(chunk) == 1 {
+			// if there's only 1, the query handling is different, so do a normal upsert
+			idForChunk, err := c.upsertVertex(chunk[0])
+			if err != nil {
+				return objects, err
+			}
+			ids = append(ids, idForChunk)
+		} else {
+			idsForChunk, err := c.bulkUpsertVertices(chunk)
+			if err != nil {
+				return objects, err
+			}
+			ids = append(ids, idsForChunk...)
 		}
 	}
 
@@ -134,6 +143,18 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 		objects = append(objects, object)
 	}
 	return objects, nil
+}
+
+func chunkSlice[T any](slice []T, chunkSize int) [][]T {
+	var chunks [][]T
+	for i := 0; i < len(slice); i += chunkSize {
+		end := i + chunkSize
+		if end > len(slice) {
+			end = len(slice)
+		}
+		chunks = append(chunks, slice[i:end])
+	}
+	return chunks
 }
 
 func storeMapInVertexProperties(properties map[interface{}]interface{}, propertyName string, mapToStore map[string]string) {

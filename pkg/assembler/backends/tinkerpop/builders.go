@@ -22,7 +22,7 @@ func getBuilderQueryValues(builder *model.BuilderInputSpec) map[interface{}]inte
 func getBuilderObject(id int64, values map[interface{}]interface{}) *model.Builder {
 	return &model.Builder{
 		ID:  strconv.FormatInt(id, 10),
-		URI: (values[uri].([]interface{}))[0].(string),
+		URI: values[uri].(string),
 	}
 }
 
