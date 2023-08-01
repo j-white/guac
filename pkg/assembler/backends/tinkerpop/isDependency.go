@@ -35,14 +35,14 @@ func getDependencyQueryValues(pkg *model.PkgInputSpec, depPkg *model.PkgInputSpe
 
 func getDependencyObject(id string, values map[interface{}]interface{}) *model.IsDependency {
 	isDependency := &model.IsDependency{
-		ID: id,
-		//Package:          pkg,
-		//DependentPackage: depPkg,
-		//VersionRange:     createdValue.VersionRange,
-		//DependencyType:   dependencyTypeEnum,
-		Justification: values[justification].(string),
-		Origin:        values[collector].(string),
-		Collector:     values[origin].(string),
+		ID:               id,
+		Package:          &model.Package{},
+		DependentPackage: &model.Package{},
+		VersionRange:     "",
+		DependencyType:   model.DependencyTypeDirect,
+		Justification:    values[justification].(string),
+		Origin:           values[collector].(string),
+		Collector:        values[origin].(string),
 	}
 	return isDependency
 }

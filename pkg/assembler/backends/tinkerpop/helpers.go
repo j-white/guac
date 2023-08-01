@@ -110,9 +110,19 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 		allValues = append(allValues, values)
 	}
 
-	ids, err := c.bulkUpsertVertices(allValues)
-	if err != nil {
-		return objects, err
+	var ids []int64
+	var err error
+	if len(allValues) == 1 {
+		id, err := c.upsertVertex(allValues[0])
+		if err != nil {
+			return objects, err
+		}
+		ids = []int64{id}
+	} else {
+		ids, err = c.bulkUpsertVertices(allValues)
+		if err != nil {
+			return objects, err
+		}
 	}
 
 	if len(ids) != len(modelObjects) {

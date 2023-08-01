@@ -9,7 +9,10 @@ k8s_yaml('k8s/k8s.yaml')
 
 k8s_resource(
     workload='guac-collectsub',
-    resource_deps=['nats']
+    resource_deps=['nats'],
+     port_forwards=[
+        port_forward(2782, 2782, name='csub-grpc')
+     ]
 )
 
 k8s_resource(

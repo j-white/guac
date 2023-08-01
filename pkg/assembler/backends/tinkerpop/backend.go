@@ -122,11 +122,6 @@ func (c *tinkerpopClient) CertifyVuln(ctx context.Context, certifyVulnSpec *mode
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) HasSBOM(ctx context.Context, hasSBOMSpec *model.HasSBOMSpec) ([]*model.HasSbom, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) HasSlsa(ctx context.Context, hasSLSASpec *model.HasSLSASpec) ([]*model.HasSlsa, error) {
 	//TODO implement me
 	panic("implement me")
@@ -168,11 +163,6 @@ func (c *tinkerpopClient) IngestCertifyBad(ctx context.Context, subject model.Pa
 }
 
 func (c *tinkerpopClient) IngestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec) (*model.CertifyGood, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *tinkerpopClient) IngestHasSbom(ctx context.Context, subject model.PackageOrArtifactInput, hasSbom model.HasSBOMInputSpec) (*model.HasSbom, error) {
 	//TODO implement me
 	panic("implement me")
 }
