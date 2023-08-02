@@ -26,6 +26,7 @@ k8s_resource(
 k8s_resource(
    workload='janusgraph',
    port_forwards=[
+      port_forward(8182, 8182, name='gremlim-ws'),
       port_forward(5005, 5005, name='java-debug')
    ]
 )

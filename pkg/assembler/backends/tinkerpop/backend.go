@@ -21,6 +21,7 @@ import (
 	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/guacsec/guac/pkg/logging"
+	"strings"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 )
 
 type TinkerPopConfig struct {
+	Url          string
 	SettingsFile string
 	MaxLimit     uint32
 }
@@ -55,9 +57,12 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	config := args.(*TinkerPopConfig)
 	// FIXME: Make this configurable
 	config.MaxLimit = 1000
+	if strings.TrimSpace(config.Url) == "" {
+		config.Url = "ws://janusgraph:8182/gremlin"
+	}
 
 	// FIXME: Is there no clean shutdown of the backend?
-	remote, err := gremlingo.NewDriverRemoteConnection("ws://janusgraph:8182/gremlin")
+	remote, err := gremlingo.NewDriverRemoteConnection(config.Url)
 	if err != nil {
 		return nil, err
 	}

@@ -100,3 +100,21 @@ func readString(data *[]byte, i *int) (interface{}, error) {
 	*i += sz
 	return string((*data)[*i-sz : *i]), nil
 }
+
+func printSchema(remote *gremlingo.DriverRemoteConnection) error {
+	r := new(gremlingo.RequestOptionsBuilder).AddBinding("x", 2).AddBinding("y", 5).Create()
+	stmt := "mgmt = graph.openManagement()\nmgmt.printSchema()\n"
+	rs, err := remote.SubmitWithOptions(stmt, r)
+	results, err := rs.All()
+	fmt.Println("results", results)
+	return err
+}
+
+func createIndices(remote *gremlingo.DriverRemoteConnection) error {
+	r := new(gremlingo.RequestOptionsBuilder).AddBinding("x", 2).AddBinding("y", 5).Create()
+	//create := "graph.tx().rollback() //Never create new indexes while a transaction is active\nmgmt = graph.openManagement()\nname = mgmt.getPropertyKey('name')\nage = mgmt.getPropertyKey('age')\nmgmt.buildIndex('byNameComposite', Vertex.class).addKey(name).buildCompositeIndex()\nmgmt.buildIndex('byNameAndAgeComposite', Vertex.class).addKey(name).addKey(age).buildCompositeIndex()\nmgmt.commit()"
+	create := "mgmt = graph.openManagement()\nname = mgmt.getPropertyKey('name')\ntype = mgmt.getPropertyKey('type')\nmgmt.buildIndex('byNameComposite', Vertex.class).addKey(name).buildCompositeIndex()\nmgmt.buildIndex('byNameAndTypeComposite', Vertex.class).addKey(name).addKey(type).buildCompositeIndex()\nmgmt.commit()\nManagementSystem.awaitGraphIndexStatus(graph, 'byNameComposite').call()\nManagementSystem.awaitGraphIndexStatus(graph, 'byNameAndTypeComposite').call()\nmgmt = graph.openManagement()\nmgmt.updateIndex(mgmt.getGraphIndex(\"byNameComposite\"), SchemaAction.REINDEX).get()\nmgmt.updateIndex(mgmt.getGraphIndex(\"byNameAndTypeComposite\"), SchemaAction.REINDEX).get()\nmgmt.commit()"
+	rs, err := remote.SubmitWithOptions(create, r)
+	fmt.Println("results", rs)
+	return err
+}
