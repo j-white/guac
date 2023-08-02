@@ -188,6 +188,8 @@ spec:
         - name: janusgraph
           image: janusgraph/janusgraph:1.0.0-20230721-184042.029b4d2-029b4d2
           env:
+            - name: janusgraph.query.force-index
+              value: "true"
             - name: JAVA_OPTIONS
               value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
           ports:
