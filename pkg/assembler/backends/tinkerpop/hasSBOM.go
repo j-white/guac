@@ -22,3 +22,7 @@ func (c *tinkerpopClient) IngestHasSbom(ctx context.Context, subject model.Packa
 	}
 	return hasSBOM, nil
 }
+
+func (c *tinkerpopClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageOrArtifactInputs, hasSBOMs []*model.HasSBOMInputSpec) ([]*model.HasSbom, error) {
+	return nil, nil
+}

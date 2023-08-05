@@ -116,7 +116,7 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 	// FIXME: given these span multiple requests, we should wrap them in a single transaction
 	// FIXME: can we do these in parallel? (probably not if they are in a single transaction)
 	var ids = make([]int64, 0)
-	const MaxChunkSize = 100
+	const MaxChunkSize = 200
 	for _, chunk := range chunkSlice(allValues, MaxChunkSize) {
 		if len(chunk) == 1 {
 			// if there's only 1, the query handling is different, so do a normal upsert
@@ -218,4 +218,44 @@ func readArrayFromVertexProperties(results map[interface{}]interface{}) ([]*mode
 		checks = append(checks, check)
 	}
 	return checks, nil
+}
+
+func (c *tinkerpopClient) bulkUpsertRelations(v1Props []map[interface{}]interface{}, v2Props []map[interface{}]interface{}, edgeProps []map[interface{}]interface{}) ([]*janusgraphRelationIdentifier, error) {
+	var relationIds []*janusgraphRelationIdentifier
+	var edgeRefs []interface{}
+	var gt *gremlingo.GraphTraversal
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	// chain the upserts
+	for i, v1Prop := range v1Props {
+		v1Ref := fmt.Sprintf("v1:%d", i)
+		v2Ref := fmt.Sprintf("v2:%d", i)
+		edgeRef := fmt.Sprintf("e:%d", i)
+		edgeRefs = append(edgeRefs, edgeRef)
+		if i == 0 {
+			gt = g.MergeV(v1Prop).As(v1Ref).
+				MergeV(v2Props[i]).As(v2Ref).
+				MergeE(edgeProps[i]).As(edgeRef).
+				// late bind
+				Option(gremlingo.Merge.InV, gremlingo.T__.Select(v1Ref)).
+				Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v2Ref))
+		} else {
+			gt = gt.MergeV(v1Prop).As(v1Ref).
+				MergeV(v2Props[i]).As(v2Ref).
+				MergeE(edgeProps[i]).As(edgeRef).
+				// late bind
+				Option(gremlingo.Merge.InV, gremlingo.T__.Select(v1Ref)).
+				Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v2Ref))
+		}
+	}
+	results, err := gt.Select(edgeRefs...).Select(gremlingo.Column.Values).Unfold().Id().ToList()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, result := range results {
+		edgeId := result.GetInterface().(*janusgraphRelationIdentifier)
+		relationIds = append(relationIds, edgeId)
+	}
+
+	return relationIds, nil
 }

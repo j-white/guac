@@ -58,11 +58,6 @@ func (c *tinkerpopClient) IngestCertifyGoods(ctx context.Context, subjects model
 	panic("implement me")
 }
 
-func (c *tinkerpopClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageOrArtifactInputs, hasSBOMs []*model.HasSBOMInputSpec) ([]*model.HasSbom, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *tinkerpopClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
 	//TODO implement me
 	panic("implement me")
@@ -107,6 +102,37 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 		logger.Errorf("Failed to rollback transaction: %v", err)
 		return nil, err
 	}
+
+	// Gremlin is meant to be generic, and some DBs will have specific APIs we need to use to initialize the schema & indices
+	// This bit is JanusGraph specific
+	err = createIndicesForVertexProperties(remote,
+		// packages
+		"namespace",
+		// scorecards
+		"scorecardCommit",
+		// artifacts
+		"digest",
+		// builder
+		"uri",
+		// cve,
+		"cveId",
+		// osv,
+		"osvId",
+		// ghsa,
+		"ghsaId",
+	)
+	if err != nil {
+		return nil, err
+	}
+	// (pkg) -- (dep) --> (pkg)
+	err = createIndexForEdge(remote, string(IsDependency), dependencyType)
+	if err != nil {
+		return nil, err
+	}
+
+	schema, err := printSchema(remote)
+	logger.Info("Current JanusGraph schema: %s", schema)
+	// end of JanusGraph specifics
 
 	client := &tinkerpopClient{*config, remote}
 	return client, nil

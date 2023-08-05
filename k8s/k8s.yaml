@@ -190,6 +190,8 @@ spec:
           env:
             - name: janusgraph.query.force-index
               value: "true"
+            - name: gremlinserver.maxContentLength
+              value: "6553600"
             - name: JAVA_OPTIONS
               value: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
           ports:

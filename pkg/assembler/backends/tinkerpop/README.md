@@ -108,6 +108,16 @@ MergeE
 gremlin> :> g.mergeV([(T.label):'Dog',name:'Toby']).as('Toby').mergeV([(T.label):'Dog',name:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').id().toList()
 ```
 
+## Tuning
+
+Increase frame size for larger bulk inserts
+
+```
+- name: gremlinserver.maxContentLength
+value: "6553600"
+```
+
+
 # Demo
 
 * Get local environment up with Tilt

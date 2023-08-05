@@ -74,13 +74,64 @@ func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInp
 func (c *tinkerpopClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
 	// FIXME: Implement bulk insert
 	var isDependencies []*model.IsDependency
+
+	if len(dependencies) < 2 {
+		for k, depSpec := range dependencies {
+			dep, err := c.IngestDependency(ctx, *pkgs[k], *depPkgs[k], *depSpec)
+			if err != nil {
+				return isDependencies, err
+			}
+			isDependencies = append(isDependencies, dep)
+		}
+		return isDependencies, nil
+	}
+
+	var v1Props []map[interface{}]interface{}
+	var v2Props []map[interface{}]interface{}
+	var edgeProps []map[interface{}]interface{}
+
+	var allIds []*janusgraphRelationIdentifier
 	for k, depSpec := range dependencies {
-		dep, err := c.IngestDependency(ctx, *pkgs[k], *depPkgs[k], *depSpec)
+		pkg := pkgs[k]
+		depPkg := depPkgs[k]
+		dependency := depSpec
+
+		pkgVertexProperties := getPackageQueryValues(pkg)
+		depPkgVertexProperties := getPackageQueryValues(depPkg)
+		dependencyEdgeProperties := getDependencyQueryValues(pkg, depPkg, dependency)
+		dependencyEdgeProperties[gremlingo.Direction.In] = gremlingo.Merge.InV
+		dependencyEdgeProperties[gremlingo.Direction.Out] = gremlingo.Merge.OutV
+
+		v1Props = append(v1Props, pkgVertexProperties)
+		v2Props = append(v2Props, depPkgVertexProperties)
+		edgeProps = append(edgeProps, dependencyEdgeProperties)
+
+		if len(edgeProps) >= 50 {
+			ids, err := c.bulkUpsertRelations(v1Props, v2Props, edgeProps)
+			if err != nil {
+				return isDependencies, err
+			}
+			allIds = append(allIds, ids...)
+			v1Props = nil
+			v2Props = nil
+			edgeProps = nil
+		}
+	}
+
+	// append remainingsszsz
+	if len(edgeProps) > 2 {
+		ids, err := c.bulkUpsertRelations(v1Props, v2Props, edgeProps)
 		if err != nil {
 			return isDependencies, err
 		}
-		isDependencies = append(isDependencies, dep)
+		allIds = append(allIds, ids...)
 	}
+
+	//for _, edgeId := range allIds {
+	//	dep := getDependencyObject(strconv.FormatInt(edgeId.RelationId, 10), dependencyEdgeProperties)
+	//	isDependencies = append(isDependencies, dep)
+	//}
+
 	return isDependencies, nil
 }
 

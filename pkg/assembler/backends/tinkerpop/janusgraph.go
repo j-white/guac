@@ -101,34 +101,64 @@ func readString(data *[]byte, i *int) (interface{}, error) {
 	return string((*data)[*i-sz : *i]), nil
 }
 
-func printSchema(remote *gremlingo.DriverRemoteConnection) error {
-	r := new(gremlingo.RequestOptionsBuilder).AddBinding("x", 2).AddBinding("y", 5).Create()
+func printSchema(remote *gremlingo.DriverRemoteConnection) (string, error) {
+	r := new(gremlingo.RequestOptionsBuilder).Create()
 	stmt := "mgmt = graph.openManagement()\nmgmt.printSchema()\n"
 	rs, err := remote.SubmitWithOptions(stmt, r)
 	results, err := rs.All()
-	fmt.Println("results", results)
-	return err
+	return fmt.Sprintf("%s", results), err
 }
 
-func createIndexForVertexProperty(remote *gremlingo.DriverRemoteConnection, key string) error {
+func createIndexForVertexPropertyKey(remote *gremlingo.DriverRemoteConnection, key string) error {
+	// FIXME: bind w/ parameters instead of sprintf (avoid possiblity of injection)
 	createIndexStmt := fmt.Sprintf("mgmt = graph.openManagement()\n"+
-		"propKey = mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
-		//"propKey = mgmt.getPropertyKey('%s')\n"+
-		"mgmt.buildIndex('by%sComposite', Vertex.class).addKey(propKey).buildCompositeIndex()\n"+
-		"mgmt.commit()\n", key, key)
-	//"ManagementSystem.awaitGraphIndexStatus(graph, 'by%sComposite').call()\n"+
-	//"mgmt.updateIndex(mgmt.getGraphIndex(\"by%sComposite\"), SchemaAction.REINDEX).get()\n"+
-	//"mgmt.commit()\n"+
-	//"graph.tx().commit()\n", key, key)
+		"propKey = mgmt.containsPropertyKey('%s') ? mgmt.getPropertyKey('%s') : mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
+		"index = mgmt.getGraphIndex('by%sComposite')\n"+
+		"index = index == null ? mgmt.buildIndex('by%sComposite', Vertex.class).addKey(propKey).buildCompositeIndex() : index\n"+
+		"mgmt.commit()\n", key, key, key, key, key)
 	r := new(gremlingo.RequestOptionsBuilder).Create()
 	rs, err := remote.SubmitWithOptions(createIndexStmt, r)
 	if err != nil {
 		return err
 	}
-	results, err := rs.All()
+	_, err = rs.All()
 	if err != nil {
 		return err
 	}
-	fmt.Println("results", results)
 	return err
+}
+
+func createIndicesForVertexProperties(remote *gremlingo.DriverRemoteConnection, key ...string) error {
+	for _, key := range key {
+		err := createIndexForVertexPropertyKey(remote, key)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func createIndexForEdge(remote *gremlingo.DriverRemoteConnection, edgeLabel string, vertexPropertyKey string) error {
+	// FIXME: bind w/ parameters instead of sprintf (avoid possiblity of injection)
+	createIndexStmt := fmt.Sprintf("mgmt = graph.openManagement()\n"+
+		"propKey = mgmt.containsPropertyKey('%s') ? mgmt.getPropertyKey('%s') : mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
+		"edgeLabel = mgmt.getEdgeLabel('%s')\n"+
+		"edgeLabel = edgeLabel == null ? mgmt.makeEdgeLabel('%s').make() : edgeLabel\n"+
+		"index = mgmt.getGraphIndex('by%sEdge')\n"+
+		"index = index == null ? mgmt.buildEdgeIndex(edgeLabel, 'by%sEdge', Direction.BOTH, Order.desc, propKey) : index\n"+
+		"mgmt.commit()\n",
+		vertexPropertyKey, vertexPropertyKey, vertexPropertyKey,
+		edgeLabel, edgeLabel,
+		vertexPropertyKey, vertexPropertyKey)
+	r := new(gremlingo.RequestOptionsBuilder).Create()
+	rs, err := remote.SubmitWithOptions(createIndexStmt, r)
+	if err != nil {
+		return err
+	}
+	_, err = rs.All()
+	if err != nil {
+		return err
+	}
+	return err
+
 }
