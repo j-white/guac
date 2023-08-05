@@ -21,9 +21,15 @@ func Test_createIndices(t *testing.T) {
 		return
 	}
 
-	err = createIndices(c.remote)
+	err = createIndexForVertexProperty(c.remote, "namespace")
 	if err != nil {
 		t.Errorf("creating indices failed error = %v", err)
+		return
+	}
+
+	err = printSchema(c.remote)
+	if err != nil {
+		t.Errorf("printing the schema failed error = %v", err)
 		return
 	}
 }

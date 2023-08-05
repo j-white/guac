@@ -110,11 +110,24 @@ func printSchema(remote *gremlingo.DriverRemoteConnection) error {
 	return err
 }
 
-func createIndices(remote *gremlingo.DriverRemoteConnection) error {
-	r := new(gremlingo.RequestOptionsBuilder).AddBinding("x", 2).AddBinding("y", 5).Create()
-	//create := "graph.tx().rollback() //Never create new indexes while a transaction is active\nmgmt = graph.openManagement()\nname = mgmt.getPropertyKey('name')\nage = mgmt.getPropertyKey('age')\nmgmt.buildIndex('byNameComposite', Vertex.class).addKey(name).buildCompositeIndex()\nmgmt.buildIndex('byNameAndAgeComposite', Vertex.class).addKey(name).addKey(age).buildCompositeIndex()\nmgmt.commit()"
-	create := "mgmt = graph.openManagement()\nname = mgmt.getPropertyKey('name')\ntype = mgmt.getPropertyKey('type')\nmgmt.buildIndex('byNameComposite', Vertex.class).addKey(name).buildCompositeIndex()\nmgmt.buildIndex('byNameAndTypeComposite', Vertex.class).addKey(name).addKey(type).buildCompositeIndex()\nmgmt.commit()\nManagementSystem.awaitGraphIndexStatus(graph, 'byNameComposite').call()\nManagementSystem.awaitGraphIndexStatus(graph, 'byNameAndTypeComposite').call()\nmgmt = graph.openManagement()\nmgmt.updateIndex(mgmt.getGraphIndex(\"byNameComposite\"), SchemaAction.REINDEX).get()\nmgmt.updateIndex(mgmt.getGraphIndex(\"byNameAndTypeComposite\"), SchemaAction.REINDEX).get()\nmgmt.commit()"
-	rs, err := remote.SubmitWithOptions(create, r)
-	fmt.Println("results", rs)
+func createIndexForVertexProperty(remote *gremlingo.DriverRemoteConnection, key string) error {
+	createIndexStmt := fmt.Sprintf("mgmt = graph.openManagement()\n"+
+		//"propKey = mgmt.getPropertyKey('%s')\n"+
+		//"mgmt.buildIndex('by%sComposite', Vertex.class).addKey(propKey).buildCompositeIndex()\n"+
+		//"mgmt.commit()\n"+
+		"ManagementSystem.awaitGraphIndexStatus(graph, 'by%sComposite').call()\n"+
+		"mgmt.updateIndex(mgmt.getGraphIndex(\"by%sComposite\"), SchemaAction.REINDEX).get()\n"+
+		"mgmt.commit()\n"+
+		"graph.tx().commit()\n", key, key)
+	r := new(gremlingo.RequestOptionsBuilder).Create()
+	rs, err := remote.SubmitWithOptions(createIndexStmt, r)
+	if err != nil {
+		return err
+	}
+	results, err := rs.All()
+	if err != nil {
+		return err
+	}
+	fmt.Println("results", results)
 	return err
 }
