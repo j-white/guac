@@ -44,7 +44,7 @@ func (c *arangoClient) Scorecards(ctx context.Context, certifyScorecardSpec *mod
 
 	if certifyScorecardSpec.Source != nil {
 		arangoQueryBuilder = setSrcMatchValues(certifyScorecardSpec.Source, values)
-		arangoQueryBuilder.forOutBound(scorecardEdgesStr, "scorecard", "sName")
+		arangoQueryBuilder.forOutBound(scorecardSrcEdgesStr, "scorecard", "sName")
 	} else {
 		arangoQueryBuilder = newForQuery(scorecardStr, "scorecard")
 	}
@@ -85,6 +85,10 @@ func (c *arangoClient) Scorecards(ctx context.Context, certifyScorecardSpec *mod
 }
 
 func setCertifyScorecardMatchValues(arangoQueryBuilder *arangoQueryBuilder, certifyScorecardSpec *model.CertifyScorecardSpec, queryValues map[string]any) {
+	if certifyScorecardSpec.ID != nil {
+		arangoQueryBuilder.filter("scorecard", "_id", "==", "@id")
+		queryValues["id"] = *certifyScorecardSpec.ID
+	}
 	if certifyScorecardSpec.TimeScanned != nil {
 		arangoQueryBuilder.filter("scorecard", timeScannedStr, "==", "@"+timeScannedStr)
 		queryValues[timeScannedStr] = certifyScorecardSpec.TimeScanned.UTC()
@@ -116,7 +120,7 @@ func setCertifyScorecardMatchValues(arangoQueryBuilder *arangoQueryBuilder, cert
 	}
 	if certifyScorecardSpec.Source == nil {
 		// get sources
-		arangoQueryBuilder.forInBound(scorecardEdgesStr, "sName", "scorecard")
+		arangoQueryBuilder.forInBound(scorecardSrcEdgesStr, "sName", "scorecard")
 		arangoQueryBuilder.forInBound(srcHasNameStr, "sNs", "sName")
 		arangoQueryBuilder.forInBound(srcHasNamespaceStr, "sType", "sNs")
 	}
@@ -231,7 +235,7 @@ func (c *arangoClient) IngestScorecards(ctx context.Context, sources []*model.So
 	)
 	
 	LET edgeCollection = (
-	  INSERT {  _key: CONCAT("scorecardEdges", firstSrc.nameDoc._key, scorecard._key), _from: firstSrc.name_id, _to: scorecard._id } INTO scorecardEdges OPTIONS { overwriteMode: "ignore" }
+	  INSERT {  _key: CONCAT("scorecardSrcEdges", firstSrc.nameDoc._key, scorecard._key), _from: firstSrc.name_id, _to: scorecard._id } INTO scorecardSrcEdges OPTIONS { overwriteMode: "ignore" }
 	)
 	  
 	  RETURN {
@@ -304,7 +308,7 @@ func (c *arangoClient) IngestScorecard(ctx context.Context, source model.SourceI
 	)
 	
 	LET edgeCollection = (
-	  INSERT {  _key: CONCAT("scorecardEdges", firstSrc.nameDoc._key, scorecard._key), _from: firstSrc.name_id, _to: scorecard._id } INTO scorecardEdges OPTIONS { overwriteMode: "ignore" }
+	  INSERT {  _key: CONCAT("scorecardSrcEdges", firstSrc.nameDoc._key, scorecard._key), _from: firstSrc.name_id, _to: scorecard._id } INTO scorecardSrcEdges OPTIONS { overwriteMode: "ignore" }
 	)
 	  
 	  RETURN {
@@ -367,15 +371,15 @@ func getCollectedScorecardChecks(checksList []string) ([]*model.ScorecardCheck, 
 
 func getCertifyScorecard(ctx context.Context, cursor driver.Cursor) ([]*model.CertifyScorecard, error) {
 	type collectedData struct {
-		SrcName          dbSrcName `json:"srcName"`
-		ScorecardID      string    `json:"scorecard_id"`
-		Checks           []string  `json:"checks"`
-		AggregateScore   float64   `json:"aggregateScore"`
-		TimeScanned      time.Time `json:"timeScanned"`
-		ScorecardVersion string    `json:"scorecardVersion"`
-		ScorecardCommit  string    `json:"scorecardCommit"`
-		Collector        string    `json:"collector"`
-		Origin           string    `json:"origin"`
+		SrcName          *dbSrcName `json:"srcName"`
+		ScorecardID      string     `json:"scorecard_id"`
+		Checks           []string   `json:"checks"`
+		AggregateScore   float64    `json:"aggregateScore"`
+		TimeScanned      time.Time  `json:"timeScanned"`
+		ScorecardVersion string     `json:"scorecardVersion"`
+		ScorecardCommit  string     `json:"scorecardCommit"`
+		Collector        string     `json:"collector"`
+		Origin           string     `json:"origin"`
 	}
 
 	var createdValues []collectedData

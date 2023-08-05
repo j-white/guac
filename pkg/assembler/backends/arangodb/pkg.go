@@ -121,15 +121,12 @@ func getPackageQueryValues(c *arangoClient, pkg *model.PkgInputSpec) map[string]
 	values := map[string]any{}
 
 	// add guac keys
-	values["typeID"] = c.pkgTypeMap[pkg.Type].Id
-	values["typeKey"] = c.pkgTypeMap[pkg.Type].Key
-	values["typeValue"] = c.pkgTypeMap[pkg.Type].PkgType
-
 	guacIds := guacPkgId(*pkg)
 	values["guacNsKey"] = guacIds.NamespaceId
 	values["guacNameKey"] = guacIds.NameId
 	values["guacVersionKey"] = guacIds.VersionId
 
+	values["pkgType"] = pkg.Type
 	values["name"] = pkg.Name
 	if pkg.Namespace != nil {
 		values["namespace"] = *pkg.Namespace
@@ -191,10 +188,18 @@ func (c *arangoClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInpu
 	}
 	sb.WriteString("]")
 
-	query := `	  
+	query := `
+	LET type = FIRST(
+		UPSERT { type: doc.pkgType}
+		INSERT { type: doc.pkgType}
+		UPDATE {}
+		IN pkgTypes OPTIONS { indexHint: "byPkgType" }
+		RETURN NEW
+	)
+
 	LET ns = FIRST(
-	  UPSERT { namespace: doc.namespace, _parent: doc.typeID , guacKey: doc.guacNsKey}
-	  INSERT { namespace: doc.namespace, _parent: doc.typeID , guacKey: doc.guacNsKey}
+	  UPSERT { namespace: doc.namespace, _parent: type._id , guacKey: doc.guacNsKey}
+	  INSERT { namespace: doc.namespace, _parent: type._id , guacKey: doc.guacNsKey}
 	  UPDATE {}
 	  IN pkgNamespaces OPTIONS { indexHint: "byNsGuacKey" }
 	  RETURN NEW
@@ -217,7 +222,7 @@ func (c *arangoClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInpu
 	)
   
 	LET pkgHasNamespaceCollection = (
-	  INSERT { _key: CONCAT("pkgHasNamespace", doc.typeKey, ns._key), _from: doc.typeID, _to: ns._id } INTO pkgHasNamespace OPTIONS { overwriteMode: "ignore" }
+	  INSERT { _key: CONCAT("pkgHasNamespace", type._key, ns._key), _from: type._id, _to: ns._id } INTO pkgHasNamespace OPTIONS { overwriteMode: "ignore" }
 	)
 	
 	LET pkgHasNameCollection = (
@@ -229,8 +234,8 @@ func (c *arangoClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInpu
 	)
 	  
   RETURN {
-	"type_id": doc.typeID,
-	"type": doc.typeValue,
+	"type_id": type._id,
+	"type": type.type,
 	"namespace_id": ns._id,
 	"namespace": ns.namespace,
 	"name_id": name._id,
@@ -252,10 +257,18 @@ func (c *arangoClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInpu
 }
 
 func (c *arangoClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
-	query := `	  
+	query := `
+	  LET type = FIRST(
+		UPSERT { type: @pkgType }
+		INSERT { type: @pkgType }
+		UPDATE {}
+		IN pkgTypes OPTIONS { indexHint: "byPkgType" }
+		RETURN NEW
+	  )
+
 	  LET ns = FIRST(
-		UPSERT { namespace: @namespace, _parent: @typeID , guacKey: @guacNsKey}
-		INSERT { namespace: @namespace, _parent: @typeID , guacKey: @guacNsKey}
+		UPSERT { namespace: @namespace, _parent: type._id , guacKey: @guacNsKey}
+		INSERT { namespace: @namespace, _parent: type._id , guacKey: @guacNsKey}
 		UPDATE {}
 		IN pkgNamespaces OPTIONS { indexHint: "byNsGuacKey" }
 		RETURN NEW
@@ -278,7 +291,7 @@ func (c *arangoClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec
 	  )
 	
 	  LET pkgHasNamespaceCollection = (
-		INSERT { _key: CONCAT("pkgHasNamespace", @typeKey, ns._key), _from: @typeID, _to: ns._id} INTO pkgHasNamespace OPTIONS { overwriteMode: "ignore" }
+		INSERT { _key: CONCAT("pkgHasNamespace", type._key, ns._key), _from: type._id, _to: ns._id} INTO pkgHasNamespace OPTIONS { overwriteMode: "ignore" }
 	  )
 	  
 	  LET pkgHasNameCollection = (
@@ -290,8 +303,8 @@ func (c *arangoClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec
 	  )
 		
 	RETURN {
-	  "type_id": @typeID,
-	  "type": @typeValue,
+	  "type_id": type._id,
+	  "type": type.type,
 	  "namespace_id": ns._id,
 	  "namespace": ns.namespace,
 	  "name_id": name._id,
@@ -318,13 +331,36 @@ func (c *arangoClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec
 	}
 }
 
-func setPkgMatchValues(pkgSpec *model.PkgSpec, queryValues map[string]any) *arangoQueryBuilder {
+func setPkgNameMatchValues(pkgSpec *model.PkgSpec, queryValues map[string]any) *arangoQueryBuilder {
 	var arangoQueryBuilder *arangoQueryBuilder
 	if pkgSpec != nil {
-		arangoQueryBuilder = newForQuery(pkgRootsStr, "pRoot")
-		arangoQueryBuilder.filter("pRoot", "root", "==", "@pkg")
-		queryValues["pkg"] = "pkg"
-		arangoQueryBuilder.forOutBound(pkgHasTypeStr, "pType", "pRoot")
+		arangoQueryBuilder = newForQuery(pkgTypesStr, "pType")
+		if pkgSpec.Type != nil {
+			arangoQueryBuilder.filter("pType", "type", "==", "@pkgType")
+			queryValues["pkgType"] = *pkgSpec.Type
+		}
+		arangoQueryBuilder.forOutBound(pkgHasNamespaceStr, "pNs", "pType")
+		if pkgSpec.Namespace != nil {
+			arangoQueryBuilder.filter("pNs", "namespace", "==", "@namespace")
+			queryValues["namespace"] = *pkgSpec.Namespace
+		}
+		arangoQueryBuilder.forOutBound(pkgHasNameStr, "pName", "pNs")
+		if pkgSpec.Name != nil {
+			arangoQueryBuilder.filter("pName", "name", "==", "@name")
+			queryValues["name"] = *pkgSpec.Name
+		}
+	} else {
+		arangoQueryBuilder = newForQuery(pkgTypesStr, "pType")
+		arangoQueryBuilder.forOutBound(pkgHasNamespaceStr, "pNs", "pType")
+		arangoQueryBuilder.forOutBound(pkgHasNameStr, "pName", "pNs")
+	}
+	return arangoQueryBuilder
+}
+
+func setPkgVersionMatchValues(pkgSpec *model.PkgSpec, queryValues map[string]any) *arangoQueryBuilder {
+	var arangoQueryBuilder *arangoQueryBuilder
+	if pkgSpec != nil {
+		arangoQueryBuilder = newForQuery(pkgTypesStr, "pType")
 		if pkgSpec.Type != nil {
 			arangoQueryBuilder.filter("pType", "type", "==", "@pkgType")
 			queryValues["pkgType"] = *pkgSpec.Type
@@ -367,8 +403,7 @@ func setPkgMatchValues(pkgSpec *model.PkgSpec, queryValues map[string]any) *aran
 		}
 
 	} else {
-		arangoQueryBuilder = newForQuery(pkgRootsStr, "pRoot")
-		arangoQueryBuilder.forOutBound(pkgHasTypeStr, "pType", "pRoot")
+		arangoQueryBuilder = newForQuery(pkgTypesStr, "pType")
 		arangoQueryBuilder.forOutBound(pkgHasNamespaceStr, "pNs", "pType")
 		arangoQueryBuilder.forOutBound(pkgHasNameStr, "pName", "pNs")
 		arangoQueryBuilder.forOutBound(pkgHasVersionStr, "pVersion", "pName")
@@ -407,7 +442,7 @@ func (c *arangoClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]
 
 	values := map[string]any{}
 
-	arangoQueryBuilder := setPkgMatchValues(pkgSpec, values)
+	arangoQueryBuilder := setPkgVersionMatchValues(pkgSpec, values)
 	arangoQueryBuilder.query.WriteString("\n")
 	arangoQueryBuilder.query.WriteString(`RETURN {
 		"type_id": pType._id,
@@ -437,10 +472,7 @@ func (c *arangoClient) packagesType(ctx context.Context, pkgSpec *model.PkgSpec)
 
 	values := map[string]any{}
 
-	arangoQueryBuilder := newForQuery(pkgRootsStr, "pRoot")
-	arangoQueryBuilder.filter("pRoot", "root", "==", "@pkg")
-	values["pkg"] = "pkg"
-	arangoQueryBuilder.forOutBound(pkgHasTypeStr, "pType", "pRoot")
+	arangoQueryBuilder := newForQuery(pkgTypesStr, "pType")
 	if pkgSpec.Type != nil {
 		arangoQueryBuilder.filter("pType", "type", "==", "@pkgType")
 		values["pkgType"] = *pkgSpec.Type
@@ -485,10 +517,7 @@ func (c *arangoClient) packagesType(ctx context.Context, pkgSpec *model.PkgSpec)
 func (c *arangoClient) packagesNamespace(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
 	values := map[string]any{}
 
-	arangoQueryBuilder := newForQuery(pkgRootsStr, "pRoot")
-	arangoQueryBuilder.filter("pRoot", "root", "==", "@pkg")
-	values["pkg"] = "pkg"
-	arangoQueryBuilder.forOutBound(pkgHasTypeStr, "pType", "pRoot")
+	arangoQueryBuilder := newForQuery(pkgTypesStr, "pType")
 	if pkgSpec.Type != nil {
 		arangoQueryBuilder.filter("pType", "type", "==", "@pkgType")
 		values["pkgType"] = *pkgSpec.Type
@@ -553,10 +582,7 @@ func (c *arangoClient) packagesNamespace(ctx context.Context, pkgSpec *model.Pkg
 func (c *arangoClient) packagesName(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
 	values := map[string]any{}
 
-	arangoQueryBuilder := newForQuery(pkgRootsStr, "pRoot")
-	arangoQueryBuilder.filter("pRoot", "root", "==", "@pkg")
-	values["pkg"] = "pkg"
-	arangoQueryBuilder.forOutBound(pkgHasTypeStr, "pType", "pRoot")
+	arangoQueryBuilder := newForQuery(pkgTypesStr, "pType")
 	if pkgSpec.Type != nil {
 		arangoQueryBuilder.filter("pType", "type", "==", "@pkgType")
 		values["pkgType"] = *pkgSpec.Type

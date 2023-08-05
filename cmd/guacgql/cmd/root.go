@@ -47,6 +47,13 @@ var flags = struct {
 
 	// Needed only if using tinkerpop backend
 	tinkerpopSettingsFile string
+
+	// Needed only if using neptune backend
+	neptuneEndpoint string
+	neptunePort     int
+	neptuneRegion   string
+	neptuneUser     string
+	neptuneRealm    string
 }{}
 
 var rootCmd = &cobra.Command{
@@ -72,6 +79,12 @@ var rootCmd = &cobra.Command{
 		// Needed only if using tinkerpop backend
 		flags.tinkerpopSettingsFile = viper.GetString("tinkerpop-settings-file")
 
+		flags.neptuneEndpoint = viper.GetString("neptune-endpoint")
+		flags.neptunePort = viper.GetInt("neptune-port")
+		flags.neptuneRegion = viper.GetString("neptune-region")
+		flags.neptuneUser = viper.GetString("neptune-user")
+		flags.neptuneRealm = viper.GetString("neptune-realm")
+
 		startServer(cmd)
 	},
 }
@@ -81,8 +94,9 @@ func init() {
 
 	set, err := cli.BuildFlags([]string{
 		"arango-addr", "arango-user", "arango-pass",
-		"neo4j-addr", "neo4j-user", "neo4j-pass", "neo4j-realm", "gql-test-data",
-		"gql-listen-port", "gql-debug", "gql-backend", "gql-trace",
+		"neo4j-addr", "neo4j-user", "neo4j-pass", "neo4j-realm",
+		"neptune-endpoint", "neptune-port", "neptune-region", "neptune-user", "neptune-realm",
+		"gql-test-data", "gql-listen-port", "gql-debug", "gql-backend", "gql-trace",
 		"tinkerpop-settings-file",
 	})
 	if err != nil {

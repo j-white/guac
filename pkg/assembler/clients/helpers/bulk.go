@@ -161,22 +161,16 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 				}
 			}
 
-			// TODO(pxp928): add bulk ingestion for CertifyBad
 			logger.Infof("assembling CertifyBad: %v", len(p.CertifyBad))
-			for _, bad := range p.CertifyBad {
-				if err := ingestCertifyBad(ctx, gqlclient, bad); err != nil {
-					return fmt.Errorf("ingestCertifyBad failed with error: %w", err)
+			if err := ingestCertifyBads(ctx, gqlclient, p.CertifyBad); err != nil {
+				return fmt.Errorf("ingestCertifyBads failed with error: %w", err)
 
-				}
 			}
 
-			// TODO(pxp928): add bulk ingestion for CertifyGood
 			logger.Infof("assembling CertifyGood: %v", len(p.CertifyGood))
-			for _, good := range p.CertifyGood {
-				if err := ingestCertifyGood(ctx, gqlclient, good); err != nil {
-					return fmt.Errorf("ingestCertifyGood failed with error: %w", err)
+			if err := ingestCertifyGoods(ctx, gqlclient, p.CertifyGood); err != nil {
+				return fmt.Errorf("ingestCertifyGoods failed with error: %w", err)
 
-				}
 			}
 
 			// TODO: add bulk ingestion for PointOfContact
@@ -188,13 +182,9 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 				}
 			}
 
-			// TODO(pxp928): add bulk ingestion for HasSBOM
 			logger.Infof("assembling HasSBOM: %v", len(p.HasSBOM))
-			for _, hb := range p.HasSBOM {
-				if err := ingestHasSBOM(ctx, gqlclient, hb); err != nil {
-					return fmt.Errorf("ingestHasSBOM failed with error: %w", err)
-
-				}
+			if err := ingestHasSBOMs(ctx, gqlclient, p.HasSBOM); err != nil {
+				return fmt.Errorf("ingestHasSBOMs failed with error: %w", err)
 			}
 
 			// TODO(pxp928): add bulk ingestion for VEX
@@ -206,13 +196,9 @@ func GetBulkAssembler(ctx context.Context, gqlclient graphql.Client) func([]asse
 				}
 			}
 
-			// TODO(pxp928): add bulk ingestion for HashEqual
 			logger.Infof("assembling HashEqual : %v", len(p.HashEqual))
-			for _, equal := range p.HashEqual {
-				if err := ingestHashEqual(ctx, gqlclient, equal); err != nil {
-					return fmt.Errorf("ingestHashEqual failed with error: %w", err)
-
-				}
+			if err := ingestHashEquals(ctx, gqlclient, p.HashEqual); err != nil {
+				return fmt.Errorf("ingestHashEquals failed with error: %w", err)
 			}
 
 			// TODO(pxp928): add bulk ingestion for PkgEqual
@@ -333,6 +319,172 @@ func ingestIsDependencies(ctx context.Context, client graphql.Client, v []assemb
 		_, err := model.IsDependencies(ctx, client, pkgs, depPkgs, dependencies)
 		if err != nil {
 			return fmt.Errorf("isDependencies failed with error: %w", err)
+		}
+	}
+	return nil
+}
+
+func ingestHashEquals(ctx context.Context, client graphql.Client, v []assembler.HashEqualIngest) error {
+	var artifacts []model.ArtifactInputSpec
+	var equalArtifacts []model.ArtifactInputSpec
+	var hashEquals []model.HashEqualInputSpec
+	for _, ingest := range v {
+		artifacts = append(artifacts, *ingest.Artifact)
+		equalArtifacts = append(equalArtifacts, *ingest.EqualArtifact)
+		hashEquals = append(hashEquals, *ingest.HashEqual)
+	}
+	if len(v) > 0 {
+		_, err := model.HashEquals(ctx, client, artifacts, equalArtifacts, hashEquals)
+		if err != nil {
+			return fmt.Errorf("HashEquals failed with error: %w", err)
+		}
+	}
+	return nil
+}
+
+func ingestHasSBOMs(ctx context.Context, client graphql.Client, v []assembler.HasSBOMIngest) error {
+	var pkgs []model.PkgInputSpec
+	var artifacts []model.ArtifactInputSpec
+	var pkgSBOMs []model.HasSBOMInputSpec
+	var artSBOMs []model.HasSBOMInputSpec
+	for _, ingest := range v {
+		if ingest.Pkg != nil && ingest.Artifact != nil {
+			return fmt.Errorf("unable to create hasSBOM with both artifact and Pkg subject specified")
+		}
+		if ingest.Pkg == nil && ingest.Artifact == nil {
+			return fmt.Errorf("unable to create hasSBOM without either artifact and Pkg subject specified")
+		}
+
+		if ingest.Pkg != nil {
+			pkgs = append(pkgs, *ingest.Pkg)
+			pkgSBOMs = append(pkgSBOMs, *ingest.HasSBOM)
+		} else {
+			artifacts = append(artifacts, *ingest.Artifact)
+			artSBOMs = append(artSBOMs, *ingest.HasSBOM)
+		}
+	}
+	if len(artifacts) > 0 {
+		_, err := model.HasSBOMArtifacts(ctx, client, artifacts, artSBOMs)
+		if err != nil {
+			return fmt.Errorf("hasSBOMArtifacts failed with error: %w", err)
+		}
+	}
+	if len(pkgs) > 0 {
+		_, err := model.HasSBOMPkgs(ctx, client, pkgs, pkgSBOMs)
+		if err != nil {
+			return fmt.Errorf("hasSBOMPkgs failed with error: %w", err)
+		}
+	}
+	return nil
+}
+
+func ingestCertifyGoods(ctx context.Context, client graphql.Client, v []assembler.CertifyGoodIngest) error {
+	var pkgVersions []model.PkgInputSpec
+	var pkgNames []model.PkgInputSpec
+	var sources []model.SourceInputSpec
+	var artifacts []model.ArtifactInputSpec
+	var pkgVersionCertifyGoods []model.CertifyGoodInputSpec
+	var pkgNameCertifyGoods []model.CertifyGoodInputSpec
+	var srcCertifyGoods []model.CertifyGoodInputSpec
+	var artCertifyGoods []model.CertifyGoodInputSpec
+	for _, ingest := range v {
+		if err := validatePackageSourceOrArtifactInput(ingest.Pkg, ingest.Src, ingest.Artifact, "ingestCertifyGoods"); err != nil {
+			return fmt.Errorf("input validation failed for ingestCertifyGoods: %w", err)
+		}
+		if ingest.Pkg != nil {
+			if ingest.PkgMatchFlag.Pkg == model.PkgMatchTypeSpecificVersion {
+				pkgVersions = append(pkgVersions, *ingest.Pkg)
+				pkgVersionCertifyGoods = append(pkgVersionCertifyGoods, *ingest.CertifyGood)
+			} else {
+				pkgNames = append(pkgNames, *ingest.Pkg)
+				pkgNameCertifyGoods = append(pkgNameCertifyGoods, *ingest.CertifyGood)
+			}
+		} else if ingest.Src != nil {
+			sources = append(sources, *ingest.Src)
+			srcCertifyGoods = append(srcCertifyGoods, *ingest.CertifyGood)
+		} else {
+			artifacts = append(artifacts, *ingest.Artifact)
+			artCertifyGoods = append(artCertifyGoods, *ingest.CertifyGood)
+		}
+	}
+	if len(pkgVersions) > 0 {
+		_, err := model.CertifyGoodPkgs(ctx, client, pkgVersions, model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion}, pkgVersionCertifyGoods)
+		if err != nil {
+			return fmt.Errorf("CertifyGoodPkgs - specific version failed with error: %w", err)
+		}
+	}
+	if len(pkgNames) > 0 {
+		_, err := model.CertifyGoodPkgs(ctx, client, pkgNames, model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions}, pkgNameCertifyGoods)
+		if err != nil {
+			return fmt.Errorf("CertifyGoodPkgs - all versions failed with error: %w", err)
+		}
+	}
+	if len(sources) > 0 {
+		_, err := model.CertifyGoodSrcs(ctx, client, sources, srcCertifyGoods)
+		if err != nil {
+			return fmt.Errorf("CertifyGoodSrcs failed with error: %w", err)
+		}
+	}
+	if len(artifacts) > 0 {
+		_, err := model.CertifyGoodArtifacts(ctx, client, artifacts, artCertifyGoods)
+		if err != nil {
+			return fmt.Errorf("CertifyGoodArtifacts failed with error: %w", err)
+		}
+	}
+	return nil
+}
+
+func ingestCertifyBads(ctx context.Context, client graphql.Client, v []assembler.CertifyBadIngest) error {
+	var pkgVersions []model.PkgInputSpec
+	var pkgNames []model.PkgInputSpec
+	var sources []model.SourceInputSpec
+	var artifacts []model.ArtifactInputSpec
+	var pkgVersionCertifyBads []model.CertifyBadInputSpec
+	var pkgNameCertifyBads []model.CertifyBadInputSpec
+	var srcCertifyBads []model.CertifyBadInputSpec
+	var artCertifyBads []model.CertifyBadInputSpec
+	for _, ingest := range v {
+		if err := validatePackageSourceOrArtifactInput(ingest.Pkg, ingest.Src, ingest.Artifact, "ingestCertifyBads"); err != nil {
+			return fmt.Errorf("input validation failed for ingestCertifyBads: %w", err)
+		}
+		if ingest.Pkg != nil {
+			if ingest.PkgMatchFlag.Pkg == model.PkgMatchTypeSpecificVersion {
+				pkgVersions = append(pkgVersions, *ingest.Pkg)
+				pkgVersionCertifyBads = append(pkgVersionCertifyBads, *ingest.CertifyBad)
+			} else {
+				pkgNames = append(pkgNames, *ingest.Pkg)
+				pkgNameCertifyBads = append(pkgNameCertifyBads, *ingest.CertifyBad)
+			}
+		} else if ingest.Src != nil {
+			sources = append(sources, *ingest.Src)
+			srcCertifyBads = append(srcCertifyBads, *ingest.CertifyBad)
+		} else {
+			artifacts = append(artifacts, *ingest.Artifact)
+			artCertifyBads = append(artCertifyBads, *ingest.CertifyBad)
+		}
+	}
+	if len(pkgVersions) > 0 {
+		_, err := model.CertifyBadPkgs(ctx, client, pkgVersions, model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion}, pkgVersionCertifyBads)
+		if err != nil {
+			return fmt.Errorf("certifyBadPkgs - specific version failed with error: %w", err)
+		}
+	}
+	if len(pkgNames) > 0 {
+		_, err := model.CertifyBadPkgs(ctx, client, pkgNames, model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions}, pkgNameCertifyBads)
+		if err != nil {
+			return fmt.Errorf("certifyBadPkgs - all versions failed with error: %w", err)
+		}
+	}
+	if len(sources) > 0 {
+		_, err := model.CertifyBadSrcs(ctx, client, sources, srcCertifyBads)
+		if err != nil {
+			return fmt.Errorf("CertifyBadSrcs failed with error: %w", err)
+		}
+	}
+	if len(artifacts) > 0 {
+		_, err := model.CertifyBadArtifacts(ctx, client, artifacts, artCertifyBads)
+		if err != nil {
+			return fmt.Errorf("CertifyBadArtifacts failed with error: %w", err)
 		}
 	}
 	return nil

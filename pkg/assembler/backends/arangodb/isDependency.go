@@ -34,11 +34,31 @@ const (
 
 func (c *arangoClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {
 
-	// TODO (pxp928): Optimize/add other queries based on input and starting node/edge for most efficient retrieval
-	values := map[string]any{}
-	arangoQueryBuilder := setPkgMatchValues(isDependencySpec.Package, values)
-	setIsDependencyMatchValues(arangoQueryBuilder, isDependencySpec, values)
+	// TODO (pxp928): Optimization of the query can be done by starting from the dependent package node (if specified)
+	var arangoQueryBuilder *arangoQueryBuilder
 
+	if isDependencySpec.Package != nil {
+		values := map[string]any{}
+		arangoQueryBuilder := setPkgVersionMatchValues(isDependencySpec.Package, values)
+		arangoQueryBuilder.forOutBound(isDependencySubjectPkgEdgesStr, "isDependency", "pVersion")
+		setIsDependencyMatchValues(arangoQueryBuilder, isDependencySpec, values)
+
+		return getDependencyForQuery(ctx, c, arangoQueryBuilder, values)
+	} else {
+		values := map[string]any{}
+		// get packages
+		arangoQueryBuilder = newForQuery(isDependenciesStr, "isDependency")
+		setIsDependencyMatchValues(arangoQueryBuilder, isDependencySpec, values)
+		arangoQueryBuilder.forInBound(isDependencySubjectPkgEdgesStr, "pVersion", "isDependency")
+		arangoQueryBuilder.forInBound(pkgHasVersionStr, "pName", "pVersion")
+		arangoQueryBuilder.forInBound(pkgHasNameStr, "pNs", "pName")
+		arangoQueryBuilder.forInBound(pkgHasNamespaceStr, "pType", "pNs")
+
+		return getDependencyForQuery(ctx, c, arangoQueryBuilder, values)
+	}
+}
+
+func getDependencyForQuery(ctx context.Context, c *arangoClient, arangoQueryBuilder *arangoQueryBuilder, values map[string]any) ([]*model.IsDependency, error) {
 	arangoQueryBuilder.query.WriteString("\n")
 	arangoQueryBuilder.query.WriteString(`RETURN {
 		'pkgVersion': {
@@ -81,8 +101,10 @@ func (c *arangoClient) IsDependency(ctx context.Context, isDependencySpec *model
 }
 
 func setIsDependencyMatchValues(arangoQueryBuilder *arangoQueryBuilder, isDependencySpec *model.IsDependencySpec, queryValues map[string]any) {
-
-	arangoQueryBuilder.forOutBound(isDependencySubjectEdgesStr, "isDependency", "pVersion")
+	if isDependencySpec.ID != nil {
+		arangoQueryBuilder.filter("isDependency", "_id", "==", "@id")
+		queryValues["id"] = *isDependencySpec.ID
+	}
 	if isDependencySpec.VersionRange != nil {
 		arangoQueryBuilder.filter("isDependency", versionRangeStr, "==", "@"+versionRangeStr)
 		queryValues[versionRangeStr] = isDependencySpec.VersionRange
@@ -100,7 +122,7 @@ func setIsDependencyMatchValues(arangoQueryBuilder *arangoQueryBuilder, isDepend
 		queryValues[collector] = isDependencySpec.Collector
 	}
 	if isDependencySpec.DependentPackage != nil {
-		arangoQueryBuilder.forOutBound(isDependencyEdgesStr, "depName", "isDependency")
+		arangoQueryBuilder.forOutBound(isDependencyDepPkgEdgesStr, "depName", "isDependency")
 		if isDependencySpec.DependentPackage.Name != nil {
 			arangoQueryBuilder.filter("depName", "name", "==", "@name")
 			queryValues["name"] = *isDependencySpec.DependentPackage.Name
@@ -116,7 +138,7 @@ func setIsDependencyMatchValues(arangoQueryBuilder *arangoQueryBuilder, isDepend
 			queryValues["type"] = *isDependencySpec.DependentPackage.Type
 		}
 	} else {
-		arangoQueryBuilder.forOutBound(isDependencyEdgesStr, "depName", "isDependency")
+		arangoQueryBuilder.forOutBound(isDependencyDepPkgEdgesStr, "depName", "isDependency")
 		arangoQueryBuilder.forInBound(pkgHasNameStr, "depNamespace", "depName")
 		arangoQueryBuilder.forInBound(pkgHasNamespaceStr, "depType", "depNamespace")
 	}
@@ -232,8 +254,8 @@ func (c *arangoClient) IngestDependencies(ctx context.Context, pkgs []*model.Pkg
 			RETURN NEW
 		)
 	
-	INSERT { _key: CONCAT("isDependencySubjectEdges", firstPkg.versionDoc._key, isDependency._key), _from: firstPkg.version_id, _to: isDependency._id} INTO isDependencySubjectEdges OPTIONS { overwriteMode: "ignore" }
-	INSERT { _key: CONCAT("isDependencyEdges", isDependency._key, secondPkg.nameDoc._key), _from: isDependency._id, _to: secondPkg.name_id} INTO isDependencyEdges OPTIONS { overwriteMode: "ignore" }
+	INSERT { _key: CONCAT("isDependencySubjectPkgEdges", firstPkg.versionDoc._key, isDependency._key), _from: firstPkg.version_id, _to: isDependency._id} INTO isDependencySubjectPkgEdges OPTIONS { overwriteMode: "ignore" }
+	INSERT { _key: CONCAT("isDependencyDepPkgEdges", isDependency._key, secondPkg.nameDoc._key), _from: isDependency._id, _to: secondPkg.name_id} INTO isDependencyDepPkgEdges OPTIONS { overwriteMode: "ignore" }
 
 	RETURN {
 		'pkgVersion': {
@@ -328,8 +350,8 @@ func (c *arangoClient) IngestDependency(ctx context.Context, pkg model.PkgInputS
 			  RETURN NEW
 	  )
 	  
-	  INSERT { _key: CONCAT("isDependencySubjectEdges", firstPkg.versionDoc._key, isDependency._key), _from: firstPkg.version_id, _to: isDependency._id} INTO isDependencySubjectEdges OPTIONS { overwriteMode: "ignore" }
-	  INSERT { _key: CONCAT("isDependencyEdges", isDependency._key, secondPkg.nameDoc._key), _from: isDependency._id, _to: secondPkg.name_id} INTO isDependencyEdges OPTIONS { overwriteMode: "ignore" }
+	  INSERT { _key: CONCAT("isDependencySubjectPkgEdges", firstPkg.versionDoc._key, isDependency._key), _from: firstPkg.version_id, _to: isDependency._id} INTO isDependencySubjectPkgEdges OPTIONS { overwriteMode: "ignore" }
+	  INSERT { _key: CONCAT("isDependencyDepPkgEdges", isDependency._key, secondPkg.nameDoc._key), _from: isDependency._id, _to: secondPkg.name_id} INTO isDependencyDepPkgEdges OPTIONS { overwriteMode: "ignore" }
 	  
 	  RETURN {
 		'pkgVersion': {
@@ -393,14 +415,14 @@ func convertDependencyTypeToEnum(status string) (model.DependencyType, error) {
 
 func getIsDependency(ctx context.Context, cursor driver.Cursor) ([]*model.IsDependency, error) {
 	type collectedData struct {
-		PkgVersion     dbPkgVersion `json:"pkgVersion"`
-		DepPkg         dbPkgName    `json:"depPkg"`
-		IsDependencyID string       `json:"isDependency_id"`
-		VersionRange   string       `json:"versionRange"`
-		DependencyType string       `json:"dependencyType"`
-		Justification  string       `json:"justification"`
-		Collector      string       `json:"collector"`
-		Origin         string       `json:"origin"`
+		PkgVersion     *dbPkgVersion `json:"pkgVersion"`
+		DepPkg         *dbPkgName    `json:"depPkg"`
+		IsDependencyID string        `json:"isDependency_id"`
+		VersionRange   string        `json:"versionRange"`
+		DependencyType string        `json:"dependencyType"`
+		Justification  string        `json:"justification"`
+		Collector      string        `json:"collector"`
+		Origin         string        `json:"origin"`
 	}
 
 	var createdValues []collectedData

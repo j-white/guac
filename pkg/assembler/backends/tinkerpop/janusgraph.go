@@ -112,13 +112,14 @@ func printSchema(remote *gremlingo.DriverRemoteConnection) error {
 
 func createIndexForVertexProperty(remote *gremlingo.DriverRemoteConnection, key string) error {
 	createIndexStmt := fmt.Sprintf("mgmt = graph.openManagement()\n"+
+		"propKey = mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
 		//"propKey = mgmt.getPropertyKey('%s')\n"+
-		//"mgmt.buildIndex('by%sComposite', Vertex.class).addKey(propKey).buildCompositeIndex()\n"+
-		//"mgmt.commit()\n"+
-		"ManagementSystem.awaitGraphIndexStatus(graph, 'by%sComposite').call()\n"+
-		"mgmt.updateIndex(mgmt.getGraphIndex(\"by%sComposite\"), SchemaAction.REINDEX).get()\n"+
-		"mgmt.commit()\n"+
-		"graph.tx().commit()\n", key, key)
+		"mgmt.buildIndex('by%sComposite', Vertex.class).addKey(propKey).buildCompositeIndex()\n"+
+		"mgmt.commit()\n", key, key)
+	//"ManagementSystem.awaitGraphIndexStatus(graph, 'by%sComposite').call()\n"+
+	//"mgmt.updateIndex(mgmt.getGraphIndex(\"by%sComposite\"), SchemaAction.REINDEX).get()\n"+
+	//"mgmt.commit()\n"+
+	//"graph.tx().commit()\n", key, key)
 	r := new(gremlingo.RequestOptionsBuilder).Create()
 	rs, err := remote.SubmitWithOptions(createIndexStmt, r)
 	if err != nil {

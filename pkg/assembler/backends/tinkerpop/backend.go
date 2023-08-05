@@ -48,6 +48,26 @@ type tinkerpopClient struct {
 	remote *gremlingo.DriverRemoteConnection
 }
 
+func (c *tinkerpopClient) IngestCertifyBads(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, certifyBads []*model.CertifyBadInputSpec) ([]*model.CertifyBad, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestCertifyGoods(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, certifyGoods []*model.CertifyGoodInputSpec) ([]*model.CertifyGood, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageOrArtifactInputs, hasSBOMs []*model.HasSBOMInputSpec) ([]*model.HasSbom, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *tinkerpopClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	ctx := logging.WithLogger(context.Background())
 	logger := logging.FromContext(ctx)
