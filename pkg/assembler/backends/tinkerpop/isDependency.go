@@ -23,7 +23,6 @@ func getDependencyQueryValues(pkg *model.PkgInputSpec, depPkg *model.PkgInputSpe
 	values["secondPkgNameGuacKey"] = depPkgId.NameId
 
 	// isDependency
-
 	values[versionRange] = dependency.VersionRange
 	values[dependencyType] = dependency.DependencyType.String()
 	values[justification] = dependency.Justification
@@ -33,9 +32,9 @@ func getDependencyQueryValues(pkg *model.PkgInputSpec, depPkg *model.PkgInputSpe
 	return values
 }
 
-func getDependencyObject(id string, values map[interface{}]interface{}) *model.IsDependency {
+func getDependencyObject(id int64, values map[interface{}]interface{}) *model.IsDependency {
 	isDependency := &model.IsDependency{
-		ID:               id,
+		ID:               strconv.FormatInt(id, 10),
 		Package:          &model.Package{},
 		DependentPackage: &model.Package{},
 		VersionRange:     "",
@@ -48,91 +47,13 @@ func getDependencyObject(id string, values map[interface{}]interface{}) *model.I
 }
 
 func (c *tinkerpopClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
-	pkgVertexProperties := getPackageQueryValues(&pkg)
-	depPkgVertexProperties := getPackageQueryValues(&depPkg)
-	dependencyEdgeProperties := getDependencyQueryValues(&pkg, &depPkg, &dependency)
-	dependencyEdgeProperties[gremlingo.Direction.In] = gremlingo.Merge.InV
-	dependencyEdgeProperties[gremlingo.Direction.Out] = gremlingo.Merge.OutV
-
-	// upsert (pkg -- (dep) --> deppkg)
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	// FIXME: No usert here, should use v.Has() instead
-	r, err := g.MergeV(pkgVertexProperties).As("pkg").
-		MergeV(depPkgVertexProperties).As("depPkg").
-		MergeE(dependencyEdgeProperties).As("edge").
-		// late bind
-		Option(gremlingo.Merge.InV, gremlingo.T__.Select("pkg")).
-		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("depPkg")).
-		Select("edge").Id().Next()
-	if err != nil {
-		return nil, err
-	}
-	edgeId := r.GetInterface().(*janusgraphRelationIdentifier)
-	return getDependencyObject(strconv.FormatInt(edgeId.RelationId, 10), dependencyEdgeProperties), nil
+	return ingestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
+		c, &pkg, &depPkg, &dependency, getPackageQueryValues, getDependencyQueryValues, getDependencyObject)
 }
 
 func (c *tinkerpopClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
-	// FIXME: Implement bulk insert
-	var isDependencies []*model.IsDependency
-
-	if len(dependencies) < 2 {
-		for k, depSpec := range dependencies {
-			dep, err := c.IngestDependency(ctx, *pkgs[k], *depPkgs[k], *depSpec)
-			if err != nil {
-				return isDependencies, err
-			}
-			isDependencies = append(isDependencies, dep)
-		}
-		return isDependencies, nil
-	}
-
-	var v1Props []map[interface{}]interface{}
-	var v2Props []map[interface{}]interface{}
-	var edgeProps []map[interface{}]interface{}
-
-	var allIds []*janusgraphRelationIdentifier
-	for k, depSpec := range dependencies {
-		pkg := pkgs[k]
-		depPkg := depPkgs[k]
-		dependency := depSpec
-
-		pkgVertexProperties := getPackageQueryValues(pkg)
-		depPkgVertexProperties := getPackageQueryValues(depPkg)
-		dependencyEdgeProperties := getDependencyQueryValues(pkg, depPkg, dependency)
-		dependencyEdgeProperties[gremlingo.Direction.In] = gremlingo.Merge.InV
-		dependencyEdgeProperties[gremlingo.Direction.Out] = gremlingo.Merge.OutV
-
-		v1Props = append(v1Props, pkgVertexProperties)
-		v2Props = append(v2Props, depPkgVertexProperties)
-		edgeProps = append(edgeProps, dependencyEdgeProperties)
-
-		if len(edgeProps) >= 50 {
-			ids, err := c.bulkUpsertRelations(v1Props, v2Props, edgeProps)
-			if err != nil {
-				return isDependencies, err
-			}
-			allIds = append(allIds, ids...)
-			v1Props = nil
-			v2Props = nil
-			edgeProps = nil
-		}
-	}
-
-	// append remainingsszsz
-	if len(edgeProps) > 2 {
-		ids, err := c.bulkUpsertRelations(v1Props, v2Props, edgeProps)
-		if err != nil {
-			return isDependencies, err
-		}
-		allIds = append(allIds, ids...)
-	}
-
-	//for _, edgeId := range allIds {
-	//	dep := getDependencyObject(strconv.FormatInt(edgeId.RelationId, 10), dependencyEdgeProperties)
-	//	isDependencies = append(isDependencies, dep)
-	//}
-
-	return isDependencies, nil
+	return bulkIngestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
+		c, pkgs, depPkgs, dependencies, getPackageQueryValues, getDependencyQueryValues, getDependencyObject)
 }
 
 func (c *tinkerpopClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {

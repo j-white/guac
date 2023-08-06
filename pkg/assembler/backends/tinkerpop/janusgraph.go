@@ -144,7 +144,7 @@ func createIndexForEdge(remote *gremlingo.DriverRemoteConnection, edgeLabel stri
 		"propKey = mgmt.containsPropertyKey('%s') ? mgmt.getPropertyKey('%s') : mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
 		"edgeLabel = mgmt.getEdgeLabel('%s')\n"+
 		"edgeLabel = edgeLabel == null ? mgmt.makeEdgeLabel('%s').make() : edgeLabel\n"+
-		"index = mgmt.getGraphIndex('by%sEdge')\n"+
+		"index = mgmt.getRelationIndex(edgeLabel, 'by%sEdge')\n"+
 		"index = index == null ? mgmt.buildEdgeIndex(edgeLabel, 'by%sEdge', Direction.BOTH, Order.desc, propKey) : index\n"+
 		"mgmt.commit()\n",
 		vertexPropertyKey, vertexPropertyKey, vertexPropertyKey,
