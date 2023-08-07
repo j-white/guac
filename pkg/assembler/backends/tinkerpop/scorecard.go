@@ -108,29 +108,14 @@ func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.Sour
 		gremlingo.Direction.Out: gremlingo.Merge.OutV,
 	}
 
-	// upsert (source -> scorecard)
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	r, err := g.MergeV(sourceProperties).As("source").
-		MergeV(scorecardProperties).As("scorecard").
-		MergeE(edgeProperties).
-		// late bind
-		Option(gremlingo.Merge.InV, gremlingo.T__.Select("source")).
-		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("scorecard")).
-		Select("scorecard").
-		Id().Next()
+	relation := &Relation{
+		v1:   sourceProperties,
+		v2:   scorecardProperties,
+		edge: edgeProperties,
+	}
+	relationWithId, err := c.upsertRelationDirect(relation)
 	if err != nil {
 		return nil, err
-	}
-
-	var scorecardId string
-	if c.config.IsJanusGraph {
-		id, err := r.GetInt64()
-		if err != nil {
-			return nil, err
-		}
-		scorecardId = strconv.FormatInt(id, 10)
-	} else {
-		scorecardId = r.GetString()
 	}
 
 	// build artifact from canonical model after a successful upsert
@@ -145,7 +130,7 @@ func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.Sour
 		Collector:        scorecard.Collector,
 	}
 	certification := model.CertifyScorecard{
-		ID:        scorecardId,
+		ID:        relationWithId.edgeId,
 		Source:    src,
 		Scorecard: &modelScorecard,
 	}

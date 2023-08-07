@@ -96,7 +96,7 @@ type ObjectDeserializer[M any] func(id string, values map[interface{}]interface{
 
 type EdgeMapSerializer[VInput any, EInput any] func(v1 VInput, v2 VInput, edge EInput) (result map[interface{}]interface{})
 
-type VerticesAndEdge struct {
+type Relation struct {
 	v1   map[interface{}]interface{}
 	v2   map[interface{}]interface{}
 	edge map[interface{}]interface{}
@@ -104,7 +104,7 @@ type VerticesAndEdge struct {
 
 type RelationWithId struct {
 	edgeId   string
-	relation *VerticesAndEdge
+	relation *Relation
 }
 
 /*
@@ -259,7 +259,7 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *tink
 
 	var edgeObject EOutput
 
-	relation := &VerticesAndEdge{
+	relation := &Relation{
 		v1:   vInputSerializer(v1InputObject),
 		v2:   vInputSerializer(v2InputObject),
 		edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
@@ -300,11 +300,11 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	}
 
 	// serialize all the values
-	var allRelations []*VerticesAndEdge
+	var allRelations []*Relation
 	for k, v1InputObject := range v1InputObjects {
 		v2InputObject := v2InputObjects[k]
 		edgeInputObject := edgeInputObjects[k]
-		relation := &VerticesAndEdge{
+		relation := &Relation{
 			v1:   vInputSerializer(v1InputObject),
 			v2:   vInputSerializer(v2InputObject),
 			edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
@@ -357,7 +357,7 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	return objects, nil
 }
 
-func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation *VerticesAndEdge) error {
+func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(relation.v1).As("v1").
 		MergeV(relation.v2).As("v2").
@@ -388,7 +388,21 @@ func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation 
 	return nil
 }
 
-func (c *tinkerpopClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*VerticesAndEdge) error {
+func (c *tinkerpopClient) upsertRelationDirect(relation *Relation) (*RelationWithId, error) {
+	ch := make(chan []*RelationWithId, 1)
+	err := c.upsertRelation(ch, relation)
+	if err != nil {
+		return nil, err
+	}
+	close(ch)
+	// return the first element from the first list in the channel
+	for _, relationWithId := range <-ch {
+		return relationWithId, nil
+	}
+	return nil, errors.New("no results returned by upsert")
+}
+
+func (c *tinkerpopClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*Relation) error {
 	var edgeRefs []interface{}
 	var gt *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)

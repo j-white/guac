@@ -1,3 +1,6 @@
+# This doc
+
+Misc. notes captured while exploring Guac & Gremlin
 
 # Observations
 
@@ -122,7 +125,6 @@ Increase frame size for larger bulk inserts
 value: "6553600"
 ```
 
-
 # Demo
 
 * Get local environment up with Tilt
@@ -131,4 +133,9 @@ value: "6553600"
 * GraphQL playground: upsert and search
 * Add `Dedup()` to query, in `scorecard.go:215`, wait for reload, query, error
 
+# Connecting to AWS Neptune
 
+* Neptune has no public endpoints, only available w/ local IP on VPC
+* To expose it, create an LB in EC2 to point to port 8182 on the DB and allow the port in a SG
+* Differs from JanusGraph in that the IDs returned are strings for vertices and edges, no custom type reader needed
+* Notebooks are awesome
