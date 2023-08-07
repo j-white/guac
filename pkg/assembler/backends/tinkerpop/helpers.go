@@ -22,6 +22,7 @@ import (
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"golang.org/x/sync/errgroup"
+	"math"
 	"sort"
 	"strconv"
 )
@@ -29,7 +30,7 @@ import (
 type Label string
 
 const MaxVertexUpsertChunkSize = 200
-const MaxEdgeUpsertChunkSize = 50
+const MaxEdgeUpsertChunkSize = 10
 
 func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (int64, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
@@ -47,7 +48,7 @@ func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]int
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// chain the upserts
 	for i, properties := range allProperties {
-		vertexRef := fmt.Sprintf("v:%d", i)
+		vertexRef := fmt.Sprintf("v%d", i)
 		vertexRefs = append(vertexRefs, vertexRef)
 		if i == 0 {
 			gt = g.MergeV(properties).As(vertexRef)
@@ -68,6 +69,12 @@ func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]int
 		ids = append(ids, id)
 	}
 
+	// verify the results are somewhat sane
+	if len(ids) != len(allProperties) {
+		return nil, fmt.Errorf("bulkUpsertVertices: number of results(%d) gathered does not match number of inputs(%d)",
+			len(ids), len(allProperties))
+	}
+
 	return ids, nil
 }
 
@@ -81,6 +88,11 @@ type VerticesAndEdge struct {
 	v1   map[interface{}]interface{}
 	v2   map[interface{}]interface{}
 	edge map[interface{}]interface{}
+}
+
+type RelationWithId struct {
+	edgeId   *janusgraphRelationIdentifier
+	relation *VerticesAndEdge
 }
 
 /*
@@ -235,21 +247,23 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *tink
 
 	var edgeObject EOutput
 
-	verticesAndEdge := &VerticesAndEdge{
+	relation := &VerticesAndEdge{
 		v1:   vInputSerializer(v1InputObject),
 		v2:   vInputSerializer(v2InputObject),
 		edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
 	}
+	relation.edge[gremlingo.Direction.In] = gremlingo.Merge.InV
+	relation.edge[gremlingo.Direction.Out] = gremlingo.Merge.OutV
 
-	ch := make(chan map[*janusgraphRelationIdentifier]*VerticesAndEdge)
-	err := c.upsertRelation(ch, verticesAndEdge)
+	ch := make(chan []*RelationWithId, 1)
+	err := c.upsertRelation(ch, relation)
 	if err != nil {
 		return edgeObject, err
 	}
 	close(ch)
-	// return the first element from the first map in the channel
-	for key, element := range <-ch {
-		return edgeOutputDeserializer(key.RelationId, element.edge), nil
+	// return the first element from the first list in the channel
+	for _, relationWithId := range <-ch {
+		return edgeOutputDeserializer(relationWithId.edgeId.RelationId, relationWithId.relation.edge), nil
 	}
 	return edgeObject, errors.New("no results returned by upsert")
 }
@@ -274,30 +288,37 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	}
 
 	// serialize all the values
-	var allValues []*VerticesAndEdge
+	var allRelations []*VerticesAndEdge
 	for k, v1InputObject := range v1InputObjects {
 		v2InputObject := v2InputObjects[k]
 		edgeInputObject := edgeInputObjects[k]
-		verticesAndEdge := &VerticesAndEdge{
+		relation := &VerticesAndEdge{
 			v1:   vInputSerializer(v1InputObject),
 			v2:   vInputSerializer(v2InputObject),
 			edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
 		}
-		allValues = append(allValues, verticesAndEdge)
+		relation.edge[gremlingo.Direction.In] = gremlingo.Merge.InV
+		relation.edge[gremlingo.Direction.Out] = gremlingo.Merge.OutV
+		allRelations = append(allRelations, relation)
 	}
 
 	// split into chunks and run upserts in parallel
 	var g errgroup.Group
-	resultChan := make(chan map[*janusgraphRelationIdentifier]*VerticesAndEdge)
-	for _, chunk := range chunkSlice(allValues, MaxEdgeUpsertChunkSize) {
+	numChunksUpper := int(math.Ceil(float64(len(allRelations))/MaxEdgeUpsertChunkSize)) + 1
+	resultChan := make(chan []*RelationWithId, numChunksUpper)
+	for _, chunk := range chunkSlice(allRelations, MaxEdgeUpsertChunkSize) {
 		if len(chunk) == 1 {
 			// if there's only 1, the result handling is different, so do a normal upsert
+			localRelationRef := chunk[0]
 			g.Go(func() error {
-				return c.upsertRelation(resultChan, chunk[0])
+				err := c.upsertRelation(resultChan, localRelationRef)
+				return err
 			})
 		} else {
+			localChunkRef := chunk
 			g.Go(func() error {
-				return c.bulkUpsertRelations(resultChan, chunk)
+				err := c.bulkUpsertRelations(resultChan, localChunkRef)
+				return err
 			})
 		}
 	}
@@ -307,30 +328,24 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 
 	// all upserts are done, we can close the channel
 	close(resultChan)
-
 	// map back out to the target object
 	for result := range resultChan {
-		for id, relation := range result {
-			object := edgeOutputDeserializer(id.RelationId, relation.edge)
+		for _, relationWithId := range result {
+			object := edgeOutputDeserializer(relationWithId.edgeId.RelationId, relationWithId.relation.edge)
 			objects = append(objects, object)
 		}
 	}
-
 	// verify the results are somewhat sane
-	if len(objects) != len(allValues) {
-		return nil, fmt.Errorf("number of objects(%d) gathered does not match number of inputs(%d)",
-			len(objects), len(allValues))
+	if len(objects) != len(allRelations) {
+		return nil, fmt.Errorf("bulkIngestModelObjectsWithRelation: number of objects(%d) gathered does not match number of inputs(%d)",
+			len(objects), len(allRelations))
 	}
 
 	return objects, nil
 }
 
-func (c *tinkerpopClient) upsertRelation(queue chan map[*janusgraphRelationIdentifier]*VerticesAndEdge, relation *VerticesAndEdge) error {
+func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation *VerticesAndEdge) error {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-
-	relation.edge[gremlingo.Direction.In] = gremlingo.Merge.InV
-	relation.edge[gremlingo.Direction.Out] = gremlingo.Merge.OutV
-
 	r, err := g.MergeV(relation.v1).As("v1").
 		MergeV(relation.v2).As("v2").
 		MergeE(relation.edge).As("edge").
@@ -342,26 +357,26 @@ func (c *tinkerpopClient) upsertRelation(queue chan map[*janusgraphRelationIdent
 		return err
 	}
 
-	edgeId := r.GetInterface().(*janusgraphRelationIdentifier)
-	idToRelationMap := make(map[*janusgraphRelationIdentifier]*VerticesAndEdge)
-	idToRelationMap[edgeId] = relation
-	queue <- idToRelationMap
+	var relationsWithIds []*RelationWithId
+	relationsWithIds = append(relationsWithIds, &RelationWithId{
+		edgeId:   r.GetInterface().(*janusgraphRelationIdentifier),
+		relation: relation,
+	})
+
+	queue <- relationsWithIds
 	return nil
 }
 
-func (c *tinkerpopClient) bulkUpsertRelations(queue chan map[*janusgraphRelationIdentifier]*VerticesAndEdge, relations []*VerticesAndEdge) error {
+func (c *tinkerpopClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*VerticesAndEdge) error {
 	var edgeRefs []interface{}
 	var gt *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// chain the upserts
 	for k, relation := range relations {
-		v1Ref := fmt.Sprintf("v1:%d", k)
-		v2Ref := fmt.Sprintf("v2:%d", k)
-		edgeRef := fmt.Sprintf("e:%d", k)
+		v1Ref := fmt.Sprintf("v1-%d", k)
+		v2Ref := fmt.Sprintf("v2-%d", k)
+		edgeRef := fmt.Sprintf("e-%d", k)
 		edgeRefs = append(edgeRefs, edgeRef)
-
-		relation.edge[gremlingo.Direction.In] = gremlingo.Merge.InV
-		relation.edge[gremlingo.Direction.Out] = gremlingo.Merge.OutV
 
 		if k == 0 {
 			gt = g.MergeV(relation.v1).As(v1Ref).
@@ -384,13 +399,22 @@ func (c *tinkerpopClient) bulkUpsertRelations(queue chan map[*janusgraphRelation
 		return err
 	}
 
-	idToRelationMap := make(map[*janusgraphRelationIdentifier]*VerticesAndEdge)
+	// verify the results are somewhat sane
+	if len(results) != len(relations) {
+		return fmt.Errorf("bulkUpsertRelations: number of results(%d) gathered does not match number of inputs(%d)",
+			len(results), len(relations))
+	}
+
+	var relationsWithIds []*RelationWithId
 	for k, result := range results {
 		edgeId := result.GetInterface().(*janusgraphRelationIdentifier)
-		// FIXME: This assumes the IDs are returned in the same order as the input queries
-		idToRelationMap[edgeId] = relations[k]
+		relationsWithIds = append(relationsWithIds, &RelationWithId{
+			edgeId: edgeId,
+			// FIXME: This assumes the IDs are returned in the same order as the input queries
+			relation: relations[k],
+		})
 	}
-	queue <- idToRelationMap
 
+	queue <- relationsWithIds
 	return nil
 }

@@ -77,7 +77,13 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	}
 
 	// FIXME: Is there no clean shutdown of the backend?
-	remote, err := gremlingo.NewDriverRemoteConnection(config.Url)
+	remote, err := gremlingo.NewDriverRemoteConnection(config.Url, func(settings *gremlingo.DriverRemoteConnectionSettings) {
+		//// enable compression
+		//settings.EnableCompression = true
+		settings.NewConnectionThreshold = 1
+		//settings.InitialConcurrentConnections = 2
+		//settings.MaximumConcurrentConnections = 8
+	})
 	if err != nil {
 		return nil, err
 	}

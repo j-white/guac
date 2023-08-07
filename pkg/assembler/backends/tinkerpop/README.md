@@ -105,7 +105,12 @@ gremlin> :>  g.V().hasLabel("scorecard").as("scorecard").out().hasLabel("source"
 
 MergeE
 ```
-gremlin> :> g.mergeV([(T.label):'Dog',name:'Toby']).as('Toby').mergeV([(T.label):'Dog',name:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').id().toList()
+gremlin> :> g.mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby').mergeV([(T.label):'Dog',namespace:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').id().toList()
+```
+
+MergeE
+```
+gremlin> :> g.mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby').mergeV([(T.label):'Dog',namespace:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby2').mergeV([(T.label):'Dog',namespace:'Brandy']).as('Brandy2').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby2')).option(Merge.inV, select('Brandy2')).as('edge2').select('edge','edge2').unfold().id().toList()
 ```
 
 ## Tuning

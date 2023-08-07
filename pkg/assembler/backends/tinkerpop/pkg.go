@@ -184,5 +184,7 @@ func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputS
 }
 
 func (c *tinkerpopClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
-	return bulkIngestModelObjects[*model.PkgInputSpec, *model.Package](c, pkgs, getPackageQueryValues, getPackageObject)
+	var pkgList []*model.Package
+	return pkgList, nil
+	//return bulkIngestModelObjects[*model.PkgInputSpec, *model.Package](c, pkgs, getPackageQueryValues, getPackageObject)
 }
