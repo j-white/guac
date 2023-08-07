@@ -30,19 +30,27 @@ import (
 type Label string
 
 const MaxVertexUpsertChunkSize = 200
-const MaxEdgeUpsertChunkSize = 10
+const MaxEdgeUpsertChunkSize = 10 // breaks with anything over 10
 
-func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (int64, error) {
+func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (string, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(properties).Id().Next()
 	if err != nil {
-		return -1, err
+		return "", err
 	}
-	return r.GetInt64()
+	if c.config.IsJanusGraph {
+		id, err := r.GetInt64()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatInt(id, 10), nil
+	} else {
+		return r.GetString(), nil
+	}
 }
 
-func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]int64, error) {
-	var ids []int64
+func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]string, error) {
+	var ids []string
 	var vertexRefs []interface{}
 	var gt *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
@@ -62,11 +70,15 @@ func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]int
 	}
 
 	for _, result := range results {
-		id, err := result.GetInt64()
-		if err != nil {
-			return nil, err
+		if c.config.IsJanusGraph {
+			id, err := result.GetInt64()
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, strconv.FormatInt(id, 10))
+		} else {
+			ids = append(ids, result.GetString())
 		}
-		ids = append(ids, id)
 	}
 
 	// verify the results are somewhat sane
@@ -80,7 +92,7 @@ func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]int
 
 type MapSerializer[M any] func(model M) (result map[interface{}]interface{})
 
-type ObjectDeserializer[M any] func(id int64, values map[interface{}]interface{}) (model M)
+type ObjectDeserializer[M any] func(id string, values map[interface{}]interface{}) (model M)
 
 type EdgeMapSerializer[VInput any, EInput any] func(v1 VInput, v2 VInput, edge EInput) (result map[interface{}]interface{})
 
@@ -91,7 +103,7 @@ type VerticesAndEdge struct {
 }
 
 type RelationWithId struct {
-	edgeId   *janusgraphRelationIdentifier
+	edgeId   string
 	relation *VerticesAndEdge
 }
 
@@ -133,7 +145,7 @@ func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, 
 	// FIXME: make this configurable
 	// FIXME: given these span multiple requests, we should wrap them in a single transaction
 	// FIXME: can we do these in parallel? (probably not if they are in a single transaction)
-	var ids = make([]int64, 0)
+	var ids = make([]string, 0)
 	for _, chunk := range chunkSlice(allValues, MaxVertexUpsertChunkSize) {
 		if len(chunk) == 1 {
 			// if there's only 1, the query handling is different, so do a normal upsert
@@ -263,7 +275,7 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *tink
 	close(ch)
 	// return the first element from the first list in the channel
 	for _, relationWithId := range <-ch {
-		return edgeOutputDeserializer(relationWithId.edgeId.RelationId, relationWithId.relation.edge), nil
+		return edgeOutputDeserializer(relationWithId.edgeId, relationWithId.relation.edge), nil
 	}
 	return edgeObject, errors.New("no results returned by upsert")
 }
@@ -321,9 +333,10 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 				return err
 			})
 		}
-	}
-	if err := g.Wait(); err != nil {
-		return objects, err
+		// FIXME: Only one at time - concurrency handling is limited in JanusGraph
+		if err := g.Wait(); err != nil {
+			return objects, err
+		}
 	}
 
 	// all upserts are done, we can close the channel
@@ -331,7 +344,7 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	// map back out to the target object
 	for result := range resultChan {
 		for _, relationWithId := range result {
-			object := edgeOutputDeserializer(relationWithId.edgeId.RelationId, relationWithId.relation.edge)
+			object := edgeOutputDeserializer(relationWithId.edgeId, relationWithId.relation.edge)
 			objects = append(objects, object)
 		}
 	}
@@ -358,8 +371,16 @@ func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation 
 	}
 
 	var relationsWithIds []*RelationWithId
+
+	var edgeId string
+	if c.config.IsJanusGraph {
+		edgeId = strconv.FormatInt(r.GetInterface().(*janusgraphRelationIdentifier).RelationId, 10)
+	} else {
+		edgeId = r.GetString()
+	}
+
 	relationsWithIds = append(relationsWithIds, &RelationWithId{
-		edgeId:   r.GetInterface().(*janusgraphRelationIdentifier),
+		edgeId:   edgeId,
 		relation: relation,
 	})
 
@@ -406,8 +427,14 @@ func (c *tinkerpopClient) bulkUpsertRelations(queue chan []*RelationWithId, rela
 	}
 
 	var relationsWithIds []*RelationWithId
-	for k, result := range results {
-		edgeId := result.GetInterface().(*janusgraphRelationIdentifier)
+	for k, r := range results {
+		var edgeId string
+		if c.config.IsJanusGraph {
+			edgeId = strconv.FormatInt(r.GetInterface().(*janusgraphRelationIdentifier).RelationId, 10)
+		} else {
+			edgeId = r.GetString()
+		}
+
 		relationsWithIds = append(relationsWithIds, &RelationWithId{
 			edgeId: edgeId,
 			// FIXME: This assumes the IDs are returned in the same order as the input queries

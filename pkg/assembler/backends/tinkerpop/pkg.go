@@ -21,7 +21,6 @@ import (
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"sort"
-	"strconv"
 )
 
 const (
@@ -172,9 +171,9 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} 
 	return values
 }
 
-func getPackageObject(id int64, values map[interface{}]interface{}) *model.Package {
+func getPackageObject(id string, values map[interface{}]interface{}) *model.Package {
 	return &model.Package{
-		ID:   strconv.FormatInt(id, 10),
+		ID:   id,
 		Type: values[typeStr].(string),
 	}
 }

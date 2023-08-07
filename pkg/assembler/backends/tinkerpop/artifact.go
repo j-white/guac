@@ -42,7 +42,7 @@ func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.Ar
 
 	// build artifact from canonical model after a successful upsert
 	a := &model.Artifact{
-		ID:        strconv.FormatInt(id, 10),
+		ID:        id,
 		Algorithm: values[algorithm].(string),
 		Digest:    values[digest].(string),
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"strconv"
 )
 
 const (
@@ -32,9 +31,9 @@ func getDependencyQueryValues(pkg *model.PkgInputSpec, depPkg *model.PkgInputSpe
 	return values
 }
 
-func getDependencyObject(id int64, values map[interface{}]interface{}) *model.IsDependency {
+func getDependencyObject(id string, values map[interface{}]interface{}) *model.IsDependency {
 	isDependency := &model.IsDependency{
-		ID:               strconv.FormatInt(id, 10),
+		ID:               id,
 		Package:          &model.Package{},
 		DependentPackage: &model.Package{},
 		VersionRange:     "",

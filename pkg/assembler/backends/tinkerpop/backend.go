@@ -17,6 +17,7 @@ package tinkerpop
 
 import (
 	"context"
+	"crypto/tls"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
@@ -41,6 +42,7 @@ type TinkerPopConfig struct {
 	Url          string
 	SettingsFile string
 	MaxLimit     uint32
+	IsJanusGraph bool
 }
 
 type tinkerpopClient struct {
@@ -73,14 +75,20 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	// FIXME: Make this configurable
 	config.MaxLimit = 1000
 	if strings.TrimSpace(config.Url) == "" {
+		//config.Url = "ws://guac-test-db-1.cluster-c3pu6rlsghkn.us-east-1.neptune.amazonaws.com:8182/gremlin"
 		config.Url = "ws://janusgraph:8182/gremlin"
 	}
 
+	// let's play with AWS Neptune
+	config.Url = "ws://guac-neptune-db-1-1865211709.us-east-1.elb.amazonaws.com:8182/gremlin"
+	config.IsJanusGraph = false
+
 	// FIXME: Is there no clean shutdown of the backend?
 	remote, err := gremlingo.NewDriverRemoteConnection(config.Url, func(settings *gremlingo.DriverRemoteConnectionSettings) {
+		settings.TlsConfig = &tls.Config{}
 		//// enable compression
 		//settings.EnableCompression = true
-		settings.NewConnectionThreshold = 1
+		//settings.NewConnectionThreshold = 1
 		//settings.InitialConcurrentConnections = 2
 		//settings.MaximumConcurrentConnections = 8
 	})
@@ -109,36 +117,42 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 		return nil, err
 	}
 
-	// Gremlin is meant to be generic, and some DBs will have specific APIs we need to use to initialize the schema & indices
-	// This bit is JanusGraph specific
-	err = createIndicesForVertexProperties(remote,
-		// packages
-		"namespace",
-		// scorecards
-		"scorecardCommit",
-		// artifacts
-		"digest",
-		// builder
-		"uri",
-		// cve,
-		"cveId",
-		// osv,
-		"osvId",
-		// ghsa,
-		"ghsaId",
-	)
-	if err != nil {
-		return nil, err
-	}
-	// (pkg) -- (dep) --> (pkg)
-	err = createIndexForEdge(remote, string(IsDependency), dependencyType)
-	if err != nil {
-		return nil, err
-	}
+	if config.IsJanusGraph {
+		// Gremlin is meant to be generic, and some DBs will have specific APIs we need to use to initialize the schema & indices
+		// This bit is JanusGraph specific
+		err = createIndicesForVertexProperties(remote,
+			// packages
+			"namespace",
+			// scorecards
+			"scorecardCommit",
+			// artifacts
+			"digest",
+			// builder
+			"uri",
+			// cve,
+			"cveId",
+			// osv,
+			"osvId",
+			// ghsa,
+			"ghsaId",
+		)
+		if err != nil {
+			return nil, err
+		}
+		// (pkg) -- (dep) --> (pkg)
+		err = createIndexForEdge(remote, string(IsDependency), dependencyType)
+		if err != nil {
+			return nil, err
+		}
 
-	schema, err := printSchema(remote)
-	logger.Info("Current JanusGraph schema: %s", schema)
-	// end of JanusGraph specifics
+		schema, err := printSchema(remote)
+		if err != nil {
+			logger.Errorf("Failed to print schema: %v", err)
+			return nil, err
+		}
+		logger.Info("Current JanusGraph schema: %s", schema)
+		// end of JanusGraph specifics
+	}
 
 	client := &tinkerpopClient{*config, remote}
 	return client, nil

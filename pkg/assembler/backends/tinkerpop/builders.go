@@ -4,7 +4,6 @@ import (
 	"context"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"strconv"
 	"strings"
 )
 
@@ -19,9 +18,9 @@ func getBuilderQueryValues(builder *model.BuilderInputSpec) map[interface{}]inte
 	return values
 }
 
-func getBuilderObject(id int64, values map[interface{}]interface{}) *model.Builder {
+func getBuilderObject(id string, values map[interface{}]interface{}) *model.Builder {
 	return &model.Builder{
-		ID:  strconv.FormatInt(id, 10),
+		ID:  id,
 		URI: values[uri].(string),
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"strconv"
 	"strings"
 )
 
@@ -19,9 +18,9 @@ func getGHSAQueryValues(ghsa *model.GHSAInputSpec) map[interface{}]interface{} {
 	return values
 }
 
-func getGHSAObject(id int64, values map[interface{}]interface{}) *model.Ghsa {
+func getGHSAObject(id string, values map[interface{}]interface{}) *model.Ghsa {
 	return &model.Ghsa{
-		ID:     strconv.FormatInt(id, 10),
+		ID:     id,
 		GhsaID: values[ghsaId].(string),
 	}
 }

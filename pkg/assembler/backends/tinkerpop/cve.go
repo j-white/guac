@@ -18,7 +18,6 @@ package tinkerpop
 import (
 	"context"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
-	"strconv"
 	"strings"
 
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
@@ -36,9 +35,9 @@ func getCVEQueryValues(cve *model.CVEInputSpec) map[interface{}]interface{} {
 	return values
 }
 
-func getCVEObject(id int64, values map[interface{}]interface{}) *model.Cve {
+func getCVEObject(id string, values map[interface{}]interface{}) *model.Cve {
 	return &model.Cve{
-		ID:    strconv.FormatInt(id, 10),
+		ID:    id,
 		Year:  values[year].(int),
 		CveID: values[cveId].(string),
 	}

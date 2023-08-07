@@ -121,9 +121,16 @@ func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.Sour
 	if err != nil {
 		return nil, err
 	}
-	id, err := r.GetInt64()
-	if err != nil {
-		return nil, err
+
+	var scorecardId string
+	if c.config.IsJanusGraph {
+		id, err := r.GetInt64()
+		if err != nil {
+			return nil, err
+		}
+		scorecardId = strconv.FormatInt(id, 10)
+	} else {
+		scorecardId = r.GetString()
 	}
 
 	// build artifact from canonical model after a successful upsert
@@ -138,7 +145,7 @@ func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.Sour
 		Collector:        scorecard.Collector,
 	}
 	certification := model.CertifyScorecard{
-		ID:        strconv.FormatInt(id, 10),
+		ID:        scorecardId,
 		Source:    src,
 		Scorecard: &modelScorecard,
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"strconv"
 	"strings"
 )
 
@@ -19,9 +18,9 @@ func getOSVQueryValues(osv *model.OSVInputSpec) map[interface{}]interface{} {
 	return values
 }
 
-func getOSVObject(id int64, values map[interface{}]interface{}) *model.Osv {
+func getOSVObject(id string, values map[interface{}]interface{}) *model.Osv {
 	return &model.Osv{
-		ID:    strconv.FormatInt(id, 10),
+		ID:    id,
 		OsvID: values[osvId].(string),
 	}
 }

@@ -43,12 +43,14 @@ func getSourceQueryValues(source *model.SourceInputSpec) map[interface{}]interfa
 	return values
 }
 
-func getSourceObject(id int64, values map[interface{}]interface{}) *model.Source {
-	return generateModelSource(values[typeStr].(string),
+func getSourceObject(id string, values map[interface{}]interface{}) *model.Source {
+	source := generateModelSource(values[typeStr].(string),
 		values[namespace].(string),
 		values[name].(string),
 		values[commit].(string),
 		values[tag].(string))
+	source.ID = id
+	return source
 }
 
 func generateModelSource(srcType, namespaceStr, nameStr string, commitValue, tagValue interface{}) *model.Source {
