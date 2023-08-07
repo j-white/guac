@@ -84,7 +84,7 @@ mutation {
 * Review connection pooling & lifecycle
 * Add metrics
 
-# JanusGraph notes
+# Connecting to local JanusGraph 
 
 ```
 kubectl exec -it deploy/janusgraph ./bin/gremlin.sh
@@ -133,9 +133,32 @@ value: "6553600"
 * GraphQL playground: upsert and search
 * Add `Dedup()` to query, in `scorecard.go:215`, wait for reload, query, error
 
-# Connecting to AWS Neptune
+# Backends
+
+## JanusGraph
+
+* Used in Tilt environment
+* Crumbles under concurrent writes
+
+## AWS Neptune
 
 * Neptune has no public endpoints, only available w/ local IP on VPC
 * To expose it, create an LB in EC2 to point to port 8182 on the DB and allow the port in a SG
 * Differs from JanusGraph in that the IDs returned are strings for vertices and edges, no custom type reader needed
 * Notebooks are awesome
+
+## Azure Cosmos DB
+
+Config looks like:
+```
+config := &TinkerPopConfig{
+    Url:      "wss://obfuscated.gremlin.cosmos.azure.com:443/",
+    Username: "/dbs/<YOUR_DATABASE>/colls/<YOUR_COLLECTION_OR_GRAPH>",
+    Password: "CJuLAERdeadbeef==",
+}
+```
+* Need to set a partition key, must be non-null in inserts and queries
+* Gremlin Bytecode is not supported, only JSON, see https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/support
+* Transactions are not supported
+
+> Won't work with gremlin-go

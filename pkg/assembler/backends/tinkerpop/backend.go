@@ -22,6 +22,7 @@ import (
 	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/guacsec/guac/pkg/logging"
+	"go.uber.org/zap"
 	"strings"
 )
 
@@ -43,6 +44,9 @@ type TinkerPopConfig struct {
 	SettingsFile string
 	MaxLimit     uint32
 	IsJanusGraph bool
+	// auth
+	Username string
+	Password string
 }
 
 type tinkerpopClient struct {
@@ -65,6 +69,18 @@ func (c *tinkerpopClient) IngestHashEquals(ctx context.Context, artifacts []*mod
 	panic("implement me")
 }
 
+type myLogger struct {
+	logger *zap.SugaredLogger
+}
+
+func (l *myLogger) Log(_ gremlingo.LogVerbosity, v ...interface{}) {
+	l.logger.Info(v...)
+}
+
+func (l *myLogger) Logf(_ gremlingo.LogVerbosity, format string, v ...interface{}) {
+	l.logger.Infof(format, v...)
+}
+
 func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 	ctx := logging.WithLogger(context.Background())
 	logger := logging.FromContext(ctx)
@@ -79,13 +95,17 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 		config.Url = "ws://janusgraph:8182/gremlin"
 	}
 
-	// let's play with AWS Neptune
-	config.Url = "ws://guac-neptune-db-1-1865211709.us-east-1.elb.amazonaws.com:8182/gremlin"
-	config.IsJanusGraph = false
-
 	// FIXME: Is there no clean shutdown of the backend?
 	remote, err := gremlingo.NewDriverRemoteConnection(config.Url, func(settings *gremlingo.DriverRemoteConnectionSettings) {
+		settings.Logger = &myLogger{logger: logger}
+		settings.LogVerbosity = gremlingo.Debug
 		settings.TlsConfig = &tls.Config{}
+		if strings.TrimSpace(config.Username) != "" {
+			settings.AuthInfo = &gremlingo.AuthInfo{
+				Username: config.Username,
+				Password: config.Password,
+			}
+		}
 		//// enable compression
 		//settings.EnableCompression = true
 		//settings.NewConnectionThreshold = 1
@@ -106,9 +126,10 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 		logger.Errorf("Failed to create transaction: %v", err)
 		return nil, err
 	}
-	promise := gtx.AddV("x").Property("a", "b").Iterate()
+	promise := gtx.AddV("x").Property("a", "b").Property().Iterate()
 	err = <-promise
 	if err != nil {
+		logger.Errorf("Failed to add vertex: %v", err)
 		return nil, err
 	}
 	err = tx.Rollback()
