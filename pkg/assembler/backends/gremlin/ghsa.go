@@ -34,6 +34,14 @@ func (c *gremlinClient) IngestGHSAs(ctx context.Context, ghsas []*model.GHSAInpu
 }
 
 func (c *gremlinClient) Ghsa(ctx context.Context, ghsaSpec *model.GHSASpec) ([]*model.Ghsa, error) {
-	var ghsas []*model.Ghsa
-	return ghsas, nil
+	query := createVertexQuery(GHSA)
+	if ghsaSpec != nil {
+		if ghsaSpec.ID != nil {
+			query.id = *ghsaSpec.ID
+		}
+		if ghsaSpec.GhsaID != nil {
+			query.has[ghsaId] = strings.ToLower(*ghsaSpec.GhsaID)
+		}
+	}
+	return queryModelObjects[*model.Ghsa](c, query, getGHSAObject)
 }
