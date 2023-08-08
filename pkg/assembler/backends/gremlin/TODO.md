@@ -11,6 +11,8 @@
 [ ] isDependency
 [ ] isOccurrence
 [ ] isVulnerability
+[ ] pkgEqual
+[ ] pointOfContact
 
 ## General
 

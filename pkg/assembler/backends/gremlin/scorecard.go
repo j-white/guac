@@ -297,69 +297,6 @@ func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *mo
 	return scorecards, nil
 }
 
-func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
-	// build the query
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	v := g.V().HasLabel(string(Source))
-	if sourceSpec != nil {
-		if sourceSpec.ID != nil {
-			id, err := strconv.ParseInt(*sourceSpec.ID, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			v = g.V(id).HasLabel(string(Artifact))
-		}
-		if sourceSpec.Name != nil {
-			v = v.Has(name, *sourceSpec.Name)
-		}
-		if sourceSpec.Type != nil {
-			v = v.Has(sourceType, *sourceSpec.Type)
-		}
-		if sourceSpec.Namespace != nil {
-			v = v.Has(namespace, *sourceSpec.Namespace)
-		}
-		if sourceSpec.Tag != nil {
-			v = v.Has(tag, *sourceSpec.Tag)
-		}
-		if sourceSpec.Commit != nil {
-			v = v.Has(commit, *sourceSpec.Commit)
-		}
-	}
-	v = v.ValueMap(true)
-
-	// execute the query
-	results, err := v.Limit(c.config.MaxResultsPerQuery).ToList()
-	if err != nil {
-		return nil, err
-	}
-
-	// generate the model objects from the resultset
-	var sources []*model.Source
-	for _, result := range results {
-		resultMap := result.GetInterface().(map[interface{}]interface{})
-		id := strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10)
-		tagValue := (resultMap[tag].([]interface{}))[0].(string)
-		commitValue := (resultMap[commit].([]interface{}))[0].(string)
-		source := &model.Source{
-			ID:   id,
-			Type: (resultMap[sourceType].([]interface{}))[0].(string),
-			Namespaces: []*model.SourceNamespace{{
-				ID:        id,
-				Namespace: (resultMap[namespace].([]interface{}))[0].(string),
-				Names: []*model.SourceName{{
-					ID:     id,
-					Name:   (resultMap[name].([]interface{}))[0].(string),
-					Tag:    &tagValue,
-					Commit: &commitValue,
-				}},
-			}},
-		}
-		sources = append(sources, source)
-	}
-
-	return sources, nil
-}
-
 func toChecks(inputCheck []*model.ScorecardCheckInputSpec) []*model.ScorecardCheck {
 	var checks []*model.ScorecardCheck
 	for _, check := range inputCheck {

@@ -89,3 +89,28 @@ func (c *gremlinClient) IngestSource(ctx context.Context, source model.SourceInp
 func (c *gremlinClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
 	return bulkIngestModelObjects[*model.SourceInputSpec, *model.Source](c, sources, getSourceQueryValues, getSourceObject)
 }
+
+func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
+	query := createVertexQuery(Source)
+	if sourceSpec != nil {
+		if sourceSpec.ID != nil {
+			query.id = *sourceSpec.ID
+		}
+		if sourceSpec.Name != nil {
+			query.has[name] = *sourceSpec.Name
+		}
+		if sourceSpec.Type != nil {
+			query.has[sourceType] = *sourceSpec.Type
+		}
+		if sourceSpec.Namespace != nil {
+			query.has[namespace] = *sourceSpec.Namespace
+		}
+		if sourceSpec.Tag != nil {
+			query.has[tag] = *sourceSpec.Tag
+		}
+		if sourceSpec.Commit != nil {
+			query.has[commit] = *sourceSpec.Commit
+		}
+	}
+	return queryModelObjects[*model.Source](c, query, getSourceObject)
+}
