@@ -216,11 +216,6 @@ func (c *gremlinClient) IngestMaterials(ctx context.Context, materials []*model.
 	panic("implement me")
 }
 
-func (c *gremlinClient) IngestCertifyBad(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyBad model.CertifyBadInputSpec) (*model.CertifyBad, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) IngestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec) (*model.CertifyGood, error) {
 	//TODO implement me
 	panic("implement me")
@@ -277,11 +272,6 @@ func (c *gremlinClient) Path(ctx context.Context, subject string, target string,
 }
 
 func (c *gremlinClient) FindSoftware(ctx context.Context, searchText string) ([]model.PackageSourceOrArtifact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) CertifyBad(ctx context.Context, certifyBadSpec *model.CertifyBadSpec) ([]*model.CertifyBad, error) {
 	//TODO implement me
 	panic("implement me")
 }
