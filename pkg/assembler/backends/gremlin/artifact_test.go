@@ -31,7 +31,14 @@ func createGremlinClientForIntegrationTest() (*gremlinClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.(*gremlinClient), nil
+	client := c.(*gremlinClient)
+
+	_, err = deleteAllVerticesAndEdges(client.remote)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
 func Test_demoClient_IngestArtifacts(t *testing.T) {

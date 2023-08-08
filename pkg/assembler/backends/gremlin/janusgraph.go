@@ -30,6 +30,8 @@ func createIndicesForJanusGraph(ctx context.Context, remote *gremlingo.DriverRem
 	logger := logging.FromContext(ctx)
 	// Add indices for known properties to help avoid full table scans
 	err := createIndicesForVertexProperties(remote,
+		// partition-key (internal)
+		guacPartitionKey,
 		// packages
 		namespace,
 		// scorecards

@@ -37,3 +37,21 @@ func supportsTransactions(remote *gremlingo.DriverRemoteConnection) (bool, error
 	}
 	return isSupported, nil
 }
+
+func deleteAllVerticesAndEdges(remote *gremlingo.DriverRemoteConnection) (bool, error) {
+	r := new(gremlingo.RequestOptionsBuilder).Create()
+	stmt := "g.V().drop()\n"
+	rs, err := remote.SubmitWithOptions(stmt, r)
+	result, hasResult, err := rs.One()
+	if err != nil {
+		return false, err
+	}
+	if !hasResult {
+		return false, errors.New("query to verify transaction supported completed normally, but did not produce a result")
+	}
+	isSupported, err := result.GetBool()
+	if err != nil {
+		return false, err
+	}
+	return isSupported, nil
+}

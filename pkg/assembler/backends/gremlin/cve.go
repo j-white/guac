@@ -30,7 +30,7 @@ const (
 func getCVEQueryValues(cve *model.CVEInputSpec) map[interface{}]interface{} {
 	values := make(map[interface{}]interface{})
 	values[gremlingo.T.Label] = string(CVE)
-	values[year] = cve.Year
+	values[year] = int64(cve.Year)
 	values[cveId] = strings.ToLower(cve.CveID)
 	return values
 }
@@ -38,7 +38,7 @@ func getCVEQueryValues(cve *model.CVEInputSpec) map[interface{}]interface{} {
 func getCVEObject(id string, values map[interface{}]interface{}) *model.Cve {
 	return &model.Cve{
 		ID:    id,
-		Year:  values[year].(int),
+		Year:  int(values[year].(int64)),
 		CveID: values[cveId].(string),
 	}
 }
@@ -52,6 +52,17 @@ func (c *gremlinClient) IngestCVEs(ctx context.Context, cves []*model.CVEInputSp
 }
 
 func (c *gremlinClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*model.Cve, error) {
-	var cves []*model.Cve
-	return cves, nil
+	query := createVertexQuery(CVE)
+	if cveSpec != nil {
+		if cveSpec.ID != nil {
+			query.id = *cveSpec.ID
+		}
+		if cveSpec.Year != nil {
+			query.has[year] = *cveSpec.Year
+		}
+		if cveSpec.CveID != nil {
+			query.has[cveId] = *cveSpec.CveID
+		}
+	}
+	return queryModelObjects[*model.Cve](c, query, getCVEObject)
 }

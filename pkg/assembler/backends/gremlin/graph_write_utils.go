@@ -114,9 +114,9 @@ D is model object w/ id after upsert
 func ingestModelObject[C any, D any](c *gremlinClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
 	var object D
 	values := serializer(modelObject)
-	// Verify that label is present
+	// verify that label is present
 	if _, ok := values[gremlingo.T.Label]; !ok {
-		return object, errors.New("missing label!!! please add it :)")
+		return object, fmt.Errorf("label missing on vertex, rejecting: %v", values)
 	}
 
 	id, err := c.upsertVertex(values)

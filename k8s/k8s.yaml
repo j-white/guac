@@ -240,8 +240,8 @@ spec:
           env:
 #            - name: JANUS_PROPS_TEMPLATE
 #              value: "cql"
-            - name: janusgraph.query.force-index
-              value: "true"
+#            - name: janusgraph.query.force-index
+#              value: "true"
             - name: gremlinserver.maxContentLength
               value: "6553600"
             - name: JAVA_OPTIONS
