@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -63,7 +63,7 @@ func validateSourceInputSpec(source model.SourceInputSpec) error {
 	return nil
 }
 
-func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
 	// TODO: Can we push this validation up a layer, so that the storage engines don't need to worry about it?
 	err := validateSourceInputSpec(source)
 	if err != nil {
@@ -137,7 +137,7 @@ func (c *tinkerpopClient) IngestScorecard(ctx context.Context, source model.Sour
 	return &certification, nil
 }
 
-func (c *tinkerpopClient) IngestScorecards(ctx context.Context, sources []*model.SourceInputSpec, scorecards []*model.ScorecardInputSpec) ([]*model.CertifyScorecard, error) {
+func (c *gremlinClient) IngestScorecards(ctx context.Context, sources []*model.SourceInputSpec, scorecards []*model.ScorecardInputSpec) ([]*model.CertifyScorecard, error) {
 	// FIXME: Implement bulk insert
 	var scorecardObjects []*model.CertifyScorecard
 	for k, scorecardSpec := range scorecards {
@@ -151,11 +151,11 @@ func (c *tinkerpopClient) IngestScorecards(ctx context.Context, sources []*model
 }
 
 // CertifyScorecard an existing alias for ingesting scorecards
-func (c *tinkerpopClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+func (c *gremlinClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
 	return c.IngestScorecard(ctx, source, scorecard)
 }
 
-func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
+func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	fmt.Println("spec", certifyScorecardSpec)
@@ -224,7 +224,7 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 		}
 		v = v.As("source")
 	}
-	v = v.Select("scorecard", "source").Select(gremlingo.Column.Values).Limit(c.config.MaxLimit).Unfold().ValueMap(true)
+	v = v.Select("scorecard", "source").Select(gremlingo.Column.Values).Limit(c.config.MaxResultsPerQuery).Unfold().ValueMap(true)
 
 	// execute the query
 	results, err := v.ToList()
@@ -296,7 +296,7 @@ func (c *tinkerpopClient) Scorecards(ctx context.Context, certifyScorecardSpec *
 	return scorecards, nil
 }
 
-func (c *tinkerpopClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
+func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	v := g.V().HasLabel(string(Source))
@@ -327,7 +327,7 @@ func (c *tinkerpopClient) Sources(ctx context.Context, sourceSpec *model.SourceS
 	v = v.ValueMap(true)
 
 	// execute the query
-	results, err := v.Limit(c.config.MaxLimit).ToList()
+	results, err := v.Limit(c.config.MaxResultsPerQuery).ToList()
 	if err != nil {
 		return nil, err
 	}

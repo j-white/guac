@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -43,15 +43,15 @@ func getCVEObject(id string, values map[interface{}]interface{}) *model.Cve {
 	}
 }
 
-func (c *tinkerpopClient) IngestCve(ctx context.Context, cve *model.CVEInputSpec) (*model.Cve, error) {
+func (c *gremlinClient) IngestCve(ctx context.Context, cve *model.CVEInputSpec) (*model.Cve, error) {
 	return ingestModelObject[*model.CVEInputSpec, *model.Cve](c, cve, getCVEQueryValues, getCVEObject)
 }
 
-func (c *tinkerpopClient) IngestCVEs(ctx context.Context, cves []*model.CVEInputSpec) ([]*model.Cve, error) {
+func (c *gremlinClient) IngestCVEs(ctx context.Context, cves []*model.CVEInputSpec) ([]*model.Cve, error) {
 	return bulkIngestModelObjects[*model.CVEInputSpec, *model.Cve](c, cves, getCVEQueryValues, getCVEObject)
 }
 
-func (c *tinkerpopClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*model.Cve, error) {
+func (c *gremlinClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*model.Cve, error) {
 	var cves []*model.Cve
 	return cves, nil
 }

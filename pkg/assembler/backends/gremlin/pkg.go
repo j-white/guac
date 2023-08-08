@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -178,11 +178,11 @@ func getPackageObject(id string, values map[interface{}]interface{}) *model.Pack
 	}
 }
 
-func (c *tinkerpopClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
+func (c *gremlinClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
 	return ingestModelObject[*model.PkgInputSpec, *model.Package](c, &pkg, getPackageQueryValues, getPackageObject)
 }
 
-func (c *tinkerpopClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
+func (c *gremlinClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
 	var pkgList []*model.Package
 	return pkgList, nil
 	//return bulkIngestModelObjects[*model.PkgInputSpec, *model.Package](c, pkgs, getPackageQueryValues, getPackageObject)

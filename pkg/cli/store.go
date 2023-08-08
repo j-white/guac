@@ -37,7 +37,7 @@ func init() {
 
 	set.Int("csub-listen-port", 2782, "port to listen to on collect-sub service")
 
-	set.String("gql-backend", "tinkerpop", "backend used for graphql api server: [inmem | arango (experimental) | neo4j (unmaintained) | tinkerpop (in progress)]")
+	set.String("gql-backend", "gremlin", "backend used for graphql api server: [inmem | arango (experimental) | neo4j (unmaintained) | gremlin (in progress)]")
 	set.Int("gql-listen-port", 8080, "port used for graphql api server")
 	set.Bool("gql-debug", false, "debug flag which enables the graphQL playground")
 	set.Bool("gql-trace", false, "flag which enables tracing of graphQL requests and responses on the console")
@@ -58,7 +58,12 @@ func init() {
 	set.String("arango-user", "", "arango user to connect to graph db")
 	set.String("arango-pass", "", "arango password to connect to graph db")
 
-	set.String("tinkerpop-settings-file", "", "tinkerpop settings file")
+	set.String("gremlin-flavor", "", "gremlin server compatibility: [janusgraph | neptune | cosmosdb]")
+	set.String("gremlin-url", "ws://janusgraph:8182/gremlin", "gremlin settings file")
+	set.Uint32("gremlin-max-results-per-query", 1000, "hard limit on the number of records returned on a query, results will be truncated")
+	set.String("gremlin-username", "", "username used to connect to server")
+	set.String("gremlin-password", "", "password used to connect to server")
+	set.Bool("gremlin-insecure-tls-skip-verify", false, "don't verify the server's certificate - insecure - devonly - watchout - okay, you get it")
 
 	set.String("gql-addr", "http://localhost:8080/query", "endpoint used to connect to graphQL server")
 

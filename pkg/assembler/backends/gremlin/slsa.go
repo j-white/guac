@@ -1,4 +1,4 @@
-package tinkerpop
+package gremlin
 
 import (
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
@@ -9,7 +9,7 @@ import (
 	"context"
 )
 
-func (c *tinkerpopClient) IngestSLSA(ctx context.Context, subject model.ArtifactInputSpec,
+func (c *gremlinClient) IngestSLSA(ctx context.Context, subject model.ArtifactInputSpec,
 	builtFrom []*model.ArtifactInputSpec, builtBy model.BuilderInputSpec,
 	slsa model.SLSAInputSpec) (*model.HasSlsa, error) {
 	if len(builtFrom) < 1 {
@@ -42,7 +42,7 @@ func (c *tinkerpopClient) IngestSLSA(ctx context.Context, subject model.Artifact
 	}, nil
 }
 
-func (c *tinkerpopClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
+func (c *gremlinClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
 	var hasSlsaList []*model.HasSlsa
 	for k := range subjects {
 		hasSlsa, _ := c.IngestSLSA(ctx, *subjects[k], builtFromList[k], *builtByList[k], *slsaList[k])

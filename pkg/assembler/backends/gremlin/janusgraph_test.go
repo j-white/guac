@@ -1,8 +1,8 @@
-package tinkerpop
+package gremlin
 
 //
 //func Test_createIndices(t *testing.T) {
-//	config := &TinkerPopConfig{
+//	config := &GremlinConfig{
 //		Url: "ws://localhost:8182/gremlin",
 //	}
 //	backend, err := GetBackend(config)
@@ -11,7 +11,7 @@ package tinkerpop
 //		return
 //	}
 //
-//	c := backend.(*tinkerpopClient)
+//	c := backend.(*gremlinClient)
 //	err = printSchema(c.remote)
 //	if err != nil {
 //		t.Errorf("printing the schema failed error = %v", err)

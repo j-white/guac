@@ -1,4 +1,4 @@
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -25,10 +25,10 @@ func getBuilderObject(id string, values map[interface{}]interface{}) *model.Buil
 	}
 }
 
-func (c *tinkerpopClient) IngestBuilder(ctx context.Context, builder *model.BuilderInputSpec) (*model.Builder, error) {
+func (c *gremlinClient) IngestBuilder(ctx context.Context, builder *model.BuilderInputSpec) (*model.Builder, error) {
 	return ingestModelObject[*model.BuilderInputSpec, *model.Builder](c, builder, getBuilderQueryValues, getBuilderObject)
 }
 
-func (c *tinkerpopClient) IngestBuilders(ctx context.Context, builders []*model.BuilderInputSpec) ([]*model.Builder, error) {
+func (c *gremlinClient) IngestBuilders(ctx context.Context, builders []*model.BuilderInputSpec) ([]*model.Builder, error) {
 	return bulkIngestModelObjects[*model.BuilderInputSpec, *model.Builder](c, builders, getBuilderQueryValues, getBuilderObject)
 }

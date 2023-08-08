@@ -19,10 +19,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/guacsec/guac/pkg/assembler/backends/tinkerpop"
+	"github.com/guacsec/guac/pkg/assembler/backends/gremlin"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -43,11 +44,11 @@ import (
 )
 
 const (
-	arango     = "arango"
-	neo4js     = "neo4j"
-	inmems     = "inmem"
-	neptune    = "neptune"
-	tinkerpops = "tinkerpop"
+	arango   = "arango"
+	neo4js   = "neo4j"
+	inmems   = "inmem"
+	neptune  = "neptune"
+	gremlins = "gremlin"
 
 	neptuneServiceName = "neptune-db"
 )
@@ -113,7 +114,7 @@ func startServer(cmd *cobra.Command) {
 
 func validateFlags() error {
 	if flags.backend != neo4js &&
-		flags.backend != inmems && flags.backend != arango && flags.backend != tinkerpops && flags.backend != neptune {
+		flags.backend != inmems && flags.backend != arango && flags.backend != gremlins && flags.backend != neptune {
 		return fmt.Errorf("invalid graphql backend specified: %v", flags.backend)
 	}
 	return nil
@@ -123,14 +124,26 @@ func getGraphqlServer(ctx context.Context) (*handler.Server, error) {
 	var topResolver resolvers.Resolver
 
 	switch flags.backend {
-	case tinkerpops:
-		args := tinkerpop.TinkerPopConfig{
-			SettingsFile: flags.tinkerpopSettingsFile,
+	case gremlins:
+		flavor := gremlin.JanusGraph
+		if strings.ToLower(flags.gremlinFlavor) == "neptune" {
+			flavor = gremlin.Neptune
+		} else if strings.ToLower(flags.gremlinFlavor) == "cosmosDB" {
+			flavor = gremlin.CosmosDB
 		}
 
-		backend, err := tinkerpop.GetBackend(&args)
+		args := gremlin.GremlinConfig{
+			Flavor:                flavor,
+			Url:                   flags.gremlinUrl,
+			MaxResultsPerQuery:    flags.gremlinMaxResultsPerQuery,
+			Username:              flags.gremlinUsername,
+			Password:              flags.gremlinPassword,
+			InsecureTLSSkipVerify: flags.gremlinInsecureTLSSkipVerify,
+		}
+
+		backend, err := gremlin.GetBackend(&args)
 		if err != nil {
-			return nil, fmt.Errorf("Error creating TinkerPop backend: %w", err)
+			return nil, fmt.Errorf("error creating Gremlin backend: %w", err)
 		}
 		topResolver = resolvers.Resolver{Backend: backend}
 

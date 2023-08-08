@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tinkerpop
+package gremlin
 
 import (
 	"encoding/json"
@@ -32,13 +32,13 @@ type Label string
 const MaxVertexUpsertChunkSize = 200
 const MaxEdgeUpsertChunkSize = 10 // breaks with anything over 10
 
-func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (string, error) {
+func (c *gremlinClient) upsertVertex(properties map[interface{}]interface{}) (string, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(properties).Id().Next()
 	if err != nil {
 		return "", err
 	}
-	if c.config.IsJanusGraph {
+	if c.config.Flavor == JanusGraph {
 		id, err := r.GetInt64()
 		if err != nil {
 			return "", err
@@ -49,7 +49,7 @@ func (c *tinkerpopClient) upsertVertex(properties map[interface{}]interface{}) (
 	}
 }
 
-func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]string, error) {
+func (c *gremlinClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]string, error) {
 	var ids []string
 	var vertexRefs []interface{}
 	var gt *gremlingo.GraphTraversal
@@ -70,7 +70,7 @@ func (c *tinkerpopClient) bulkUpsertVertices(allProperties []map[interface{}]int
 	}
 
 	for _, result := range results {
-		if c.config.IsJanusGraph {
+		if c.config.Flavor == JanusGraph {
 			id, err := result.GetInt64()
 			if err != nil {
 				return nil, err
@@ -111,7 +111,7 @@ type RelationWithId struct {
 C is typically an InputSpec
 D is model object w/ id after upsert
 */
-func ingestModelObject[C any, D any](c *tinkerpopClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
+func ingestModelObject[C any, D any](c *gremlinClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
 	var object D
 	values := serializer(modelObject)
 	// Verify that label is present
@@ -127,7 +127,7 @@ func ingestModelObject[C any, D any](c *tinkerpopClient, modelObject C, serializ
 	return object, nil
 }
 
-func bulkIngestModelObjects[C any, D any](c *tinkerpopClient, modelObjects []C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) ([]D, error) {
+func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) ([]D, error) {
 	var objects []D
 	if len(modelObjects) < 1 {
 		// nothing to do
@@ -214,8 +214,8 @@ func storeArrayInVertexProperties(checks []*model.ScorecardCheckInputSpec, prope
 
 	// Support for arrays may vary based on the implementation of Gremlin
 	// FIXME: 2023/07/09 02:26:18 %!(EXTRA string=gremlinServerWSProtocol.responseHandler(), string=%!(EXTRA gremlingo.responseStatus={244 Property value [[Binary_Artifacts, Branch_Protection, Code_Review, Contributors]] is of type class java.util.ArrayList is not supported map[exceptions:[java.lang.IllegalArgumentException] stackTrace:java.lang.IllegalArgumentException: Property value [[Binary_Artifacts, Branch_Protection, Code_Review, Contributors]] is of type class java.util.ArrayList is not supported
-	//	at org.apache.tinkerpop.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:159)
-	//	at org.apache.tinkerpop.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:155)
+	//	at org.apache.gremlin.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:159)
+	//	at org.apache.gremlin.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:155)
 	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.verifyAttribute(StandardJanusGraphTx.java:673)
 	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.addProperty(StandardJanusGraphTx.java:888)
 	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.addProperty(StandardJanusGraphTx.java:877)
@@ -249,7 +249,7 @@ func readArrayFromVertexProperties(results map[interface{}]interface{}) ([]*mode
 	return checks, nil
 }
 
-func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *tinkerpopClient,
+func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *gremlinClient,
 	v1InputObject VInput,
 	v2InputObject VInput,
 	edgeInputObject EInput,
@@ -280,7 +280,7 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *tink
 	return edgeObject, errors.New("no results returned by upsert")
 }
 
-func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *tinkerpopClient,
+func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *gremlinClient,
 	v1InputObjects []VInput,
 	v2InputObjects []VInput,
 	edgeInputObjects []EInput,
@@ -357,7 +357,7 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	return objects, nil
 }
 
-func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
+func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	r, err := g.MergeV(relation.v1).As("v1").
 		MergeV(relation.v2).As("v2").
@@ -373,7 +373,7 @@ func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation 
 	var relationsWithIds []*RelationWithId
 
 	var edgeId string
-	if c.config.IsJanusGraph {
+	if c.config.Flavor == JanusGraph {
 		edgeId = strconv.FormatInt(r.GetInterface().(*janusgraphRelationIdentifier).RelationId, 10)
 	} else {
 		edgeId = r.GetString()
@@ -388,7 +388,7 @@ func (c *tinkerpopClient) upsertRelation(queue chan []*RelationWithId, relation 
 	return nil
 }
 
-func (c *tinkerpopClient) upsertRelationDirect(relation *Relation) (*RelationWithId, error) {
+func (c *gremlinClient) upsertRelationDirect(relation *Relation) (*RelationWithId, error) {
 	ch := make(chan []*RelationWithId, 1)
 	err := c.upsertRelation(ch, relation)
 	if err != nil {
@@ -402,7 +402,7 @@ func (c *tinkerpopClient) upsertRelationDirect(relation *Relation) (*RelationWit
 	return nil, errors.New("no results returned by upsert")
 }
 
-func (c *tinkerpopClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*Relation) error {
+func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*Relation) error {
 	var edgeRefs []interface{}
 	var gt *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
@@ -443,7 +443,7 @@ func (c *tinkerpopClient) bulkUpsertRelations(queue chan []*RelationWithId, rela
 	var relationsWithIds []*RelationWithId
 	for k, r := range results {
 		var edgeId string
-		if c.config.IsJanusGraph {
+		if c.config.Flavor == JanusGraph {
 			edgeId = strconv.FormatInt(r.GetInterface().(*janusgraphRelationIdentifier).RelationId, 10)
 		} else {
 			edgeId = r.GetString()

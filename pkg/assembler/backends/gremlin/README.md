@@ -147,6 +147,8 @@ value: "6553600"
 * Differs from JanusGraph in that the IDs returned are strings for vertices and edges, no custom type reader needed
 * Notebooks are awesome
 
+See https://docs.aws.amazon.com/neptune/latest/userguide/access-graph-gremlin-differences.html for compatibility details
+
 ## Azure Cosmos DB
 
 Config looks like:
@@ -161,4 +163,4 @@ config := &TinkerPopConfig{
 * Gremlin Bytecode is not supported, only JSON, see https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/support
 * Transactions are not supported
 
-> Won't work with gremlin-go
+> Won't work with gremlin-go, would need to use https://github.com/supplyon/gremcos instead

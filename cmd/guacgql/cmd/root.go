@@ -45,8 +45,13 @@ var flags = struct {
 	arangoUser string
 	arangoPass string
 
-	// Needed only if using tinkerpop backend
-	tinkerpopSettingsFile string
+	// Needed only if using Gremlin backend
+	gremlinFlavor                string
+	gremlinUrl                   string
+	gremlinMaxResultsPerQuery    uint32
+	gremlinUsername              string
+	gremlinPassword              string
+	gremlinInsecureTLSSkipVerify bool
 
 	// Needed only if using neptune backend
 	neptuneEndpoint string
@@ -76,8 +81,12 @@ var rootCmd = &cobra.Command{
 		flags.arangoPass = viper.GetString("arango-pass")
 		flags.arangoAddr = viper.GetString("arango-addr")
 
-		// Needed only if using tinkerpop backend
-		flags.tinkerpopSettingsFile = viper.GetString("tinkerpop-settings-file")
+		flags.gremlinFlavor = viper.GetString("gremlin-flavor")
+		flags.gremlinUrl = viper.GetString("gremlin-url")
+		flags.gremlinMaxResultsPerQuery = viper.GetUint32("gremlin-max-results-per-query")
+		flags.gremlinUsername = viper.GetString("gremlin-username")
+		flags.gremlinPassword = viper.GetString("gremlin-password")
+		flags.gremlinInsecureTLSSkipVerify = viper.GetBool("gremlin-insecure-tls-skip-verify")
 
 		flags.neptuneEndpoint = viper.GetString("neptune-endpoint")
 		flags.neptunePort = viper.GetInt("neptune-port")
@@ -97,7 +106,7 @@ func init() {
 		"neo4j-addr", "neo4j-user", "neo4j-pass", "neo4j-realm",
 		"neptune-endpoint", "neptune-port", "neptune-region", "neptune-user", "neptune-realm",
 		"gql-test-data", "gql-listen-port", "gql-debug", "gql-backend", "gql-trace",
-		"tinkerpop-settings-file",
+		"gremlin-flavor", "gremlin-url", "gremlin-max-results-per-query", "gremlin-username", "gremlin-password", "gremlin-insecure-tls-skip-verify",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to setup flag: %v", err)

@@ -1,4 +1,4 @@
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -25,15 +25,15 @@ func getGHSAObject(id string, values map[interface{}]interface{}) *model.Ghsa {
 	}
 }
 
-func (c *tinkerpopClient) IngestGhsa(ctx context.Context, ghsa *model.GHSAInputSpec) (*model.Ghsa, error) {
+func (c *gremlinClient) IngestGhsa(ctx context.Context, ghsa *model.GHSAInputSpec) (*model.Ghsa, error) {
 	return ingestModelObject[*model.GHSAInputSpec, *model.Ghsa](c, ghsa, getGHSAQueryValues, getGHSAObject)
 }
 
-func (c *tinkerpopClient) IngestGHSAs(ctx context.Context, ghsas []*model.GHSAInputSpec) ([]*model.Ghsa, error) {
+func (c *gremlinClient) IngestGHSAs(ctx context.Context, ghsas []*model.GHSAInputSpec) ([]*model.Ghsa, error) {
 	return bulkIngestModelObjects[*model.GHSAInputSpec, *model.Ghsa](c, ghsas, getGHSAQueryValues, getGHSAObject)
 }
 
-func (c *tinkerpopClient) Ghsa(ctx context.Context, ghsaSpec *model.GHSASpec) ([]*model.Ghsa, error) {
+func (c *gremlinClient) Ghsa(ctx context.Context, ghsaSpec *model.GHSASpec) ([]*model.Ghsa, error) {
 	var ghsas []*model.Ghsa
 	return ghsas, nil
 }

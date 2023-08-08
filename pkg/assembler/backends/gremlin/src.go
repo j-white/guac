@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -82,10 +82,10 @@ func generateModelSource(srcType, namespaceStr, nameStr string, commitValue, tag
 	return &src
 }
 
-func (c *tinkerpopClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
+func (c *gremlinClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
 	return ingestModelObject[*model.SourceInputSpec, *model.Source](c, &source, getSourceQueryValues, getSourceObject)
 }
 
-func (c *tinkerpopClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
+func (c *gremlinClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
 	return bulkIngestModelObjects[*model.SourceInputSpec, *model.Source](c, sources, getSourceQueryValues, getSourceObject)
 }

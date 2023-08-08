@@ -1,10 +1,12 @@
-package tinkerpop
+package gremlin
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
+	"github.com/guacsec/guac/pkg/logging"
 )
 
 const (
@@ -24,7 +26,43 @@ type janusgraphRelationIdentifier struct {
 	InVertexIdString  string
 }
 
-func registerCustomTypeReaders() {
+func createIndicesForJanusGraph(ctx context.Context, remote *gremlingo.DriverRemoteConnection) error {
+	logger := logging.FromContext(ctx)
+	// Add indices for known properties to help avoid full table scans
+	err := createIndicesForVertexProperties(remote,
+		// packages
+		namespace,
+		// scorecards
+		scorecardCommit,
+		// artifacts
+		digest,
+		// builder
+		uri,
+		// cve,
+		cveId,
+		// osv,
+		osvId,
+		// ghsa,
+		ghsaId,
+	)
+	if err != nil {
+		return err
+	}
+	// (pkg) -- (dep) --> (pkg)
+	err = createIndexForEdge(remote, string(IsDependency), dependencyType)
+	if err != nil {
+		return err
+	}
+	schema, err := printSchema(remote)
+	if err != nil {
+		logger.Errorf("Failed to print schema: %v", err)
+		return err
+	}
+	logger.Info("Current JanusGraph schema: %s", schema)
+	return nil
+}
+
+func registerCustomTypeReadersForJanusGraph() {
 	gremlingo.RegisterCustomTypeReader("janusgraph.RelationIdentifier", janusgraphRelationIdentifierReader)
 }
 

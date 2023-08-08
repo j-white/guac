@@ -1,4 +1,4 @@
-package tinkerpop
+package gremlin
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 )
 
 func disabled_Test_connectToNeptune(t *testing.T) {
-	config := &TinkerPopConfig{
+	config := &GremlinConfig{
 		Url: "ws://guac-neptune-db-1-1865211709.us-east-1.elb.amazonaws.com:8182/gremlin",
 	}
 	backend, err := GetBackend(config)
@@ -15,7 +15,7 @@ func disabled_Test_connectToNeptune(t *testing.T) {
 		return
 	}
 
-	c := backend.(*tinkerpopClient)
+	c := backend.(*gremlinClient)
 	schema, err := printSchema(c.remote)
 	if err != nil {
 		t.Errorf("printing the schema failed error = %v", err)
@@ -26,7 +26,7 @@ func disabled_Test_connectToNeptune(t *testing.T) {
 
 func disabled_Test_connectToCosmos(t *testing.T) {
 
-	config := &TinkerPopConfig{
+	config := &GremlinConfig{
 		Url:      "wss://guac-db-1.gremlin.cosmos.azure.com:443/",
 		Username: "/dbs/dbid/colls/graphid",
 		Password: "CJuLAERDWWcD4Pds2k3Ccb6rshwqj0PfjgDlv4pUjLAmuEXZ7Z9O2vrrwiU2amVCCwoj257Vk5swACDbHJFYZQ==",
@@ -38,7 +38,7 @@ func disabled_Test_connectToCosmos(t *testing.T) {
 		return
 	}
 
-	c := backend.(*tinkerpopClient)
+	c := backend.(*gremlinClient)
 	schema, err := printSchema(c.remote)
 	if err != nil {
 		t.Errorf("printing the schema failed error = %v", err)

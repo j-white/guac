@@ -1,4 +1,4 @@
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -25,15 +25,15 @@ func getOSVObject(id string, values map[interface{}]interface{}) *model.Osv {
 	}
 }
 
-func (c *tinkerpopClient) IngestOsv(ctx context.Context, osv *model.OSVInputSpec) (*model.Osv, error) {
+func (c *gremlinClient) IngestOsv(ctx context.Context, osv *model.OSVInputSpec) (*model.Osv, error) {
 	return ingestModelObject[*model.OSVInputSpec, *model.Osv](c, osv, getOSVQueryValues, getOSVObject)
 }
 
-func (c *tinkerpopClient) IngestOSVs(ctx context.Context, osvs []*model.OSVInputSpec) ([]*model.Osv, error) {
+func (c *gremlinClient) IngestOSVs(ctx context.Context, osvs []*model.OSVInputSpec) ([]*model.Osv, error) {
 	return bulkIngestModelObjects[*model.OSVInputSpec, *model.Osv](c, osvs, getOSVQueryValues, getOSVObject)
 }
 
-func (c *tinkerpopClient) Osv(ctx context.Context, osvSpec *model.OSVSpec) ([]*model.Osv, error) {
+func (c *gremlinClient) Osv(ctx context.Context, osvSpec *model.OSVSpec) ([]*model.Osv, error) {
 	var osvc []*model.Osv
 	return osvc, nil
 }

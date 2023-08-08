@@ -65,6 +65,10 @@ spec:
           command: ["/opt/guac/guacgql"]
           workingDir: /tmp
           env:
+            - name: GUAC_GQL_BACKEND
+              value: "gremlin"
+            - name: GUAC_GREMLIN_URL
+              value: "ws://janusgraph:8182/gremlin"
             - name: GUAC_GQL_DEBUG
               value: "true"
             - name: GUAC_GQL_TEST_DATA

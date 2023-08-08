@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tinkerpop
+package gremlin
 
 import (
 	"context"
@@ -27,44 +27,32 @@ const (
 	Artifact Label = "artifact"
 )
 
-func (c *tinkerpopClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
-	// all fields are required, and canonicalized to lower case
-	values := map[interface{}]interface{}{
-		gremlingo.T.Label: string(Artifact),
-		algorithm:         strings.ToLower(artifact.Algorithm),
-		digest:            strings.ToLower(artifact.Digest),
-	}
+func getArtifactQueryValues(artifact *model.ArtifactInputSpec) map[interface{}]interface{} {
+	values := make(map[interface{}]interface{})
+	values[gremlingo.T.Label] = string(Artifact)
+	values[algorithm] = strings.ToLower(artifact.Algorithm)
+	values[digest] = strings.ToLower(artifact.Digest)
+	return values
+}
 
-	id, err := c.upsertVertex(values)
-	if err != nil {
-		return nil, err
-	}
-
-	// build artifact from canonical model after a successful upsert
-	a := &model.Artifact{
+func getArtifactObject(id string, values map[interface{}]interface{}) *model.Artifact {
+	return &model.Artifact{
 		ID:        id,
 		Algorithm: values[algorithm].(string),
 		Digest:    values[digest].(string),
 	}
+}
 
-	return a, nil
+func (c *gremlinClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
+	return ingestModelObject[*model.ArtifactInputSpec, *model.Artifact](c, artifact, getArtifactQueryValues, getArtifactObject)
 }
 
 // IngestArtifacts iterate through the list one by one on a single thread, abort on any failure and return those inserted so far
-func (c *tinkerpopClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
-	// FIXME: Implement bulk insert
-	var artifactObjects []*model.Artifact
-	for _, artifactSpec := range artifacts {
-		artifact, err := c.IngestArtifact(ctx, artifactSpec)
-		if err != nil {
-			return artifactObjects, err
-		}
-		artifactObjects = append(artifactObjects, artifact)
-	}
-	return artifactObjects, nil
+func (c *gremlinClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
+	return bulkIngestModelObjects[*model.ArtifactInputSpec, *model.Artifact](c, artifacts, getArtifactQueryValues, getArtifactObject)
 }
 
-func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
+func (c *gremlinClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	v := g.V().HasLabel(string(Artifact))
@@ -86,7 +74,7 @@ func (c *tinkerpopClient) Artifacts(ctx context.Context, artifactSpec *model.Art
 	v = v.ValueMap(true)
 
 	// execute the query
-	results, err := v.Limit(c.config.MaxLimit).ToList()
+	results, err := v.Limit(c.config.MaxResultsPerQuery).ToList()
 	if err != nil {
 		return nil, err
 	}
