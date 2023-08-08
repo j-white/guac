@@ -17,6 +17,7 @@ package gremlin
 
 import (
 	"errors"
+	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 )
 
@@ -38,20 +39,47 @@ func supportsTransactions(remote *gremlingo.DriverRemoteConnection) (bool, error
 	return isSupported, nil
 }
 
-func deleteAllVerticesAndEdges(remote *gremlingo.DriverRemoteConnection) (bool, error) {
+func deleteAllVerticesAndEdges(remote *gremlingo.DriverRemoteConnection) error {
 	r := new(gremlingo.RequestOptionsBuilder).Create()
 	stmt := "g.V().drop()\n"
 	rs, err := remote.SubmitWithOptions(stmt, r)
 	result, hasResult, err := rs.One()
 	if err != nil {
-		return false, err
+		return err
 	}
-	if !hasResult {
-		return false, errors.New("query to verify transaction supported completed normally, but did not produce a result")
+	if hasResult {
+		return fmt.Errorf("query to delete graph completed normally, but produced an unexpected result: %v", result)
 	}
-	isSupported, err := result.GetBool()
+	return nil
+}
+
+func rollbackAllOpenTransactions(remote *gremlingo.DriverRemoteConnection) error {
+	// pulled from https://groups.google.com/g/janusgraph-users/c/GfYM538KsTo
+	r := new(gremlingo.RequestOptionsBuilder).Create()
+	stmt := "graph.getOpenTransactions().forEach { tx -> tx.rollback() }\n"
+	rs, err := remote.SubmitWithOptions(stmt, r)
+	_, _, err = rs.One()
 	if err != nil {
-		return false, err
+		return err
 	}
-	return isSupported, nil
+	return nil
+}
+
+func forceCloseAllOpenInstances(remote *gremlingo.DriverRemoteConnection) error {
+	// pulled from https://groups.google.com/g/janusgraph-users/c/GfYM538KsTo
+	r := new(gremlingo.RequestOptionsBuilder).Create()
+	stmt := "mgmt = graph.openManagement()\n" +
+		"mgmt.getOpenInstances()\n" +
+		"mgmt.getOpenInstances().forEach {\n" +
+		"  if (it.reverse().take(1) != \")\") {\n" +
+		"    mgmt.forceCloseInstance(it)\n" +
+		"  }\n" +
+		"}\n" +
+		"mgmt.commit()\n"
+	rs, err := remote.SubmitWithOptions(stmt, r)
+	_, _, err = rs.One()
+	if err != nil {
+		return err
+	}
+	return nil
 }

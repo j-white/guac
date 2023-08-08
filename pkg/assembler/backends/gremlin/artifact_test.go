@@ -33,7 +33,20 @@ func createGremlinClientForIntegrationTest() (*gremlinClient, error) {
 	}
 	client := c.(*gremlinClient)
 
-	_, err = deleteAllVerticesAndEdges(client.remote)
+	// stop open tx
+	err = rollbackAllOpenTransactions(client.remote)
+	if err != nil {
+		return nil, err
+	}
+
+	// force close open instances
+	err = forceCloseAllOpenInstances(client.remote)
+	if err != nil {
+		return nil, err
+	}
+
+	// start with an empty graph
+	err = deleteAllVerticesAndEdges(client.remote)
 	if err != nil {
 		return nil, err
 	}

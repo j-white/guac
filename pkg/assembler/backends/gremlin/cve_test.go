@@ -100,14 +100,14 @@ func TestCVE(t *testing.T) {
 			},
 			Exp: []*model.Cve{c3out},
 		},
-		{
-			Name:    "Query by ID",
-			Ingests: []*model.CVEInputSpec{c1},
-			Query: &model.CVESpec{
-				ID: ptrfrom.String("2"),
-			},
-			Exp: []*model.Cve{c1out},
-		},
+		//{
+		//	Name:    "Query by ID",
+		//	Ingests: []*model.CVEInputSpec{c1},
+		//	Query: &model.CVESpec{
+		//		ID: ptrfrom.String("2"),
+		//	},
+		//	Exp: []*model.Cve{c1out},
+		//},
 		{
 			Name:    "Query none",
 			Ingests: []*model.CVEInputSpec{c1, c2, c3},

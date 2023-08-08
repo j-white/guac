@@ -61,7 +61,7 @@ func (c *gremlinClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*mod
 			query.has[year] = *cveSpec.Year
 		}
 		if cveSpec.CveID != nil {
-			query.has[cveId] = *cveSpec.CveID
+			query.has[cveId] = strings.ToLower(*cveSpec.CveID)
 		}
 	}
 	return queryModelObjects[*model.Cve](c, query, getCVEObject)
