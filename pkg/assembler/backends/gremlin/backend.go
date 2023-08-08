@@ -27,16 +27,17 @@ import (
 )
 
 const (
-	algorithm     string = "algorithm"
-	digest        string = "digest"
-	typeStr       string = "type"
-	uri           string = "uri"
-	year          string = "year"
-	cveId         string = "cveId"
-	osvId         string = "osvId"
-	ghsaId        string = "ghsaId"
-	guacEmpty     string = "guac-empty-@@"
-	justification string = "justification"
+	algorithm        string = "algorithm"
+	digest           string = "digest"
+	typeStr          string = "type"
+	uri              string = "uri"
+	year             string = "year"
+	cveId            string = "cveId"
+	osvId            string = "osvId"
+	ghsaId           string = "ghsaId"
+	guacEmpty        string = "guac-empty-@@"
+	justification    string = "justification"
+	guacPartitionKey string = "guac-partition-key"
 )
 
 type Flavor int64

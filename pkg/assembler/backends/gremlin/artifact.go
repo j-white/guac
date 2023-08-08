@@ -19,7 +19,6 @@ import (
 	"context"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"strconv"
 	"strings"
 )
 
@@ -47,49 +46,22 @@ func (c *gremlinClient) IngestArtifact(ctx context.Context, artifact *model.Arti
 	return ingestModelObject[*model.ArtifactInputSpec, *model.Artifact](c, artifact, getArtifactQueryValues, getArtifactObject)
 }
 
-// IngestArtifacts iterate through the list one by one on a single thread, abort on any failure and return those inserted so far
 func (c *gremlinClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
 	return bulkIngestModelObjects[*model.ArtifactInputSpec, *model.Artifact](c, artifacts, getArtifactQueryValues, getArtifactObject)
 }
 
 func (c *gremlinClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
-	// build the query
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	v := g.V().HasLabel(string(Artifact))
+	query := createVertexQuery(Artifact)
 	if artifactSpec != nil {
 		if artifactSpec.ID != nil {
-			id, err := strconv.ParseInt(*artifactSpec.ID, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			v = g.V(id).HasLabel(string(Artifact))
+			query.id = *artifactSpec.ID
 		}
 		if artifactSpec.Algorithm != nil {
-			v = v.Has(algorithm, strings.ToLower(*artifactSpec.Algorithm))
+			query.has[algorithm] = strings.ToLower(*artifactSpec.Algorithm)
 		}
 		if artifactSpec.Digest != nil {
-			v = v.Has(digest, strings.ToLower(*artifactSpec.Digest))
+			query.has[digest] = strings.ToLower(*artifactSpec.Digest)
 		}
 	}
-	v = v.ValueMap(true)
-
-	// execute the query
-	results, err := v.Limit(c.config.MaxResultsPerQuery).ToList()
-	if err != nil {
-		return nil, err
-	}
-
-	// generate the model objects from the resultset
-	var artifacts []*model.Artifact
-	for _, result := range results {
-		resultMap := result.GetInterface().(map[interface{}]interface{})
-		artifact := &model.Artifact{
-			ID:        strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10),
-			Algorithm: (resultMap[algorithm].([]interface{}))[0].(string),
-			Digest:    (resultMap[digest].([]interface{}))[0].(string),
-		}
-		artifacts = append(artifacts, artifact)
-	}
-
-	return artifacts, nil
+	return queryModelObjects[*model.Artifact](c, query, getArtifactObject)
 }
