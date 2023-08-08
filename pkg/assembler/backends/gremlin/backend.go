@@ -166,11 +166,6 @@ func (c *gremlinClient) IngestHasMetadata(ctx context.Context, subject model.Pac
 	panic("implement me")
 }
 
-func (c *gremlinClient) Builders(ctx context.Context, builderSpec *model.BuilderSpec) ([]*model.Builder, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
 	//TODO implement me
 	panic("implement me")

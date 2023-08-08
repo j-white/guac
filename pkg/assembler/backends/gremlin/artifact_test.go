@@ -25,7 +25,7 @@ import (
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
-func createGremlinClient() (*gremlinClient, error) {
+func createGremlinClientForIntegrationTest() (*gremlinClient, error) {
 	config := &GremlinConfig{Url: "ws://localhost:8182/gremlin"}
 	c, err := GetBackend(config)
 	if err != nil {
@@ -71,9 +71,9 @@ func Test_demoClient_IngestArtifacts(t *testing.T) {
 	}, cmp.Ignore())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := createGremlinClient()
+			c, err := createGremlinClientForIntegrationTest()
 			if err != nil {
-				t.Errorf("demoClient.IngestArtifact() error = %v", err)
+				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
 			}
 
@@ -136,9 +136,9 @@ func Test_demoClient_IngestArtifact(t *testing.T) {
 	}, cmp.Ignore())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := createGremlinClient()
+			c, err := createGremlinClientForIntegrationTest()
 			if err != nil {
-				t.Errorf("demoClient.IngestArtifact() error = %v", err)
+				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
 			}
 
@@ -215,9 +215,9 @@ func Test_demoClient_Artifacts(t *testing.T) {
 	}, cmp.Ignore())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := createGremlinClient()
+			c, err := createGremlinClientForIntegrationTest()
 			if err != nil {
-				t.Errorf("demoClient.IngestArtifact() error = %v", err)
+				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
 			}
 			ingestedArt, err := c.IngestArtifact(ctx, tt.artifactInput)
