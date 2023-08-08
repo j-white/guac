@@ -138,21 +138,21 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} 
 
 	values[typeStr] = pkg.Type
 
-	values["name"] = pkg.Name
+	values[name] = pkg.Name
 	if pkg.Namespace != nil {
-		values["namespace"] = *pkg.Namespace
+		values[namespace] = *pkg.Namespace
 	} else {
-		values["namespace"] = ""
+		values[namespace] = ""
 	}
 	if pkg.Version != nil {
-		values["version"] = *pkg.Version
+		values[version] = *pkg.Version
 	} else {
-		values["version"] = ""
+		values[version] = ""
 	}
 	if pkg.Subpath != nil {
-		values["subpath"] = *pkg.Subpath
+		values[subpath] = *pkg.Subpath
 	} else {
-		values["subpath"] = ""
+		values[subpath] = ""
 	}
 
 	// To ensure consistency, always sort the qualifiers by key
@@ -172,9 +172,23 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} 
 }
 
 func getPackageObject(id string, values map[interface{}]interface{}) *model.Package {
+	pkgVersion := &model.PackageVersion{
+		Version:    values[version].(string),
+		Subpath:    values[subpath].(string),
+		Qualifiers: []*model.PackageQualifier{},
+	}
+	pkgName := &model.PackageName{
+		Name:     values[name].(string),
+		Versions: []*model.PackageVersion{pkgVersion},
+	}
+	pkgNamespace := &model.PackageNamespace{
+		Namespace: values[namespace].(string),
+		Names:     []*model.PackageName{pkgName},
+	}
 	return &model.Package{
-		ID:   id,
-		Type: values[typeStr].(string),
+		ID:         id,
+		Type:       values[typeStr].(string),
+		Namespaces: []*model.PackageNamespace{pkgNamespace},
 	}
 }
 
@@ -183,7 +197,27 @@ func (c *gremlinClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpe
 }
 
 func (c *gremlinClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
-	var pkgList []*model.Package
-	return pkgList, nil
-	//return bulkIngestModelObjects[*model.PkgInputSpec, *model.Package](c, pkgs, getPackageQueryValues, getPackageObject)
+	return bulkIngestModelObjects[*model.PkgInputSpec, *model.Package](c, pkgs, getPackageQueryValues, getPackageObject)
+}
+
+func (c *gremlinClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
+	query := createVertexQuery(Package)
+	if pkgSpec != nil {
+		if pkgSpec.ID != nil {
+			query.id = *pkgSpec.ID
+		}
+		if pkgSpec.Name != nil {
+			query.has[name] = *pkgSpec.Name
+		}
+		if pkgSpec.Type != nil {
+			query.has[typeStr] = *pkgSpec.Type
+		}
+		if pkgSpec.Namespace != nil {
+			query.has[namespace] = *pkgSpec.Namespace
+		}
+		if pkgSpec.Subpath != nil {
+			query.has[subpath] = *pkgSpec.Subpath
+		}
+	}
+	return queryModelObjects[*model.Package](c, query, getPackageObject)
 }

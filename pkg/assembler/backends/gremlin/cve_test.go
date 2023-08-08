@@ -139,7 +139,7 @@ func TestCVE(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := createGremlinClientForIntegrationTest()
+			b, err := CreateGremlinClientForIntegrationTest()
 			if err != nil {
 				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
@@ -184,7 +184,7 @@ func TestIngestCVEs(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			b, err := createGremlinClientForIntegrationTest()
+			b, err := CreateGremlinClientForIntegrationTest()
 			if err != nil {
 				t.Errorf("failed to create gremlin client. error = %v", err)
 				return

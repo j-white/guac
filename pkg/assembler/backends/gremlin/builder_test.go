@@ -57,7 +57,7 @@ func Test_demoClient_IngestBuilder(t *testing.T) {
 	}, cmp.Ignore())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := createGremlinClientForIntegrationTest()
+			c, err := CreateGremlinClientForIntegrationTest()
 			if err != nil {
 				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
@@ -105,7 +105,7 @@ func Test_demoClient_IngestBuilders(t *testing.T) {
 	}, cmp.Ignore())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := createGremlinClientForIntegrationTest()
+			c, err := CreateGremlinClientForIntegrationTest()
 			if err != nil {
 				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
@@ -162,7 +162,7 @@ func Test_demoClient_Builders(t *testing.T) {
 	}, cmp.Ignore())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := createGremlinClientForIntegrationTest()
+			c, err := CreateGremlinClientForIntegrationTest()
 			if err != nil {
 				t.Errorf("failed to create gremlin client. error = %v", err)
 				return

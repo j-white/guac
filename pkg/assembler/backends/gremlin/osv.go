@@ -34,6 +34,14 @@ func (c *gremlinClient) IngestOSVs(ctx context.Context, osvs []*model.OSVInputSp
 }
 
 func (c *gremlinClient) Osv(ctx context.Context, osvSpec *model.OSVSpec) ([]*model.Osv, error) {
-	var osvc []*model.Osv
-	return osvc, nil
+	query := createVertexQuery(OSV)
+	if osvSpec != nil {
+		if osvSpec.ID != nil {
+			query.id = *osvSpec.ID
+		}
+		if osvSpec.OsvID != nil {
+			query.has[osvId] = strings.ToLower(*osvSpec.OsvID)
+		}
+	}
+	return queryModelObjects[*model.Osv](c, query, getOSVObject)
 }

@@ -44,9 +44,10 @@ const (
 	scorecardCommit  string = "scorecardCommit"
 	sourceType       string = "type"
 	timeScanned      string = "timeScanned"
-
-	versionRange   string = "versionRange"
-	dependencyType string = "dependencyType"
+	version          string = "version"
+	subpath          string = "subpath"
+	versionRange     string = "versionRange"
+	dependencyType   string = "dependencyType"
 )
 
 const (

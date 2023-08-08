@@ -74,11 +74,6 @@ func (c *gremlinClient) IngestCertifyGoods(ctx context.Context, subjects model.P
 	panic("implement me")
 }
 
-func (c *gremlinClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 type gremlinLogger struct {
 	logger *zap.SugaredLogger
 }
@@ -166,11 +161,6 @@ func (c *gremlinClient) IngestHasMetadata(ctx context.Context, subject model.Pac
 	panic("implement me")
 }
 
-func (c *gremlinClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {
 	//TODO implement me
 	panic("implement me")
@@ -196,11 +186,6 @@ func (c *gremlinClient) HasSourceAt(ctx context.Context, hasSourceAtSpec *model.
 	panic("implement me")
 }
 
-func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.HashEqualSpec) ([]*model.HashEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) IsVulnerability(ctx context.Context, isVulnerabilitySpec *model.IsVulnerabilitySpec) ([]*model.IsVulnerability, error) {
 	//TODO implement me
 	panic("implement me")
@@ -222,11 +207,6 @@ func (c *gremlinClient) IngestCertifyGood(ctx context.Context, subject model.Pac
 }
 
 func (c *gremlinClient) IngestHasSourceAt(ctx context.Context, pkg model.PkgInputSpec, pkgMatchType model.MatchFlags, source model.SourceInputSpec, hasSourceAt model.HasSourceAtInputSpec) (*model.HasSourceAt, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestHashEqual(ctx context.Context, artifact model.ArtifactInputSpec, equalArtifact model.ArtifactInputSpec, hashEqual model.HashEqualInputSpec) (*model.HashEqual, error) {
 	//TODO implement me
 	panic("implement me")
 }

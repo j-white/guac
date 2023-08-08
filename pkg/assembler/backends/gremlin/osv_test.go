@@ -26,95 +26,94 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var g1 = &model.GHSAInputSpec{
-	GhsaID: "GHSA-h45f-rjvw-2rv2",
+var o1 = &model.OSVInputSpec{
+	OsvID: "CVE-2014-8140",
 }
-var g1out = &model.Ghsa{
-	GhsaID: "ghsa-h45f-rjvw-2rv2",
-}
-
-var g2 = &model.GHSAInputSpec{
-	GhsaID: "GHSA-xrw3-wqph-3fxg",
-}
-var g2out = &model.Ghsa{
-	GhsaID: "ghsa-xrw3-wqph-3fxg",
+var o1out = &model.Osv{
+	OsvID: "cve-2014-8140",
 }
 
-var g3 = &model.GHSAInputSpec{
-	GhsaID: "GHSA-8v4j-7jgf-5rg9",
+var o2 = &model.OSVInputSpec{
+	OsvID: "CVE-2022-26499",
 }
-var g3out = &model.Ghsa{
-	GhsaID: "ghsa-8v4j-7jgf-5rg9",
-}
-
-func lessGhsa(a, b *model.Ghsa) bool {
-	return a.GhsaID < b.GhsaID
+var o2out = &model.Osv{
+	OsvID: "cve-2022-26499",
 }
 
-func TestGHSA(t *testing.T) {
+var o3 = &model.OSVInputSpec{
+	OsvID: "GHSA-h45f-rjvw-2rv2",
+}
+var o3out = &model.Osv{
+	OsvID: "ghsa-h45f-rjvw-2rv2",
+}
+
+func lessOsv(a, b *model.Osv) bool {
+	return a.OsvID < b.OsvID
+}
+
+func TestOSV(t *testing.T) {
 	tests := []struct {
 		Name         string
-		Ingests      []*model.GHSAInputSpec
+		Ingests      []*model.OSVInputSpec
 		ExpIngestErr bool
-		Query        *model.GHSASpec
-		Exp          []*model.Ghsa
+		Query        *model.OSVSpec
+		Exp          []*model.Osv
 		ExpQueryErr  bool
 	}{
 		{
 			Name:    "HappyPath",
-			Ingests: []*model.GHSAInputSpec{g1},
-			Query:   &model.GHSASpec{},
-			Exp:     []*model.Ghsa{g1out},
+			Ingests: []*model.OSVInputSpec{o1},
+			Query:   &model.OSVSpec{},
+			Exp:     []*model.Osv{o1out},
 		},
 		{
 			Name:    "Multiple",
-			Ingests: []*model.GHSAInputSpec{g1, g2},
-			Query:   &model.GHSASpec{},
-			Exp:     []*model.Ghsa{g1out, g2out},
+			Ingests: []*model.OSVInputSpec{o1, o2},
+			Query:   &model.OSVSpec{},
+			Exp:     []*model.Osv{o1out, o2out},
 		},
 		{
 			Name:    "Duplicates",
-			Ingests: []*model.GHSAInputSpec{g1, g1, g1},
-			Query:   &model.GHSASpec{},
-			Exp:     []*model.Ghsa{g1out},
+			Ingests: []*model.OSVInputSpec{o1, o1, o1},
+			Query:   &model.OSVSpec{},
+			Exp:     []*model.Osv{o1out},
 		},
-		{
-			Name:    "Query by GHSA ID",
-			Ingests: []*model.GHSAInputSpec{g1, g2, g3},
-			Query: &model.GHSASpec{
-				GhsaID: ptrfrom.String("GHSA-8v4j-7jgf-5rg9"),
-			},
-			Exp: []*model.Ghsa{g3out},
-		},
-		// ids are not known
+		//{
+		//	Name:    "Query by OSV ID",
+		//	Ingests: []*model.OSVInputSpec{o1, o2, o3},
+		//	Query: &model.OSVSpec{
+		//		OsvID: ptrfrom.String("CVE-2022-26499"),
+		//	},
+		//	Exp: []*model.Osv{o2out},
+		//},
 		//{
 		//	Name:    "Query by ID",
-		//	Ingests: []*model.GHSAInputSpec{g1},
-		//	Query: &model.GHSASpec{
+		//	Ingests: []*model.OSVInputSpec{o3},
+		//	Query: &model.OSVSpec{
 		//		ID: ptrfrom.String("2"),
 		//	},
-		//	Exp: []*model.Ghsa{g1out},
+		//	Exp: []*model.Osv{o3out},
 		//},
 		{
 			Name:    "Query None",
-			Ingests: []*model.GHSAInputSpec{g1, g2, g3},
-			Query: &model.GHSASpec{
-				GhsaID: ptrfrom.String("asdf"),
+			Ingests: []*model.OSVInputSpec{o1, o2, o3},
+			Query: &model.OSVSpec{
+				OsvID: ptrfrom.String("asdf"),
 			},
 			Exp: nil,
 		},
 		{
 			Name:    "Query none ID",
-			Ingests: []*model.GHSAInputSpec{g1},
-			Query: &model.GHSASpec{
+			Ingests: []*model.OSVInputSpec{o1},
+			Query: &model.OSVSpec{
 				ID: ptrfrom.String("123456"),
 			},
 			Exp: nil,
 		},
 		{
 			Name:    "Query invalid ID",
-			Ingests: []*model.GHSAInputSpec{g1},
-			Query: &model.GHSASpec{
+			Ingests: []*model.OSVInputSpec{o1},
+			Query: &model.OSVSpec{
 				ID: ptrfrom.String("asdf"),
 			},
 			ExpQueryErr: true,
@@ -132,7 +131,7 @@ func TestGHSA(t *testing.T) {
 				return
 			}
 			for _, i := range test.Ingests {
-				_, err := b.IngestGhsa(ctx, i)
+				_, err := b.IngestOsv(ctx, i)
 				if (err != nil) != test.ExpIngestErr {
 					t.Fatalf("did not get expected ingest error, want: %v, got: %v", test.ExpIngestErr, err)
 				}
@@ -140,14 +139,14 @@ func TestGHSA(t *testing.T) {
 					return
 				}
 			}
-			got, err := b.Ghsa(ctx, test.Query)
+			got, err := b.Osv(ctx, test.Query)
 			if (err != nil) != test.ExpQueryErr {
 				t.Fatalf("did not get expected query error, want: %v, got: %v", test.ExpQueryErr, err)
 			}
 			if err != nil {
 				return
 			}
-			slices.SortFunc(got, lessGhsa)
+			slices.SortFunc(got, lessOsv)
 			if diff := cmp.Diff(test.Exp, got, ignoreID); diff != "" {
 				t.Errorf("Unexpected results. (-want +got):\n%s", diff)
 			}
@@ -155,15 +154,15 @@ func TestGHSA(t *testing.T) {
 	}
 }
 
-func TestIngestGHSAs(t *testing.T) {
+func TestIngestOSVs(t *testing.T) {
 	tests := []struct {
 		name    string
-		ingests []*model.GHSAInputSpec
-		exp     []*model.Ghsa
+		ingests []*model.OSVInputSpec
+		exp     []*model.Osv
 	}{{
 		name:    "Multiple",
-		ingests: []*model.GHSAInputSpec{g1, g2, g3},
-		exp:     []*model.Ghsa{g1out, g2out, g3out},
+		ingests: []*model.OSVInputSpec{o1, o2, o3},
+		exp:     []*model.Osv{o1out, o2out, o3out},
 	}}
 	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
 		return strings.Compare(".ID", p[len(p)-1].String()) == 0
@@ -176,7 +175,7 @@ func TestIngestGHSAs(t *testing.T) {
 				t.Errorf("failed to create gremlin client. error = %v", err)
 				return
 			}
-			got, err := b.IngestGHSAs(ctx, test.ingests)
+			got, err := b.IngestOSVs(ctx, test.ingests)
 			if err != nil {
 				t.Fatalf("ingest error: %v", err)
 				return

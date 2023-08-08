@@ -2,7 +2,6 @@ package gremlin
 
 import (
 	"context"
-	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
@@ -45,6 +44,9 @@ func getDependencyObject(id string, values map[interface{}]interface{}) *model.I
 	return isDependency
 }
 
+// IngestDependency
+//
+//	pkg ->isDependencySubjectPkgEdges-> isDependency ->isDependencyDepPkgEdges-> pkg
 func (c *gremlinClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
 	return ingestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
 		c, &pkg, &depPkg, &dependency, getPackageQueryValues, getDependencyQueryValues, getDependencyObject)
@@ -56,5 +58,11 @@ func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.Pk
 }
 
 func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {
-	return []*model.IsDependency{}, fmt.Errorf("not implemented: IsDependency")
+	query := createVertexQuery(Artifact)
+	if isDependencySpec != nil {
+		if isDependencySpec.ID != nil {
+			query.id = *isDependencySpec.ID
+		}
+	}
+	return queryModelObjects[*model.IsDependency](c, query, getDependencyObject)
 }
