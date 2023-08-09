@@ -170,10 +170,14 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) *GraphQuery {
 }
 
 func getPackageObject(id string, values map[interface{}]interface{}) *model.Package {
-	pkgVersion := &model.PackageVersion{
-		Version:    values[version].(string),
-		Subpath:    values[subpath].(string),
-		Qualifiers: []*model.PackageQualifier{},
+	var pkgVersion *model.PackageVersion
+	versionVal, ok := values[version]
+	if ok {
+		pkgVersion = &model.PackageVersion{
+			Version:    versionVal.(string),
+			Subpath:    values[subpath].(string),
+			Qualifiers: []*model.PackageQualifier{},
+		}
 	}
 	pkgName := &model.PackageName{
 		Name:     values[name].(string),

@@ -43,6 +43,10 @@ func (query *GraphQuery) toReadMap() map[interface{}]interface{} {
 	return query.toVertexMap()
 }
 
+func (query *GraphQuery) isEmpty() bool {
+	return query.id == "" && len(query.has) < 1
+}
+
 func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, deserializer ObjectDeserializer[M]) ([]M, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)

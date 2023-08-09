@@ -307,13 +307,13 @@ func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *R
 	for k, v := range relation.outV.has {
 		t = t.Has(k, v)
 	}
-	t = t.As("from")
+	t = t.Limit(1).As("from")
 	// match to
 	t = t.V().HasLabel(string(relation.inV.label))
 	for k, v := range relation.inV.has {
 		t = t.Has(k, v)
 	}
-	t = t.As("to")
+	t = t.Limit(1).As("to")
 	// upsert edge
 	t = t.MergeE(relation.edge.toEdgeMap()).As("edge").
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("from")).

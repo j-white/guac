@@ -49,7 +49,7 @@ func getDependencyObjectFromEdge(id string, outValues map[interface{}]interface{
 		Package:          pkg,
 		DependentPackage: depPkg,
 		VersionRange:     "",
-		DependencyType:   "",
+		DependencyType:   model.DependencyType(edgeValues[dependencyType].(string)),
 		Justification:    edgeValues[justification].(string),
 		Origin:           edgeValues[collector].(string),
 		Collector:        edgeValues[origin].(string),
@@ -61,8 +61,20 @@ func getDependencyObjectFromEdge(id string, outValues map[interface{}]interface{
 //
 //	pkg ->isDependency-> depPkg
 func (c *gremlinClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
+	// Note: depPkgSpec only takes up to the pkgName as IsDependency does not allow for the attestation
+	// to be made at the pkgVersion level. Version range for the dependent package is defined as a property
+	// on IsDependency.
+	depPkgSpec := model.PkgInputSpec{
+		Type:       depPkg.Type,
+		Namespace:  depPkg.Namespace,
+		Name:       depPkg.Name,
+		Version:    nil,
+		Subpath:    nil,
+		Qualifiers: nil,
+	}
+
 	return ingestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
-		c, &pkg, &depPkg, &dependency, getPackageQueryValues, getDependencyQueryValues, getDependencyObjectFromEdge)
+		c, &pkg, &depPkgSpec, &dependency, getPackageQueryValues, getDependencyQueryValues, getDependencyObjectFromEdge)
 }
 
 func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
@@ -76,6 +88,29 @@ func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *mode
 		if isDependencySpec.ID != nil {
 			query.id = *isDependencySpec.ID
 		}
+		if isDependencySpec.DependencyType != nil {
+			query.has[dependencyType] = isDependencySpec.DependencyType.String()
+		}
+		if isDependencySpec.Justification != nil {
+			query.has[justification] = *isDependencySpec.Justification
+		}
+		if isDependencySpec.Origin != nil {
+			query.has[origin] = *isDependencySpec.Origin
+		}
+		if isDependencySpec.Collector != nil {
+			query.has[collector] = *isDependencySpec.Collector
+		}
+		if isDependencySpec.DependentPackage != nil {
+			panic("TOOD")
+			//ID        *string `json:"id,omitempty"`
+			//Type      *string `json:"type,omitempty"`
+			//Namespace *string `json:"namespace,omitempty"`
+			//Name      *string `json:"name,omitempty"`
+		}
+	}
+	// FIXME: Should this be done for all?
+	if query.isEmpty() {
+		return nil, nil
 	}
 	return queryModelObjectsFromEdge[*model.IsDependency](c, query, getDependencyObjectFromEdge)
 }

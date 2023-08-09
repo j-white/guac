@@ -96,7 +96,7 @@ var p1outName = &model.Package{
 	Namespaces: []*model.PackageNamespace{{
 		Names: []*model.PackageName{{
 			Name:     "tensorflow",
-			Versions: []*model.PackageVersion{},
+			Versions: []*model.PackageVersion{{Qualifiers: []*model.PackageQualifier{}}},
 		}},
 	}},
 }
@@ -123,7 +123,7 @@ var p2outName = &model.Package{
 	Namespaces: []*model.PackageNamespace{{
 		Names: []*model.PackageName{{
 			Name:     "tensorflow",
-			Versions: []*model.PackageVersion{},
+			Versions: []*model.PackageVersion{{Qualifiers: []*model.PackageQualifier{}}},
 		}},
 	}},
 }
