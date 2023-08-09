@@ -101,11 +101,20 @@ func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *mode
 			query.has[collector] = *isDependencySpec.Collector
 		}
 		if isDependencySpec.DependentPackage != nil {
-			panic("TOOD")
-			//ID        *string `json:"id,omitempty"`
-			//Type      *string `json:"type,omitempty"`
-			//Namespace *string `json:"namespace,omitempty"`
-			//Name      *string `json:"name,omitempty"`
+			inVQuery := createGraphQuery(Package)
+			if isDependencySpec.DependentPackage.ID != nil {
+				inVQuery.id = *isDependencySpec.DependentPackage.ID
+			}
+			if isDependencySpec.DependentPackage.Type != nil {
+				inVQuery.has[typeStr] = *isDependencySpec.DependentPackage.Type
+			}
+			if isDependencySpec.DependentPackage.Namespace != nil {
+				inVQuery.has[namespace] = *isDependencySpec.DependentPackage.Namespace
+			}
+			if isDependencySpec.DependentPackage.Name != nil {
+				inVQuery.has[name] = *isDependencySpec.DependentPackage.Name
+			}
+			query.inVQuery = inVQuery
 		}
 	}
 	// FIXME: Should this be done for all?

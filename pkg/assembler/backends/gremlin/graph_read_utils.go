@@ -11,6 +11,8 @@ type GraphQuery struct {
 	id           string
 	partitionKey string
 	has          map[string]interface{}
+	outVQuery    *GraphQuery
+	inVQuery     *GraphQuery
 }
 
 func createGraphQuery(label Label) *GraphQuery {
@@ -111,12 +113,31 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 	if query.partitionKey != "" {
 		v = v.Has(guacPartitionKey, query.partitionKey)
 	}
-	// all filters
+	// all filters on the edge
 	for key, value := range query.has {
 		v = v.Has(key, value)
 	}
+	v.As("edge")
+	if query.inVQuery != nil {
+		v = v.InV()
+		if query.inVQuery.id != "" {
+			v = v.HasId(query.inVQuery.id)
+		}
+		// always match on label
+		v = v.HasLabel(string(query.inVQuery.label))
+		// match on partition key if set
+		if query.inVQuery.partitionKey != "" {
+			v = v.Has(guacPartitionKey, query.inVQuery.partitionKey)
+		}
+		// all filters on the vertex
+		for key, value := range query.inVQuery.has {
+			v = v.Has(key, value)
+		}
+		v = v.As("to")
+	}
+
 	// retrieve all values
-	v = v.Project("from", "edge", "to").By(gremlingo.T__.OutV().ValueMap(true)).By(gremlingo.T__.ValueMap(true)).By(gremlingo.T__.InV().ValueMap(true))
+	v = v.Select("edge").Project("from", "edge", "to").By(gremlingo.T__.OutV().ValueMap(true)).By(gremlingo.T__.ValueMap(true)).By(gremlingo.T__.InV().ValueMap(true))
 
 	// execute the query (blocking)
 	results, err := v.Limit(c.config.MaxResultsPerQuery).ToList()

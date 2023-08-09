@@ -118,8 +118,12 @@ gremlin> :> g.mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby').mergeV([(T.l
 
 MergeE w/ select of vertices
 ```
-:> g.V().hasLabel('package').property('source', 'opennms').as('pkg').V().hasLabel('package').property('source', 'karaf').as('pkgDep').mergeE([(T.label):'isDepedent',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('pkg')).option(Merge.inV, select('pkgDep')).project('from','edge','to').by(outV().valueMap(true)).by(valueMap(true)).by(valueMap(true)).next()
+:> g.addV('package').property('source', 'opennms').next()
+:> g.addV('package').property('source', 'karaf').next()
+:> g.V().hasLabel('package').has('source', 'opennms').as('pkg').V().hasLabel('package').has('source', 'karaf').as('pkgDep').mergeE([(T.label):'isDependent',type:'DIRECT',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('pkg')).option(Merge.inV, select('pkgDep')).next()
 ```
+
+
 
 ## Tuning
 
