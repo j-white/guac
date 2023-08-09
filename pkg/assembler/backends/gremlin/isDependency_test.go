@@ -58,7 +58,7 @@ func TestIsDependency(t *testing.T) {
 			ExpID: []*model.IsDependency{
 				{
 					Package:          p1out,
-					DependentPackage: p2outName,
+					DependentPackage: p2out,
 					Justification:    "test justification",
 				},
 			},
@@ -88,7 +88,7 @@ func TestIsDependency(t *testing.T) {
 			ExpID: []*model.IsDependency{
 				{
 					Package:          p1out,
-					DependentPackage: p2outName,
+					DependentPackage: p2out,
 					Justification:    "test justification",
 				},
 			},
@@ -118,7 +118,7 @@ func TestIsDependency(t *testing.T) {
 			ExpID: []*model.IsDependency{
 				{
 					Package:          p1out,
-					DependentPackage: p2outName,
+					DependentPackage: p2out,
 					Justification:    "test justification",
 				},
 			},
@@ -148,7 +148,7 @@ func TestIsDependency(t *testing.T) {
 			ExpID: []*model.IsDependency{
 				{
 					Package:          p1out,
-					DependentPackage: p2outName,
+					DependentPackage: p2out,
 					Justification:    "test justification one",
 				},
 			},

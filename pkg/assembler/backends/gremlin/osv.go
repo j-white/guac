@@ -2,7 +2,6 @@ package gremlin
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"strings"
 )
@@ -11,11 +10,10 @@ const (
 	OSV Label = "osv"
 )
 
-func getOSVQueryValues(osv *model.OSVInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(OSV)
-	values[osvId] = strings.ToLower(osv.OsvID)
-	return values
+func getOSVQueryValues(osv *model.OSVInputSpec) *GraphQuery {
+	q := createGraphQuery(OSV)
+	q.has[osvId] = strings.ToLower(osv.OsvID)
+	return q
 }
 
 func getOSVObject(id string, values map[interface{}]interface{}) *model.Osv {

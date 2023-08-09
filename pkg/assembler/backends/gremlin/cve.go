@@ -17,7 +17,6 @@ package gremlin
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"strings"
 
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
@@ -27,12 +26,11 @@ const (
 	CVE Label = "cve"
 )
 
-func getCVEQueryValues(cve *model.CVEInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(CVE)
-	values[year] = int64(cve.Year)
-	values[cveId] = strings.ToLower(cve.CveID)
-	return values
+func getCVEQueryValues(cve *model.CVEInputSpec) *GraphQuery {
+	q := createGraphQuery(CVE)
+	q.has[year] = int64(cve.Year)
+	q.has[cveId] = strings.ToLower(cve.CveID)
+	return q
 }
 
 func getCVEObject(id string, values map[interface{}]interface{}) *model.Cve {

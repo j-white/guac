@@ -2,7 +2,6 @@ package gremlin
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -10,11 +9,10 @@ const (
 	Builder Label = "builder"
 )
 
-func getBuilderQueryValues(builder *model.BuilderInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(Builder)
-	values[uri] = builder.URI
-	return values
+func getBuilderQueryValues(builder *model.BuilderInputSpec) *GraphQuery {
+	q := createGraphQuery(Builder)
+	q.has[uri] = builder.URI
+	return q
 }
 
 func getBuilderObject(id string, values map[interface{}]interface{}) *model.Builder {

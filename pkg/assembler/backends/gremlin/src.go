@@ -17,30 +17,28 @@ package gremlin
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
-func getSourceQueryValues(source *model.SourceInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(Source)
-	values[name] = source.Name
-	values[typeStr] = source.Type
-	values[namespace] = source.Namespace
+func getSourceQueryValues(source *model.SourceInputSpec) *GraphQuery {
+	q := createGraphQuery(Source)
+	q.has[name] = source.Name
+	q.has[typeStr] = source.Type
+	q.has[namespace] = source.Namespace
 
 	if source.Commit != nil {
-		values[commit] = *source.Commit
+		q.has[commit] = *source.Commit
 	} else {
-		values[commit] = ""
+		q.has[commit] = ""
 	}
 
 	if source.Tag != nil {
-		values[tag] = *source.Tag
+		q.has[tag] = *source.Tag
 	} else {
-		values[tag] = ""
+		q.has[tag] = ""
 	}
 
-	return values
+	return q
 }
 
 func getSourceObject(id string, values map[interface{}]interface{}) *model.Source {

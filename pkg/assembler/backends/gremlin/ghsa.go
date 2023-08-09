@@ -2,7 +2,6 @@ package gremlin
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"strings"
 )
@@ -11,11 +10,10 @@ const (
 	GHSA Label = "ghsa"
 )
 
-func getGHSAQueryValues(ghsa *model.GHSAInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(GHSA)
-	values[ghsaId] = strings.ToLower(ghsa.GhsaID)
-	return values
+func getGHSAQueryValues(ghsa *model.GHSAInputSpec) *GraphQuery {
+	q := createGraphQuery(GHSA)
+	q.has[ghsaId] = strings.ToLower(ghsa.GhsaID)
+	return q
 }
 
 func getGHSAObject(id string, values map[interface{}]interface{}) *model.Ghsa {

@@ -20,10 +20,8 @@ import (
 	"errors"
 	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
-	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"golang.org/x/sync/errgroup"
 	"math"
-	"sort"
 	"strconv"
 )
 
@@ -32,9 +30,9 @@ type Label string
 const MaxVertexUpsertChunkSize = 200
 const MaxEdgeUpsertChunkSize = 10 // breaks with anything over 10
 
-func (c *gremlinClient) upsertVertex(properties map[interface{}]interface{}) (string, error) {
+func (c *gremlinClient) upsertVertex(q *GraphQuery) (string, error) {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	r, err := g.MergeV(properties).Id().Next()
+	r, err := g.MergeV(q.toVertexMap()).Id().Next()
 	if err != nil {
 		return "", err
 	}
@@ -49,19 +47,19 @@ func (c *gremlinClient) upsertVertex(properties map[interface{}]interface{}) (st
 	}
 }
 
-func (c *gremlinClient) bulkUpsertVertices(allProperties []map[interface{}]interface{}) ([]string, error) {
+func (c *gremlinClient) bulkUpsertVertices(qs []*GraphQuery) ([]string, error) {
 	var ids []string
 	var vertexRefs []interface{}
 	var gt *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// chain the upserts
-	for i, properties := range allProperties {
+	for i, q := range qs {
 		vertexRef := fmt.Sprintf("v%d", i)
 		vertexRefs = append(vertexRefs, vertexRef)
 		if i == 0 {
-			gt = g.MergeV(properties).As(vertexRef)
+			gt = g.MergeV(q.toVertexMap()).As(vertexRef)
 		} else {
-			gt = gt.MergeV(properties).As(vertexRef)
+			gt = gt.MergeV(q.toVertexMap()).As(vertexRef)
 		}
 	}
 	results, err := gt.Select(vertexRefs...).Select(gremlingo.Column.Values).Unfold().Id().ToList()
@@ -82,31 +80,34 @@ func (c *gremlinClient) bulkUpsertVertices(allProperties []map[interface{}]inter
 	}
 
 	// verify the results are somewhat sane
-	if len(ids) != len(allProperties) {
+	if len(ids) != len(qs) {
 		return nil, fmt.Errorf("bulkUpsertVertices: number of results(%d) gathered does not match number of inputs(%d)",
-			len(ids), len(allProperties))
+			len(ids), len(qs))
 	}
 
 	return ids, nil
 }
 
-type MapSerializer[M any] func(model M) (result map[interface{}]interface{})
+type MapSerializer[M any] func(model M) (result *GraphQuery)
 
 type ObjectDeserializer[M any] func(id string, values map[interface{}]interface{}) (model M)
 
-type EdgeMapSerializer[VInput any, EInput any] func(v1 VInput, v2 VInput, edge EInput) (result map[interface{}]interface{})
+type EdgeMapSerializer[VInput any, EInput any] func(v1 VInput, v2 VInput, edge EInput) (result *GraphQuery)
 
 type EdgeObjectDeserializer[M any] func(id string, out map[interface{}]interface{}, edge map[interface{}]interface{}, in map[interface{}]interface{}) (model M)
 
 type Relation struct {
-	v1   map[interface{}]interface{}
-	v2   map[interface{}]interface{}
-	edge map[interface{}]interface{}
+	outV *GraphQuery
+	inV  *GraphQuery
+	edge *GraphQuery
 }
 
 type RelationWithId struct {
 	edgeId   string
 	relation *Relation
+
+	outV map[interface{}]interface{}
+	inV  map[interface{}]interface{}
 }
 
 /*
@@ -116,16 +117,12 @@ D is model object w/ id after upsert
 func ingestModelObject[C any, D any](c *gremlinClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
 	var object D
 	values := serializer(modelObject)
-	// verify that label is present
-	if _, ok := values[gremlingo.T.Label]; !ok {
-		return object, fmt.Errorf("label missing on vertex, rejecting: %v", values)
-	}
 
 	id, err := c.upsertVertex(values)
 	if err != nil {
 		return object, err
 	}
-	object = deserializer(id, values)
+	object = deserializer(id, values.toReadMap())
 	return object, nil
 }
 
@@ -137,10 +134,10 @@ func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, se
 	}
 
 	// serialize
-	var allValues []map[interface{}]interface{}
+	var qs []*GraphQuery
 	for _, modelObject := range modelObjects {
 		values := serializer(modelObject)
-		allValues = append(allValues, values)
+		qs = append(qs, values)
 	}
 
 	// split in chunk to limit websocket frame size
@@ -148,7 +145,7 @@ func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, se
 	// FIXME: given these span multiple requests, we should wrap them in a single transaction
 	// FIXME: can we do these in parallel? (probably not if they are in a single transaction)
 	var ids = make([]string, 0)
-	for _, chunk := range chunkSlice(allValues, MaxVertexUpsertChunkSize) {
+	for _, chunk := range chunkSlice(qs, MaxVertexUpsertChunkSize) {
 		if len(chunk) == 1 {
 			// if there's only 1, the query handling is different, so do a normal upsert
 			idForChunk, err := c.upsertVertex(chunk[0])
@@ -170,7 +167,7 @@ func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, se
 	}
 
 	for k := range modelObjects {
-		object := deserializer(ids[k], allValues[k])
+		object := deserializer(ids[k], qs[k].toReadMap())
 		objects = append(objects, object)
 	}
 	return objects, nil
@@ -188,67 +185,9 @@ func chunkSlice[T any](slice []T, chunkSize int) [][]T {
 	return chunks
 }
 
-func storeMapInVertexProperties(properties map[interface{}]interface{}, propertyName string, mapToStore map[string]string) {
+func storeArrayInVertexProperties(q *GraphQuery, propertyName string, mapToStore []string) {
 	mapToStoreJson, _ := json.Marshal(mapToStore)
-	properties[propertyName] = string(mapToStoreJson)
-}
-
-func storeArrayInVertexProperties2(properties map[interface{}]interface{}, propertyName string, mapToStore []string) {
-	mapToStoreJson, _ := json.Marshal(mapToStore)
-	properties[propertyName] = string(mapToStoreJson)
-}
-
-func storeArrayInVertexProperties(checks []*model.ScorecardCheckInputSpec, propertyName string, vertexProperties map[interface{}]interface{}) {
-	// flatten checks into a list keys (check name) and a list of values (the scores)
-	checksMap := map[string]int{}
-	var checkKeysList []string
-	var checkValuesList []int
-	for _, check := range checks {
-		key := check.Check
-		checksMap[key] = check.Score
-		checkKeysList = append(checkKeysList, key)
-	}
-	// sort for deterministic outputs
-	sort.Strings(checkKeysList)
-	for _, k := range checkKeysList {
-		checkValuesList = append(checkValuesList, checksMap[k])
-	}
-
-	// Support for arrays may vary based on the implementation of Gremlin
-	// FIXME: 2023/07/09 02:26:18 %!(EXTRA string=gremlinServerWSProtocol.responseHandler(), string=%!(EXTRA gremlingo.responseStatus={244 Property value [[Binary_Artifacts, Branch_Protection, Code_Review, Contributors]] is of type class java.util.ArrayList is not supported map[exceptions:[java.lang.IllegalArgumentException] stackTrace:java.lang.IllegalArgumentException: Property value [[Binary_Artifacts, Branch_Protection, Code_Review, Contributors]] is of type class java.util.ArrayList is not supported
-	//	at org.apache.gremlin.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:159)
-	//	at org.apache.gremlin.gremlin.structure.Property$Exceptions.dataTypeOfPropertyValueNotSupported(Property.java:155)
-	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.verifyAttribute(StandardJanusGraphTx.java:673)
-	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.addProperty(StandardJanusGraphTx.java:888)
-	//	at org.janusgraph.graphdb.transaction.StandardJanusGraphTx.addProperty(StandardJanusGraphTx.java:877)
-	checkKeysJson, _ := json.Marshal(checkKeysList)
-	checkValuesJson, _ := json.Marshal(checkValuesList)
-	vertexProperties["checkKeys"] = checkKeysJson
-	vertexProperties["checkValues"] = checkValuesJson
-}
-
-func readArrayFromVertexProperties(results map[interface{}]interface{}) ([]*model.ScorecardCheck, error) {
-	var keyList = results[checkKeys].([]interface{})
-	var valueList = results[checkValues].([]interface{})
-
-	var checks []*model.ScorecardCheck
-	if len(keyList) != len(valueList) {
-		//log.Error("values on vertices do do match - corrupt - need to delete vertex")
-		valueList = valueList[:len(keyList)]
-	}
-	for i := range keyList {
-		valueAsJson := valueList[i].(string)
-		score, err := strconv.ParseInt(valueAsJson[1:len(valueAsJson)-1], 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		check := &model.ScorecardCheck{
-			Check: keyList[i].(string),
-			Score: int(score),
-		}
-		checks = append(checks, check)
-	}
-	return checks, nil
+	q.has[propertyName] = string(mapToStoreJson)
 }
 
 func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *gremlinClient,
@@ -257,17 +196,15 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *grem
 	edgeInputObject EInput,
 	vInputSerializer MapSerializer[VInput],
 	edgeInputSerializer EdgeMapSerializer[VInput, EInput],
-	edgeOutputDeserializer ObjectDeserializer[EOutput]) (EOutput, error) {
+	edgeOutputDeserializer EdgeObjectDeserializer[EOutput]) (EOutput, error) {
 
 	var edgeObject EOutput
 
 	relation := &Relation{
-		v1:   vInputSerializer(v1InputObject),
-		v2:   vInputSerializer(v2InputObject),
+		outV: vInputSerializer(v1InputObject),
+		inV:  vInputSerializer(v2InputObject),
 		edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
 	}
-	relation.edge[gremlingo.Direction.In] = gremlingo.Merge.InV
-	relation.edge[gremlingo.Direction.Out] = gremlingo.Merge.OutV
 
 	ch := make(chan []*RelationWithId, 1)
 	err := c.upsertRelation(ch, relation)
@@ -277,7 +214,10 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *grem
 	close(ch)
 	// return the first element from the first list in the channel
 	for _, relationWithId := range <-ch {
-		return edgeOutputDeserializer(relationWithId.edgeId, relationWithId.relation.edge), nil
+		return edgeOutputDeserializer(relationWithId.edgeId,
+			flattenResultMap(relationWithId.outV),
+			relationWithId.relation.edge.toReadMap(),
+			flattenResultMap(relationWithId.inV)), nil
 	}
 	return edgeObject, errors.New("no results returned by upsert")
 }
@@ -288,7 +228,7 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	edgeInputObjects []EInput,
 	vInputSerializer MapSerializer[VInput],
 	edgeInputSerializer EdgeMapSerializer[VInput, EInput],
-	edgeOutputDeserializer ObjectDeserializer[EOutput]) ([]EOutput, error) {
+	edgeOutputDeserializer EdgeObjectDeserializer[EOutput]) ([]EOutput, error) {
 
 	var objects []EOutput
 	// back input validation
@@ -297,7 +237,7 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 		return objects, nil
 	}
 	if len(v1InputObjects) != len(v2InputObjects) || len(v1InputObjects) != len(edgeInputObjects) {
-		return objects, fmt.Errorf("size of inputs do not match v1(%d) v2(%d) e(%d)",
+		return objects, fmt.Errorf("size of inputs do not match outV(%d) inV(%d) e(%d)",
 			len(v1InputObjects), len(v2InputObjects), len(edgeInputObjects))
 	}
 
@@ -307,12 +247,10 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 		v2InputObject := v2InputObjects[k]
 		edgeInputObject := edgeInputObjects[k]
 		relation := &Relation{
-			v1:   vInputSerializer(v1InputObject),
-			v2:   vInputSerializer(v2InputObject),
+			outV: vInputSerializer(v1InputObject),
+			inV:  vInputSerializer(v2InputObject),
 			edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
 		}
-		relation.edge[gremlingo.Direction.In] = gremlingo.Merge.InV
-		relation.edge[gremlingo.Direction.Out] = gremlingo.Merge.OutV
 		allRelations = append(allRelations, relation)
 	}
 
@@ -346,7 +284,10 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	// map back out to the target object
 	for result := range resultChan {
 		for _, relationWithId := range result {
-			object := edgeOutputDeserializer(relationWithId.edgeId, relationWithId.relation.edge)
+			object := edgeOutputDeserializer(relationWithId.edgeId,
+				relationWithId.outV,
+				relationWithId.relation.edge.toReadMap(),
+				relationWithId.inV)
 			objects = append(objects, object)
 		}
 	}
@@ -361,32 +302,54 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 
 func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	r, err := g.MergeV(relation.v1).As("v1").
-		MergeV(relation.v2).As("v2").
-		MergeE(relation.edge).As("edge").
-		// late bind
-		Option(gremlingo.Merge.InV, gremlingo.T__.Select("v1")).
-		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("v2")).
-		Select("edge").Id().Next()
+	// match from
+	t := g.V().HasLabel(string(relation.outV.label))
+	for k, v := range relation.outV.has {
+		t = t.Has(k, v)
+	}
+	t = t.As("from")
+	// match to
+	t = t.V().HasLabel(string(relation.inV.label))
+	for k, v := range relation.inV.has {
+		t = t.Has(k, v)
+	}
+	t = t.As("to")
+	// upsert edge
+	t = t.MergeE(relation.edge.toEdgeMap()).As("edge").
+		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("from")).
+		Option(gremlingo.Merge.InV, gremlingo.T__.Select("to"))
+	// project for output
+	t = t.Project("from", "edge", "to").
+		By(gremlingo.T__.OutV().ValueMap(true)).
+		By(gremlingo.T__.Select("edge").Id()).
+		By(gremlingo.T__.InV().ValueMap(true))
+	r, err := t.Next()
 	if err != nil {
 		return err
 	}
 
-	var relationsWithIds []*RelationWithId
+	resultMap := r.GetInterface().(map[interface{}]interface{})
+	edgeValue := resultMap["edge"]
+	fromMap := resultMap["from"].(map[interface{}]interface{})
+	toMap := resultMap["to"].(map[interface{}]interface{})
 
 	var edgeId string
 	if c.config.Flavor == JanusGraph {
-		edgeId = strconv.FormatInt(r.GetInterface().(*janusgraphRelationIdentifier).RelationId, 10)
+		edgeId = strconv.FormatInt(edgeValue.(*janusgraphRelationIdentifier).RelationId, 10)
 	} else {
-		edgeId = r.GetString()
+		edgeMap := edgeValue.(map[interface{}]interface{})
+		edgeId = edgeMap["id"].(string)
 	}
 
-	relationsWithIds = append(relationsWithIds, &RelationWithId{
+	relationWithId := &RelationWithId{
 		edgeId:   edgeId,
 		relation: relation,
-	})
+		outV:     fromMap,
+		inV:      toMap,
+	}
 
-	queue <- relationsWithIds
+	// ship it
+	queue <- []*RelationWithId{relationWithId}
 	return nil
 }
 
@@ -410,22 +373,22 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// chain the upserts
 	for k, relation := range relations {
-		v1Ref := fmt.Sprintf("v1-%d", k)
-		v2Ref := fmt.Sprintf("v2-%d", k)
+		v1Ref := fmt.Sprintf("outV-%d", k)
+		v2Ref := fmt.Sprintf("inV-%d", k)
 		edgeRef := fmt.Sprintf("e-%d", k)
 		edgeRefs = append(edgeRefs, edgeRef)
 
 		if k == 0 {
-			gt = g.MergeV(relation.v1).As(v1Ref).
-				MergeV(relation.v2).As(v2Ref).
-				MergeE(relation.edge).As(edgeRef).
+			gt = g.MergeV(relation.outV.toVertexMap()).As(v1Ref).
+				MergeV(relation.inV.toVertexMap()).As(v2Ref).
+				MergeE(relation.edge.toEdgeMap()).As(edgeRef).
 				// late bind
 				Option(gremlingo.Merge.InV, gremlingo.T__.Select(v1Ref)).
 				Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v2Ref))
 		} else {
-			gt = gt.MergeV(relation.v1).As(v1Ref).
-				MergeV(relation.v2).As(v2Ref).
-				MergeE(relation.edge).As(edgeRef).
+			gt = gt.MergeV(relation.outV.toVertexMap()).As(v1Ref).
+				MergeV(relation.inV.toVertexMap()).As(v2Ref).
+				MergeE(relation.edge.toEdgeMap()).As(edgeRef).
 				// late bind
 				Option(gremlingo.Merge.InV, gremlingo.T__.Select(v1Ref)).
 				Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v2Ref))

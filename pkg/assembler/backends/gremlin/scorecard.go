@@ -51,8 +51,9 @@ const (
 )
 
 const (
-	Source    Label = "source"
-	Scorecard Label = "scorecard"
+	Source            Label = "source"
+	Scorecard         Label = "scorecard"
+	ScorecardToSource Label = "scorecard-to-source"
 )
 
 func validateSourceInputSpec(source model.SourceInputSpec) error {
@@ -72,18 +73,17 @@ func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.Source
 	}
 
 	// map to vertices and edges
-	sourceProperties := map[interface{}]interface{}{
-		gremlingo.T.Label: string(Source),
-		name:              source.Name,
-		sourceType:        source.Type,
-		namespace:         source.Namespace,
-	}
+	sourceQ := createGraphQuery(Source)
+	sourceQ.has[name] = source.Name
+	sourceQ.has[sourceType] = source.Type
+	sourceQ.has[namespace] = source.Namespace
+
 	// optional values, at least one of these must exist
 	if source.Tag != nil {
-		sourceProperties[tag] = *source.Tag
+		sourceQ.has[tag] = *source.Tag
 	}
 	if source.Commit != nil {
-		sourceProperties[commit] = *source.Commit
+		sourceQ.has[commit] = *source.Commit
 	}
 
 	checks := toChecks(scorecard.Checks)
@@ -92,27 +92,21 @@ func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.Source
 		return nil, err
 	}
 
-	scorecardProperties := map[interface{}]interface{}{
-		gremlingo.T.Label: string(Scorecard),
-		aggregateScore:    scorecard.AggregateScore,
-		timeScanned:       scorecard.TimeScanned.UTC(),
-		scorecardVersion:  scorecard.ScorecardVersion,
-		scorecardCommit:   scorecard.ScorecardCommit,
-		origin:            scorecard.Origin,
-		collector:         scorecard.Collector,
-		checksJson:        string(checksJsonValue),
-	}
+	scorecardQ := createGraphQuery(Scorecard)
+	scorecardQ.has[aggregateScore] = scorecard.AggregateScore
+	scorecardQ.has[timeScanned] = scorecard.TimeScanned.UTC()
+	scorecardQ.has[scorecardVersion] = scorecard.ScorecardVersion
+	scorecardQ.has[scorecardCommit] = scorecard.ScorecardCommit
+	scorecardQ.has[origin] = scorecard.Origin
+	scorecardQ.has[collector] = scorecard.Collector
+	scorecardQ.has[checksJson] = string(checksJsonValue)
 
-	edgeProperties := map[interface{}]interface{}{
-		gremlingo.T.Label:       "scorecard-to-source",
-		gremlingo.Direction.In:  gremlingo.Merge.InV,
-		gremlingo.Direction.Out: gremlingo.Merge.OutV,
-	}
+	edgeQ := createGraphQuery(ScorecardToSource)
 
 	relation := &Relation{
-		v1:   sourceProperties,
-		v2:   scorecardProperties,
-		edge: edgeProperties,
+		outV: sourceQ,
+		inV:  scorecardQ,
+		edge: edgeQ,
 	}
 	relationWithId, err := c.upsertRelationDirect(relation)
 	if err != nil {

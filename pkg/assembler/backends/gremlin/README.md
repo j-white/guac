@@ -111,9 +111,14 @@ MergeE
 gremlin> :> g.mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby').mergeV([(T.label):'Dog',namespace:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').id().toList()
 ```
 
-MergeE
+MergeE w/ mergeV
 ```
 gremlin> :> g.mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby').mergeV([(T.label):'Dog',namespace:'Brandy']).as('Brandy').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby')).option(Merge.inV, select('Brandy')).as('edge').mergeV([(T.label):'Dog',namespace:'Toby']).as('Toby2').mergeV([(T.label):'Dog',namespace:'Brandy']).as('Brandy2').mergeE([(T.label):'Sibling',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('Toby2')).option(Merge.inV, select('Brandy2')).as('edge2').select('edge','edge2').unfold().id().toList()
+```
+
+MergeE w/ select of vertices
+```
+:> g.V().hasLabel('package').property('source', 'opennms').as('pkg').V().hasLabel('package').property('source', 'karaf').as('pkgDep').mergeE([(T.label):'isDepedent',created:'2022-02-07',(from):Merge.outV,(to):Merge.inV]).option(Merge.outV, select('pkg')).option(Merge.inV, select('pkgDep')).project('from','edge','to').by(outV().valueMap(true)).by(valueMap(true)).by(valueMap(true)).next()
 ```
 
 ## Tuning

@@ -17,7 +17,6 @@ package gremlin
 
 import (
 	"context"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"strings"
 )
@@ -26,12 +25,11 @@ const (
 	Artifact Label = "artifact"
 )
 
-func getArtifactQueryValues(artifact *model.ArtifactInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(Artifact)
-	values[algorithm] = strings.ToLower(artifact.Algorithm)
-	values[digest] = strings.ToLower(artifact.Digest)
-	return values
+func getArtifactQueryValues(artifact *model.ArtifactInputSpec) *GraphQuery {
+	q := createGraphQuery(Artifact)
+	q.has[algorithm] = strings.ToLower(artifact.Algorithm)
+	q.has[digest] = strings.ToLower(artifact.Digest)
+	return q
 }
 
 func getArtifactObject(id string, values map[interface{}]interface{}) *model.Artifact {

@@ -18,7 +18,6 @@ package gremlin
 import (
 	"context"
 	"fmt"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"sort"
 )
@@ -121,9 +120,8 @@ func guacPkgId(pkg model.PkgInputSpec) PkgIds {
 }
 
 // copied from arrangodb
-func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} {
-	values := make(map[interface{}]interface{})
-	values[gremlingo.T.Label] = string(Package)
+func getPackageQueryValues(pkg *model.PkgInputSpec) *GraphQuery {
+	q := createGraphQuery(Package)
 
 	// FIXME: Add relation to pkg type
 	//// add guac keys
@@ -132,27 +130,27 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} 
 	//values["typeValue"] = c.pkgTypeMap[pkg.Type].PkgType
 
 	guacIds := guacPkgId(*pkg)
-	values["guacNsKey"] = guacIds.NamespaceId
-	values["guacNameKey"] = guacIds.NameId
-	values["guacVersionKey"] = guacIds.VersionId
+	q.has["guacNsKey"] = guacIds.NamespaceId
+	q.has["guacNameKey"] = guacIds.NameId
+	q.has["guacVersionKey"] = guacIds.VersionId
 
-	values[typeStr] = pkg.Type
+	q.has[typeStr] = pkg.Type
 
-	values[name] = pkg.Name
+	q.has[name] = pkg.Name
 	if pkg.Namespace != nil {
-		values[namespace] = *pkg.Namespace
+		q.has[namespace] = *pkg.Namespace
 	} else {
-		values[namespace] = ""
+		q.has[namespace] = ""
 	}
 	if pkg.Version != nil {
-		values[version] = *pkg.Version
+		q.has[version] = *pkg.Version
 	} else {
-		values[version] = ""
+		q.has[version] = ""
 	}
 	if pkg.Subpath != nil {
-		values[subpath] = *pkg.Subpath
+		q.has[subpath] = *pkg.Subpath
 	} else {
-		values[subpath] = ""
+		q.has[subpath] = ""
 	}
 
 	// To ensure consistency, always sort the qualifiers by key
@@ -167,8 +165,8 @@ func getPackageQueryValues(pkg *model.PkgInputSpec) map[interface{}]interface{} 
 	for _, k := range keys {
 		qualifiers = append(qualifiers, k, qualifiersMap[k])
 	}
-	storeArrayInVertexProperties2(values, "qualifier", qualifiers)
-	return values
+	storeArrayInVertexProperties(q, "qualifier", qualifiers)
+	return q
 }
 
 func getPackageObject(id string, values map[interface{}]interface{}) *model.Package {

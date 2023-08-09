@@ -1,7 +1,6 @@
 package gremlin
 
 import (
-	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"reflect"
 	"strconv"
@@ -18,6 +17,30 @@ func createGraphQuery(label Label) *GraphQuery {
 	q := &GraphQuery{label: label}
 	q.has = make(map[string]interface{})
 	return q
+}
+
+func (query *GraphQuery) toVertexMap() map[interface{}]interface{} {
+	values := make(map[interface{}]interface{})
+	for k, v := range query.has {
+		values[k] = v
+	}
+	values[gremlingo.T.Label] = string(query.label)
+	return values
+}
+
+func (query *GraphQuery) toEdgeMap() map[interface{}]interface{} {
+	values := make(map[interface{}]interface{})
+	for k, v := range query.has {
+		values[k] = v
+	}
+	values[gremlingo.T.Label] = string(query.label)
+	values[gremlingo.Direction.In] = gremlingo.Merge.InV
+	values[gremlingo.Direction.Out] = gremlingo.Merge.OutV
+	return values
+}
+
+func (query *GraphQuery) toReadMap() map[interface{}]interface{} {
+	return query.toVertexMap()
 }
 
 func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, deserializer ObjectDeserializer[M]) ([]M, error) {
@@ -96,7 +119,6 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("MOO", results)
 
 	// generate the model objects from the resultset
 	var objects []M

@@ -13,6 +13,7 @@
 [ ] isVulnerability
 [ ] pkgEqual
 [ ] pointOfContact
+[ ] scorecard 
 
 ## General
 
