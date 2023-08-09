@@ -58,7 +58,7 @@ func (c *gremlinClient) IngestHashEquals(ctx context.Context, artifacts []*model
 }
 
 func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.HashEqualSpec) ([]*model.HashEqual, error) {
-	query := createVertexQuery(HashEqual)
+	query := createGraphQuery(HashEqual)
 	if hashEqualSpec != nil {
 		if hashEqualSpec.ID != nil {
 			query.id = *hashEqualSpec.ID
@@ -73,5 +73,5 @@ func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.Hash
 			query.has[collector] = *hashEqualSpec.Collector
 		}
 	}
-	return queryModelObjects[*model.HashEqual](c, query, getHashEqualObject)
+	return queryModelObjectsFromVertex[*model.HashEqual](c, query, getHashEqualObject)
 }

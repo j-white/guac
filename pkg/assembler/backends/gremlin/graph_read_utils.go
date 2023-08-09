@@ -1,25 +1,26 @@
 package gremlin
 
 import (
+	"fmt"
 	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"reflect"
 	"strconv"
 )
 
-type VertexQuery struct {
+type GraphQuery struct {
 	label        Label
 	id           string
 	partitionKey string
 	has          map[string]interface{}
 }
 
-func createVertexQuery(label Label) *VertexQuery {
-	q := &VertexQuery{label: label}
+func createGraphQuery(label Label) *GraphQuery {
+	q := &GraphQuery{label: label}
 	q.has = make(map[string]interface{})
 	return q
 }
 
-func queryModelObjects[M any](c *gremlinClient, query *VertexQuery, deserializer ObjectDeserializer[M]) ([]M, error) {
+func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, deserializer ObjectDeserializer[M]) ([]M, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	var v *gremlingo.GraphTraversal
@@ -61,6 +62,59 @@ func queryModelObjects[M any](c *gremlinClient, query *VertexQuery, deserializer
 		}
 
 		object := deserializer(vertexId, resultMap)
+		objects = append(objects, object)
+	}
+
+	return objects, nil
+}
+
+func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deserializer EdgeObjectDeserializer[M]) ([]M, error) {
+	// build the query
+	g := gremlingo.Traversal_().WithRemote(c.remote)
+	var v *gremlingo.GraphTraversal
+	if query.id != "" {
+		// if we have the id, use it at the start of the query instead of matching later
+		v = g.E(query.id)
+	} else {
+		v = g.E()
+	}
+	// always match on label
+	v = v.HasLabel(string(query.label))
+	// match on partition key if set
+	if query.partitionKey != "" {
+		v = v.Has(guacPartitionKey, query.partitionKey)
+	}
+	// all filters
+	for key, value := range query.has {
+		v = v.Has(key, value)
+	}
+	// retrieve all values
+	v = v.Project("from", "edge", "to").By(gremlingo.T__.OutV().ValueMap(true)).By(gremlingo.T__.ValueMap(true)).By(gremlingo.T__.InV().ValueMap(true))
+
+	// execute the query (blocking)
+	results, err := v.Limit(c.config.MaxResultsPerQuery).ToList()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("MOO", results)
+
+	// generate the model objects from the resultset
+	var objects []M
+	for _, result := range results {
+		resultMap := result.GetInterface().(map[interface{}]interface{})
+		edgeMap := flattenResultMap(resultMap["edge"].(map[interface{}]interface{}))
+		fromMap := flattenResultMap(resultMap["from"].(map[interface{}]interface{}))
+		toMap := flattenResultMap(resultMap["to"].(map[interface{}]interface{}))
+
+		var edgeId string
+		if c.config.Flavor == JanusGraph {
+			relationId := edgeMap[string(gremlingo.T.Id)].(*janusgraphRelationIdentifier)
+			edgeId = strconv.FormatInt(relationId.RelationId, 10)
+		} else {
+			edgeId = resultMap[string(gremlingo.T.Id)].(string)
+		}
+
+		object := deserializer(edgeId, fromMap, edgeMap, toMap)
 		objects = append(objects, object)
 	}
 

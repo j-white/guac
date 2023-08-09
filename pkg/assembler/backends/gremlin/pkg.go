@@ -201,7 +201,7 @@ func (c *gremlinClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInp
 }
 
 func (c *gremlinClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
-	query := createVertexQuery(Package)
+	query := createGraphQuery(Package)
 	if pkgSpec != nil {
 		if pkgSpec.ID != nil {
 			query.id = *pkgSpec.ID
@@ -219,5 +219,5 @@ func (c *gremlinClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([
 			query.has[subpath] = *pkgSpec.Subpath
 		}
 	}
-	return queryModelObjects[*model.Package](c, query, getPackageObject)
+	return queryModelObjectsFromVertex[*model.Package](c, query, getPackageObject)
 }

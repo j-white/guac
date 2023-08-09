@@ -44,9 +44,26 @@ func getDependencyObject(id string, values map[interface{}]interface{}) *model.I
 	return isDependency
 }
 
+func getDependencyObjectFromEdge(id string, outValues map[interface{}]interface{}, edgeValues map[interface{}]interface{}, inValues map[interface{}]interface{}) *model.IsDependency {
+	pkg := getPackageObject("", outValues)
+	depPkg := getPackageObject("", inValues)
+
+	isDependency := &model.IsDependency{
+		ID:               id,
+		Package:          pkg,
+		DependentPackage: depPkg,
+		VersionRange:     "",
+		DependencyType:   "",
+		Justification:    edgeValues[justification].(string),
+		Origin:           edgeValues[collector].(string),
+		Collector:        edgeValues[origin].(string),
+	}
+	return isDependency
+}
+
 // IngestDependency
 //
-//	pkg ->isDependencySubjectPkgEdges-> isDependency ->isDependencyDepPkgEdges-> pkg
+//	pkg ->isDependency-> depPkg
 func (c *gremlinClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
 	return ingestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
 		c, &pkg, &depPkg, &dependency, getPackageQueryValues, getDependencyQueryValues, getDependencyObject)
@@ -58,11 +75,11 @@ func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.Pk
 }
 
 func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {
-	query := createVertexQuery(Artifact)
+	query := createGraphQuery(IsDependency)
 	if isDependencySpec != nil {
 		if isDependencySpec.ID != nil {
 			query.id = *isDependencySpec.ID
 		}
 	}
-	return queryModelObjects[*model.IsDependency](c, query, getDependencyObject)
+	return queryModelObjectsFromEdge[*model.IsDependency](c, query, getDependencyObjectFromEdge)
 }

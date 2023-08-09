@@ -51,7 +51,7 @@ func (c *gremlinClient) IngestArtifacts(ctx context.Context, artifacts []*model.
 }
 
 func (c *gremlinClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
-	query := createVertexQuery(Artifact)
+	query := createGraphQuery(Artifact)
 	if artifactSpec != nil {
 		if artifactSpec.ID != nil {
 			query.id = *artifactSpec.ID
@@ -63,5 +63,5 @@ func (c *gremlinClient) Artifacts(ctx context.Context, artifactSpec *model.Artif
 			query.has[digest] = strings.ToLower(*artifactSpec.Digest)
 		}
 	}
-	return queryModelObjects[*model.Artifact](c, query, getArtifactObject)
+	return queryModelObjectsFromVertex[*model.Artifact](c, query, getArtifactObject)
 }

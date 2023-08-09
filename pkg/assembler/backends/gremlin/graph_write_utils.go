@@ -96,6 +96,8 @@ type ObjectDeserializer[M any] func(id string, values map[interface{}]interface{
 
 type EdgeMapSerializer[VInput any, EInput any] func(v1 VInput, v2 VInput, edge EInput) (result map[interface{}]interface{})
 
+type EdgeObjectDeserializer[M any] func(id string, out map[interface{}]interface{}, edge map[interface{}]interface{}, in map[interface{}]interface{}) (model M)
+
 type Relation struct {
 	v1   map[interface{}]interface{}
 	v2   map[interface{}]interface{}

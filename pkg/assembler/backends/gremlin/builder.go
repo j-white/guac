@@ -33,7 +33,7 @@ func (c *gremlinClient) IngestBuilders(ctx context.Context, builders []*model.Bu
 }
 
 func (c *gremlinClient) Builders(ctx context.Context, builderSpec *model.BuilderSpec) ([]*model.Builder, error) {
-	query := createVertexQuery(Builder)
+	query := createGraphQuery(Builder)
 	if builderSpec != nil {
 		if builderSpec.ID != nil {
 			query.id = *builderSpec.ID
@@ -42,5 +42,5 @@ func (c *gremlinClient) Builders(ctx context.Context, builderSpec *model.Builder
 			query.has[uri] = *builderSpec.URI
 		}
 	}
-	return queryModelObjects[*model.Builder](c, query, getBuilderObject)
+	return queryModelObjectsFromVertex[*model.Builder](c, query, getBuilderObject)
 }

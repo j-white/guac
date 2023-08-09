@@ -52,7 +52,7 @@ func (c *gremlinClient) IngestCVEs(ctx context.Context, cves []*model.CVEInputSp
 }
 
 func (c *gremlinClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*model.Cve, error) {
-	query := createVertexQuery(CVE)
+	query := createGraphQuery(CVE)
 	if cveSpec != nil {
 		if cveSpec.ID != nil {
 			query.id = *cveSpec.ID
@@ -64,5 +64,5 @@ func (c *gremlinClient) Cve(ctx context.Context, cveSpec *model.CVESpec) ([]*mod
 			query.has[cveId] = strings.ToLower(*cveSpec.CveID)
 		}
 	}
-	return queryModelObjects[*model.Cve](c, query, getCVEObject)
+	return queryModelObjectsFromVertex[*model.Cve](c, query, getCVEObject)
 }

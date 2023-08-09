@@ -91,7 +91,7 @@ func (c *gremlinClient) IngestSources(ctx context.Context, sources []*model.Sour
 }
 
 func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
-	query := createVertexQuery(Source)
+	query := createGraphQuery(Source)
 	if sourceSpec != nil {
 		if sourceSpec.ID != nil {
 			query.id = *sourceSpec.ID
@@ -112,5 +112,5 @@ func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpe
 			query.has[commit] = *sourceSpec.Commit
 		}
 	}
-	return queryModelObjects[*model.Source](c, query, getSourceObject)
+	return queryModelObjectsFromVertex[*model.Source](c, query, getSourceObject)
 }
