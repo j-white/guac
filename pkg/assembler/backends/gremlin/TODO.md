@@ -8,7 +8,6 @@
 [ ] hasSBOM
 [ ] hasSLSA
 [ ] hasSourceAt
-[ ] isDependency
 [ ] isOccurrence
 [ ] isVulnerability
 [ ] pkgEqual

@@ -65,7 +65,30 @@ func validateSourceInputSpec(source model.SourceInputSpec) error {
 	return nil
 }
 
+// IngestScorecard
+//
+//	scorecard -> ScorecardToSource -> src
 func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+	// scorecard -> scorecard vertex
+
+	// source to match criteria
+
+	// MergeV().as(scorecard).V().has().limit(1).MergeE().project()
+	//
+
+	// 	q := createQueryForEdge(IsDependency).
+
+	//
+	//q := upsertModelObject(Scorecard, scorecard)
+	//		.withMapper()
+	//	.relateToEdge(Source)
+
+	return nil, nil
+	//return ingestModelObjectsWithRelation[*model.ScorecardInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
+	//	c, &pkg, &depPkg, &dependency, getPackageQueryValues, getPackageQueryValuesForDep, getDependencyQueryValues, getDependencyObjectFromEdgeMuted)
+}
+
+func (c *gremlinClient) IngestScorecard2(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
 	// TODO: Can we push this validation up a layer, so that the storage engines don't need to worry about it?
 	err := validateSourceInputSpec(source)
 	if err != nil {
