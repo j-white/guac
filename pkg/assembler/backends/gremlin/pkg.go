@@ -178,6 +178,10 @@ func getPackageObject(id string, values map[interface{}]interface{}) *model.Pack
 			Subpath:    values[subpath].(string),
 			Qualifiers: []*model.PackageQualifier{},
 		}
+	} else {
+		pkgVersion = &model.PackageVersion{
+			Qualifiers: []*model.PackageQualifier{},
+		}
 	}
 	pkgName := &model.PackageName{
 		Name:     values[name].(string),

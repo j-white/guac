@@ -160,7 +160,7 @@ var p4outName = &model.Package{
 		Namespace: "openssl.org",
 		Names: []*model.PackageName{{
 			Name:     "openssl",
-			Versions: []*model.PackageVersion{},
+			Versions: []*model.PackageVersion{{Qualifiers: []*model.PackageQualifier{}}},
 		}},
 	}},
 }

@@ -51,7 +51,7 @@ func getHashEqualObjectFromEdge(id string, outValues map[interface{}]interface{}
 //	artifact ->hashEqualSubjectArtEdges-> hashEqual  ->hashEqualArtEdges-> artifact
 func (c *gremlinClient) IngestHashEqual(ctx context.Context, artifact model.ArtifactInputSpec, equalArtifact model.ArtifactInputSpec, hashEqual model.HashEqualInputSpec) (*model.HashEqual, error) {
 	return ingestModelObjectsWithRelation[*model.ArtifactInputSpec, *model.HashEqualInputSpec, *model.HashEqual](
-		c, &artifact, &equalArtifact, &hashEqual, getArtifactQueryValues, getHashEqualQueryValues, getHashEqualObjectFromEdge)
+		c, &artifact, &equalArtifact, &hashEqual, getArtifactQueryValues, getArtifactQueryValues, getHashEqualQueryValues, getHashEqualObjectFromEdge)
 }
 
 func (c *gremlinClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {

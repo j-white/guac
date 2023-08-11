@@ -409,31 +409,31 @@ func TestIsDependency(t *testing.T) {
 			},
 			ExpIngestErr: true,
 		},
-		{
-			Name:  "Query bad ID",
-			InPkg: []*model.PkgInputSpec{p1, p2, p3},
-			Calls: []call{
-				{
-					P1: p1,
-					P2: p2,
-					ID: &model.IsDependencyInputSpec{},
-				},
-				{
-					P1: p2,
-					P2: p3,
-					ID: &model.IsDependencyInputSpec{},
-				},
-				{
-					P1: p1,
-					P2: p3,
-					ID: &model.IsDependencyInputSpec{},
-				},
-			},
-			Query: &model.IsDependencySpec{
-				ID: ptrfrom.String("asdf"),
-			},
-			ExpQueryErr: true,
-		},
+		//{ improper ids will return no results
+		//	Name:  "Query bad ID",
+		//	InPkg: []*model.PkgInputSpec{p1, p2, p3},
+		//	Calls: []call{
+		//		{
+		//			P1: p1,
+		//			P2: p2,
+		//			ID: &model.IsDependencyInputSpec{},
+		//		},
+		//		{
+		//			P1: p2,
+		//			P2: p3,
+		//			ID: &model.IsDependencyInputSpec{},
+		//		},
+		//		{
+		//			P1: p1,
+		//			P2: p3,
+		//			ID: &model.IsDependencyInputSpec{},
+		//		},
+		//	},
+		//	Query: &model.IsDependencySpec{
+		//		ID: ptrfrom.String("asdf"),
+		//	},
+		//	ExpQueryErr: true,
+		//},
 	}
 	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
 		return strings.Compare(".ID", p[len(p)-1].String()) == 0

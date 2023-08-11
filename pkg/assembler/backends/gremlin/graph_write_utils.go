@@ -194,15 +194,16 @@ func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *grem
 	v1InputObject VInput,
 	v2InputObject VInput,
 	edgeInputObject EInput,
-	vInputSerializer MapSerializer[VInput],
+	v1InputSerializer MapSerializer[VInput],
+	v2InputSerializer MapSerializer[VInput],
 	edgeInputSerializer EdgeMapSerializer[VInput, EInput],
 	edgeOutputDeserializer EdgeObjectDeserializer[EOutput]) (EOutput, error) {
 
 	var edgeObject EOutput
 
 	relation := &Relation{
-		outV: vInputSerializer(v1InputObject),
-		inV:  vInputSerializer(v2InputObject),
+		outV: v1InputSerializer(v1InputObject),
+		inV:  v2InputSerializer(v2InputObject),
 		edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
 	}
 
