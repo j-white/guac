@@ -227,12 +227,13 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	v1InputObjects []VInput,
 	v2InputObjects []VInput,
 	edgeInputObjects []EInput,
-	vInputSerializer MapSerializer[VInput],
+	v1InputSerializer MapSerializer[VInput],
+	v2InputSerializer MapSerializer[VInput],
 	edgeInputSerializer EdgeMapSerializer[VInput, EInput],
 	edgeOutputDeserializer EdgeObjectDeserializer[EOutput]) ([]EOutput, error) {
 
 	var objects []EOutput
-	// back input validation
+	// basic input validation
 	if len(v1InputObjects) < 1 {
 		// nothing to do
 		return objects, nil
@@ -248,8 +249,8 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 		v2InputObject := v2InputObjects[k]
 		edgeInputObject := edgeInputObjects[k]
 		relation := &Relation{
-			outV: vInputSerializer(v1InputObject),
-			inV:  vInputSerializer(v2InputObject),
+			outV: v1InputSerializer(v1InputObject),
+			inV:  v2InputSerializer(v2InputObject),
 			edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
 		}
 		allRelations = append(allRelations, relation)
@@ -286,9 +287,9 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	for result := range resultChan {
 		for _, relationWithId := range result {
 			object := edgeOutputDeserializer(relationWithId.edgeId,
-				relationWithId.outV,
+				flattenResultMap(relationWithId.outV),
 				relationWithId.relation.edge.toReadMap(),
-				relationWithId.inV)
+				flattenResultMap(relationWithId.inV))
 			objects = append(objects, object)
 		}
 	}
@@ -316,9 +317,10 @@ func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *R
 	}
 	t = t.Limit(1).As("to")
 	// upsert edge
-	t = t.MergeE(relation.edge.toEdgeMap()).As("edge").
+	t = t.MergeE(relation.edge.toEdgeMap()).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("from")).
-		Option(gremlingo.Merge.InV, gremlingo.T__.Select("to"))
+		Option(gremlingo.Merge.InV, gremlingo.T__.Select("to")).
+		As("edge")
 	// project for output
 	t = t.Project("from", "edge", "to").
 		By(gremlingo.T__.OutV().ValueMap(true)).
@@ -370,32 +372,42 @@ func (c *gremlinClient) upsertRelationDirect(relation *Relation) (*RelationWithI
 
 func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*Relation) error {
 	var edgeRefs []interface{}
-	var gt *gremlingo.GraphTraversal
+	var t *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// chain the upserts
 	for k, relation := range relations {
-		v1Ref := fmt.Sprintf("outV-%d", k)
-		v2Ref := fmt.Sprintf("inV-%d", k)
+		v1Ref := fmt.Sprintf("from-%d", k)
+		v2Ref := fmt.Sprintf("to-%d", k)
 		edgeRef := fmt.Sprintf("e-%d", k)
 		edgeRefs = append(edgeRefs, edgeRef)
 
+		// match from
 		if k == 0 {
-			gt = g.MergeV(relation.outV.toVertexMap()).As(v1Ref).
-				MergeV(relation.inV.toVertexMap()).As(v2Ref).
-				MergeE(relation.edge.toEdgeMap()).As(edgeRef).
-				// late bind
-				Option(gremlingo.Merge.InV, gremlingo.T__.Select(v1Ref)).
-				Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v2Ref))
+			t = g.V().HasLabel(string(relation.outV.label))
 		} else {
-			gt = gt.MergeV(relation.outV.toVertexMap()).As(v1Ref).
-				MergeV(relation.inV.toVertexMap()).As(v2Ref).
-				MergeE(relation.edge.toEdgeMap()).As(edgeRef).
-				// late bind
-				Option(gremlingo.Merge.InV, gremlingo.T__.Select(v1Ref)).
-				Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v2Ref))
+			t = t.V().HasLabel(string(relation.outV.label))
 		}
+		for k, v := range relation.outV.has {
+			t = t.Has(k, v)
+		}
+		t = t.Limit(1).As(v1Ref)
+		// match to
+		t = t.V().HasLabel(string(relation.inV.label))
+		for k, v := range relation.inV.has {
+			t = t.Has(k, v)
+		}
+		t = t.Limit(1).As(v2Ref)
+		// upsert edge
+		t = t.MergeE(relation.edge.toEdgeMap()).
+			Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v1Ref)).
+			Option(gremlingo.Merge.InV, gremlingo.T__.Select(v2Ref)).
+			As(edgeRef)
 	}
-	results, err := gt.Select(edgeRefs...).Select(gremlingo.Column.Values).Unfold().Id().ToList()
+
+	results, err := t.Select(edgeRefs...).Select(gremlingo.Column.Values).Unfold().Project("from", "edge", "to").
+		By(gremlingo.T__.OutV().ValueMap(true)).
+		By(gremlingo.T__.Id()).
+		By(gremlingo.T__.InV().ValueMap(true)).ToList()
 	if err != nil {
 		return err
 	}
@@ -408,18 +420,26 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 
 	var relationsWithIds []*RelationWithId
 	for k, r := range results {
+		resultMap := r.GetInterface().(map[interface{}]interface{})
+		edgeValue := resultMap["edge"]
+		fromMap := resultMap["from"].(map[interface{}]interface{})
+		toMap := resultMap["to"].(map[interface{}]interface{})
+
 		var edgeId string
 		if c.config.Flavor == JanusGraph {
-			edgeId = strconv.FormatInt(r.GetInterface().(*janusgraphRelationIdentifier).RelationId, 10)
+			edgeId = strconv.FormatInt(edgeValue.(*janusgraphRelationIdentifier).RelationId, 10)
 		} else {
-			edgeId = r.GetString()
+			edgeMap := edgeValue.(map[interface{}]interface{})
+			edgeId = edgeMap["id"].(string)
 		}
 
-		relationsWithIds = append(relationsWithIds, &RelationWithId{
-			edgeId: edgeId,
-			// FIXME: This assumes the IDs are returned in the same order as the input queries
+		relationWithId := &RelationWithId{
+			edgeId:   edgeId,
 			relation: relations[k],
-		})
+			outV:     fromMap,
+			inV:      toMap,
+		}
+		relationsWithIds = append(relationsWithIds, relationWithId)
 	}
 
 	queue <- relationsWithIds

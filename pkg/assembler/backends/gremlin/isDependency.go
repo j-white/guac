@@ -68,24 +68,13 @@ func getPackageQueryValuesForDep(pkg *model.PkgInputSpec) *GraphQuery {
 //
 //	pkg ->isDependency-> depPkg
 func (c *gremlinClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
-	// Note: depPkgSpec only takes up to the pkgName as IsDependency does not allow for the attestation
-	// to be made at the pkgVersion level. Version range for the dependent package is defined as a property
-	// on IsDependency.
-	depPkgSpec := model.PkgInputSpec{
-		Type:       depPkg.Type,
-		Namespace:  depPkg.Namespace,
-		Name:       depPkg.Name,
-		Version:    nil,
-		Subpath:    nil,
-		Qualifiers: nil,
-	}
 	return ingestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
-		c, &pkg, &depPkgSpec, &dependency, getPackageQueryValues, getPackageQueryValuesForDep, getDependencyQueryValues, getDependencyObjectFromEdge)
+		c, &pkg, &depPkg, &dependency, getPackageQueryValues, getPackageQueryValuesForDep, getDependencyQueryValues, getDependencyObjectFromEdgeMuted)
 }
 
 func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
 	return bulkIngestModelObjectsWithRelation[*model.PkgInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
-		c, pkgs, depPkgs, dependencies, getPackageQueryValues, getDependencyQueryValues, getDependencyObjectFromEdge)
+		c, pkgs, depPkgs, dependencies, getPackageQueryValues, getPackageQueryValuesForDep, getDependencyQueryValues, getDependencyObjectFromEdgeMuted)
 }
 
 func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {

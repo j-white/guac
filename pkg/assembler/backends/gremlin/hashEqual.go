@@ -56,7 +56,7 @@ func (c *gremlinClient) IngestHashEqual(ctx context.Context, artifact model.Arti
 
 func (c *gremlinClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
 	return bulkIngestModelObjectsWithRelation[*model.ArtifactInputSpec, *model.HashEqualInputSpec, *model.HashEqual](
-		c, artifacts, otherArtifacts, hashEquals, getArtifactQueryValues, getHashEqualQueryValues, getHashEqualObjectFromEdge)
+		c, artifacts, otherArtifacts, hashEquals, getArtifactQueryValues, getArtifactQueryValues, getHashEqualQueryValues, getHashEqualObjectFromEdge)
 }
 
 func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.HashEqualSpec) ([]*model.HashEqual, error) {
