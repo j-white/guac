@@ -3,6 +3,7 @@
 ## Model objects
 
 [ ] scorecard
+[ ] isOccurrence
 [ ] pointOfContact
 [ ] certifyBad
 [ ] hashEqual
@@ -10,7 +11,6 @@
 [ ] hasSBOM
 [ ] hasSLSA
 [ ] hasSourceAt
-[ ] isOccurrence
 [ ] isVulnerability
 [ ] pkgEqual
 
