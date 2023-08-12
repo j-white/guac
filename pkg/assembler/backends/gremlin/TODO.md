@@ -12,6 +12,7 @@
 [ ] hasSourceAt
 [ ] isVulnerability
 [ ] pkgEqual
+[ ] scorecards (bulk insert)
 
 ## General
 
