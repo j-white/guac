@@ -2,6 +2,8 @@
 
 ## Model objects
 
+[ ] scorecard
+[ ] pointOfContact
 [ ] certifyBad
 [ ] hashEqual
 [ ] hasMetadata
@@ -11,8 +13,6 @@
 [ ] isOccurrence
 [ ] isVulnerability
 [ ] pkgEqual
-[ ] pointOfContact
-[ ] scorecard 
 
 ## General
 

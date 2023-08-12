@@ -2,6 +2,7 @@ package gremlin
 
 import (
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	"time"
 )
 
 type gremlinQueryBuilder struct {
@@ -101,6 +102,20 @@ func (gqb *gremlinQueryBuilder) withPropString(key string, value *string) *greml
 func (gqb *gremlinQueryBuilder) withPropDependencyType(key string, value *model.DependencyType) *gremlinQueryBuilder {
 	if value != nil {
 		gqb.query.has[key] = value.String()
+	}
+	return gqb
+}
+
+func (gqb *gremlinQueryBuilder) withPropTime(key string, value *time.Time) *gremlinQueryBuilder {
+	if value != nil {
+		gqb.query.has[key] = *value
+	}
+	return gqb
+}
+
+func (gqb *gremlinQueryBuilder) withPropFloat64(key string, value *float64) *gremlinQueryBuilder {
+	if value != nil {
+		gqb.query.has[key] = *value
 	}
 	return gqb
 }

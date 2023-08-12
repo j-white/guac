@@ -100,6 +100,8 @@ type Relation struct {
 	outV *GraphQuery
 	inV  *GraphQuery
 	edge *GraphQuery
+
+	upsertOutV bool
 }
 
 type RelationWithId struct {
@@ -303,13 +305,20 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 }
 
 func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
+	var t *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	// match from
-	t := g.V().HasLabel(string(relation.outV.label))
-	for k, v := range relation.outV.has {
-		t = t.Has(k, v)
+	if !relation.upsertOutV {
+		// match from
+		t = g.V().HasLabel(string(relation.outV.label))
+		for k, v := range relation.outV.has {
+			t = t.Has(k, v)
+		}
+		t = t.Limit(1).As("from")
+	} else {
+		// upsert from
+		t = g.MergeV(relation.outV.toVertexMap()).As("from")
 	}
-	t = t.Limit(1).As("from")
+
 	// match to
 	t = t.V().HasLabel(string(relation.inV.label))
 	for k, v := range relation.inV.has {

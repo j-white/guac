@@ -18,11 +18,9 @@ package gremlin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
+	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-	"strconv"
 	"time"
 )
 
@@ -42,7 +40,6 @@ const (
 	origin           string = "origin"
 	scorecardVersion string = "scorecardVersion"
 	scorecardCommit  string = "scorecardCommit"
-	sourceType       string = "type"
 	timeScanned      string = "timeScanned"
 	version          string = "version"
 	subpath          string = "subpath"
@@ -65,71 +62,59 @@ func validateSourceInputSpec(source model.SourceInputSpec) error {
 	return nil
 }
 
+func getScorecardQueryValues(scorecard *model.ScorecardInputSpec) *GraphQuery {
+	checks := toChecks(scorecard.Checks)
+	checksJsonValue, err := json.Marshal(checks)
+	if err != nil {
+		checksJsonValue = nil
+	}
+	q := createGraphQuery(Scorecard)
+	q.has[aggregateScore] = scorecard.AggregateScore
+	q.has[timeScanned] = scorecard.TimeScanned.UTC()
+	q.has[scorecardVersion] = scorecard.ScorecardVersion
+	q.has[scorecardCommit] = scorecard.ScorecardCommit
+	q.has[origin] = scorecard.Origin
+	q.has[collector] = scorecard.Collector
+	q.has[checksJson] = string(checksJsonValue)
+	return q
+}
+
+func getSourceMatchQueryValues(source *model.SourceInputSpec) *GraphQuery {
+	q := createGraphQuery(Source)
+	q.has[name] = source.Name
+	q.has[typeStr] = source.Type
+	q.has[namespace] = source.Namespace
+
+	if source.Commit != nil {
+		q.has[commit] = *source.Commit
+	}
+	if source.Tag != nil {
+		q.has[tag] = *source.Tag
+	}
+
+	return q
+}
+
 // IngestScorecard
 //
 //	scorecard -> ScorecardToSource -> src
 func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
-	// scorecard -> scorecard vertex
-
-	// source to match criteria
-
-	// MergeV().as(scorecard).V().has().limit(1).MergeE().project()
-	//
-
-	// 	q := createQueryForEdge(IsDependency).
-
-	//
-	//q := upsertModelObject(Scorecard, scorecard)
-	//		.withMapper()
-	//	.relateToEdge(Source)
-
-	return nil, nil
-	//return ingestModelObjectsWithRelation[*model.ScorecardInputSpec, *model.IsDependencyInputSpec, *model.IsDependency](
-	//	c, &pkg, &depPkg, &dependency, getPackageQueryValues, getPackageQueryValuesForDep, getDependencyQueryValues, getDependencyObjectFromEdgeMuted)
-}
-
-func (c *gremlinClient) IngestScorecard2(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
 	// TODO: Can we push this validation up a layer, so that the storage engines don't need to worry about it?
 	err := validateSourceInputSpec(source)
 	if err != nil {
 		return nil, err
 	}
 
-	// map to vertices and edges
-	sourceQ := createGraphQuery(Source)
-	sourceQ.has[name] = source.Name
-	sourceQ.has[sourceType] = source.Type
-	sourceQ.has[namespace] = source.Namespace
-
-	// optional values, at least one of these must exist
-	if source.Tag != nil {
-		sourceQ.has[tag] = *source.Tag
-	}
-	if source.Commit != nil {
-		sourceQ.has[commit] = *source.Commit
-	}
-
-	checks := toChecks(scorecard.Checks)
-	checksJsonValue, err := json.Marshal(checks)
-	if err != nil {
-		return nil, err
-	}
-
-	scorecardQ := createGraphQuery(Scorecard)
-	scorecardQ.has[aggregateScore] = scorecard.AggregateScore
-	scorecardQ.has[timeScanned] = scorecard.TimeScanned.UTC()
-	scorecardQ.has[scorecardVersion] = scorecard.ScorecardVersion
-	scorecardQ.has[scorecardCommit] = scorecard.ScorecardCommit
-	scorecardQ.has[origin] = scorecard.Origin
-	scorecardQ.has[collector] = scorecard.Collector
-	scorecardQ.has[checksJson] = string(checksJsonValue)
-
+	//	scorecard -> ScorecardToSource -> src
 	edgeQ := createGraphQuery(ScorecardToSource)
+	scorecardQ := getScorecardQueryValues(&scorecard)
+	sourceQ := getSourceMatchQueryValues(&source)
 
 	relation := &Relation{
-		outV: sourceQ,
-		inV:  scorecardQ,
-		edge: edgeQ,
+		outV:       scorecardQ,
+		upsertOutV: true,
+		inV:        sourceQ,
+		edge:       edgeQ,
 	}
 	relationWithId, err := c.upsertRelationDirect(relation)
 	if err != nil {
@@ -141,7 +126,7 @@ func (c *gremlinClient) IngestScorecard2(ctx context.Context, source model.Sourc
 	modelScorecard := model.Scorecard{
 		TimeScanned:      scorecard.TimeScanned,
 		AggregateScore:   scorecard.AggregateScore,
-		Checks:           checks,
+		Checks:           toChecks(scorecard.Checks),
 		ScorecardVersion: scorecard.ScorecardVersion,
 		ScorecardCommit:  scorecard.ScorecardCommit,
 		Origin:           scorecard.Origin,
@@ -173,149 +158,79 @@ func (c *gremlinClient) CertifyScorecard(ctx context.Context, source model.Sourc
 	return c.IngestScorecard(ctx, source, scorecard)
 }
 
+func createQueryToMatchSource(src *model.SourceSpec) *gremlinQueryBuilder {
+	query := createGraphQuery(Source)
+	if src.ID != nil {
+		query.id = *src.ID
+	}
+	if src.Name != nil {
+		query.has[name] = *src.Name
+	}
+	if src.Type != nil {
+		query.has[typeStr] = *src.Type
+	}
+	if src.Namespace != nil {
+		query.has[namespace] = *src.Namespace
+	}
+	if src.Commit != nil {
+		query.has[commit] = *src.Commit
+	}
+	if src.Tag != nil {
+		query.has[tag] = *src.Tag
+	}
+	return &gremlinQueryBuilder{query: query}
+}
+
 func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
-	// build the query
-	g := gremlingo.Traversal_().WithRemote(c.remote)
-	fmt.Println("spec", certifyScorecardSpec)
-
-	v := g.V().HasLabel(string(Scorecard))
+	q := createQueryForEdge(ScorecardToSource)
 	if certifyScorecardSpec != nil {
-		if certifyScorecardSpec.ID != nil {
-			id, err := strconv.ParseInt(*certifyScorecardSpec.ID, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			v = g.V(id).HasLabel(string(Scorecard))
-		}
-		if certifyScorecardSpec.ScorecardVersion != nil {
-			v = v.Has(scorecardVersion, certifyScorecardSpec.ScorecardVersion)
-		}
-		if certifyScorecardSpec.ScorecardCommit != nil {
-			v = v.Has(scorecardVersion, certifyScorecardSpec.ScorecardCommit)
-		}
-		if certifyScorecardSpec.Collector != nil {
-			v = v.Has(collector, certifyScorecardSpec.Collector)
-		}
-		if certifyScorecardSpec.Origin != nil {
-			v = v.Has(origin, certifyScorecardSpec.Origin)
-		}
-		if certifyScorecardSpec.TimeScanned != nil {
-			v = v.Has(timeScanned, certifyScorecardSpec.TimeScanned)
-		}
-		if certifyScorecardSpec.AggregateScore != nil {
-			v = v.Has(aggregateScore, certifyScorecardSpec.AggregateScore)
-		}
-		if certifyScorecardSpec.Checks != nil && len(certifyScorecardSpec.Checks) > 0 {
-			// match checks 1:1
-			checksJsonValue, err := json.Marshal(certifyScorecardSpec.Checks)
-			if err != nil {
-				return nil, err
-			}
-			v = v.Has(checksJson, string(checksJsonValue))
-		}
-		v = v.As("scorecard")
-		// all scorecards should have at least one source
-		v = v.Out().HasLabel(string(Source))
 		if certifyScorecardSpec.Source != nil {
-			if certifyScorecardSpec.Source.ID != nil {
-				id, err := strconv.ParseInt(*certifyScorecardSpec.Source.ID, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				v = v.Out(id).HasLabel(string(Source))
-			}
-			if certifyScorecardSpec.Source.Name != nil {
-				v = v.Has(name, certifyScorecardSpec.Source.Name)
-			}
-			if certifyScorecardSpec.Source.Type != nil {
-				v = v.Has(sourceType, certifyScorecardSpec.Source.Type)
-			}
-			if certifyScorecardSpec.Source.Namespace != nil {
-				v = v.Has(namespace, certifyScorecardSpec.Source.Namespace)
-			}
-			if certifyScorecardSpec.Source.Commit != nil {
-				v = v.Has(commit, certifyScorecardSpec.Source.Commit)
-			}
-			if certifyScorecardSpec.Source.Tag != nil {
-				v = v.Has(tag, certifyScorecardSpec.Source.Tag)
-			}
+			q = q.withInVertex(createQueryToMatchSource(certifyScorecardSpec.Source))
 		}
-		v = v.As("source")
-	}
-	v = v.Select("scorecard", "source").Select(gremlingo.Column.Values).Limit(c.config.MaxResultsPerQuery).Unfold().ValueMap(true)
 
-	// execute the query
-	results, err := v.ToList()
+		scorecardQ := createQueryForEdge(Scorecard).
+			withId(certifyScorecardSpec.ID).
+			withPropString(scorecardVersion, certifyScorecardSpec.ScorecardVersion).
+			withPropString(commit, certifyScorecardSpec.ScorecardCommit).
+			withPropString(collector, certifyScorecardSpec.Collector).
+			withPropString(origin, certifyScorecardSpec.Origin).
+			withPropTime(timeScanned, certifyScorecardSpec.TimeScanned).
+			withPropFloat64(aggregateScore, certifyScorecardSpec.AggregateScore)
+		q = q.withOutVertex(scorecardQ)
+	}
+	return queryEdge[*model.CertifyScorecard](c, q, getScorecardObjectFromEdge)
+}
+
+func getScorecardObjectFromEdge(id string, out map[interface{}]interface{}, edge map[interface{}]interface{}, in map[interface{}]interface{}) *model.CertifyScorecard {
+	var checks []*model.ScorecardCheck
+	err := json.Unmarshal([]byte(out[checksJson].(string)), &checks)
 	if err != nil {
-		return nil, err
-	}
-	fmt.Println("results", results)
-
-	// generate the model objects from the resultset
-	var scorecards []*model.CertifyScorecard
-	id := ""
-	var scorecard *model.CertifyScorecard
-	var sources []*model.Source
-	for _, result := range results {
-		resultMap := result.GetInterface().(map[interface{}]interface{})
-		id = strconv.FormatInt(resultMap[string(gremlingo.T.Id)].(int64), 10)
-		if resultMap[sourceType] != nil {
-			var tagValue string
-			if resultMap[tag] != nil {
-				tagValue = (resultMap[tag].([]interface{}))[0].(string)
-			}
-			var commitValue string
-			if resultMap[commit] != nil {
-				commitValue = (resultMap[commit].([]interface{}))[0].(string)
-			}
-			source := &model.Source{
-				ID:   id,
-				Type: (resultMap[sourceType].([]interface{}))[0].(string),
-				Namespaces: []*model.SourceNamespace{{
-					ID:        id,
-					Namespace: (resultMap[namespace].([]interface{}))[0].(string),
-					Names: []*model.SourceName{{
-						ID:     id,
-						Name:   (resultMap[name].([]interface{}))[0].(string),
-						Tag:    &tagValue,
-						Commit: &commitValue,
-					}},
-				}},
-			}
-			sources = append(sources, source)
-		}
-		if resultMap[checksJson] != nil {
-			var checks []*model.ScorecardCheck
-			err := json.Unmarshal([]byte(resultMap[checksJson].([]interface{})[0].(string)), &checks)
-			if err != nil {
-				return nil, err
-			}
-			scorecard = &model.CertifyScorecard{
-				ID: id,
-				Scorecard: &model.Scorecard{
-					TimeScanned:      (resultMap[timeScanned].([]interface{}))[0].(time.Time),
-					AggregateScore:   (resultMap[aggregateScore].([]interface{}))[0].(float64),
-					Checks:           checks,
-					ScorecardVersion: (resultMap[scorecardVersion].([]interface{}))[0].(string),
-					ScorecardCommit:  (resultMap[scorecardCommit].([]interface{}))[0].(string),
-					Origin:           (resultMap[origin].([]interface{}))[0].(string),
-					Collector:        (resultMap[collector].([]interface{}))[0].(string),
-				},
-			}
-			scorecards = append(scorecards, scorecard)
-		}
+		checks = nil
 	}
 
-	for i, scorecard := range scorecards {
-		// FIXME: This is not necessarily true... they may not be returned in the same order they were paired
-		scorecard.Source = sources[i]
+	scorecard := &model.CertifyScorecard{
+		ID: id,
+		Scorecard: &model.Scorecard{
+			TimeScanned:      out[timeScanned].(time.Time),
+			AggregateScore:   out[aggregateScore].(float64),
+			Checks:           checks,
+			ScorecardVersion: out[scorecardVersion].(string),
+			ScorecardCommit:  out[scorecardCommit].(string),
+			Origin:           out[origin].(string),
+			Collector:        out[collector].(string),
+		},
+		Source: &model.Source{
+			Type: in[typeStr].(string),
+			Namespaces: []*model.SourceNamespace{{Namespace: in[namespace].(string), Names: []*model.SourceName{
+				{Name: in[name].(string), Tag: ptrfrom.String(in[tag].(string)), Commit: ptrfrom.String(in[commit].(string))}}}},
+		},
 	}
 
-	return scorecards, nil
+	return scorecard
 }
 
 func toChecks(inputCheck []*model.ScorecardCheckInputSpec) []*model.ScorecardCheck {
-	var checks []*model.ScorecardCheck
+	checks := make([]*model.ScorecardCheck, 0)
 	for _, check := range inputCheck {
 		checks = append(checks, toCheck(check))
 	}

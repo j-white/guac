@@ -91,5 +91,6 @@ func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *mode
 	if isDependencySpec.DependentPackage != nil {
 		q = q.withInVertex(createQueryToMatchPackageName(isDependencySpec.DependentPackage))
 	}
+	q.query.orderByKey = "pkgVersionGuacKey"
 	return queryEdge[*model.IsDependency](c, q, getDependencyObjectFromEdgeMuted)
 }

@@ -13,6 +13,7 @@ type GraphQuery struct {
 	has          map[string]interface{}
 	outVQuery    *GraphQuery
 	inVQuery     *GraphQuery
+	orderByKey   string
 }
 
 func createGraphQuery(label Label) *GraphQuery {
@@ -155,9 +156,11 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 	}
 
 	// retrieve all values
-	v = v.Select("edge").
-		Order().By("pkgVersionGuacKey", gremlingo.Order.Desc).
-		Project("from", "edge", "to").
+	v = v.Select("edge")
+	if query.orderByKey != "" {
+		v = v.Order().By(query.orderByKey, gremlingo.Order.Desc)
+	}
+	v = v.Project("from", "edge", "to").
 		By(gremlingo.T__.OutV().ValueMap(true)).
 		By(gremlingo.T__.ValueMap(true)).
 		By(gremlingo.T__.InV().ValueMap(true))

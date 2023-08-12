@@ -98,7 +98,7 @@ func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpe
 			query.has[name] = *sourceSpec.Name
 		}
 		if sourceSpec.Type != nil {
-			query.has[sourceType] = *sourceSpec.Type
+			query.has[typeStr] = *sourceSpec.Type
 		}
 		if sourceSpec.Namespace != nil {
 			query.has[namespace] = *sourceSpec.Namespace
