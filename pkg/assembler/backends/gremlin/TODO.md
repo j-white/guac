@@ -2,7 +2,6 @@
 
 ## Model objects
 
-[ ] scorecard
 [ ] isOccurrence
 [ ] pointOfContact
 [ ] certifyBad

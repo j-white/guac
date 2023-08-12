@@ -18,6 +18,7 @@ package gremlin
 import (
 	"context"
 	"encoding/json"
+	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
@@ -107,6 +108,9 @@ func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.Source
 
 	//	scorecard -> ScorecardToSource -> src
 	edgeQ := createGraphQuery(ScorecardToSource)
+	// copy to easy for easy sorting
+	edgeQ.has[aggregateScore] = scorecard.AggregateScore
+
 	scorecardQ := getScorecardQueryValues(&scorecard)
 	sourceQ := getSourceMatchQueryValues(&source)
 
@@ -187,7 +191,6 @@ func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *mo
 		if certifyScorecardSpec.Source != nil {
 			q = q.withInVertex(createQueryToMatchSource(certifyScorecardSpec.Source))
 		}
-
 		scorecardQ := createQueryForEdge(Scorecard).
 			withId(certifyScorecardSpec.ID).
 			withPropString(scorecardVersion, certifyScorecardSpec.ScorecardVersion).
@@ -196,8 +199,17 @@ func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *mo
 			withPropString(origin, certifyScorecardSpec.Origin).
 			withPropTime(timeScanned, certifyScorecardSpec.TimeScanned).
 			withPropFloat64(aggregateScore, certifyScorecardSpec.AggregateScore)
+		if certifyScorecardSpec.Checks != nil {
+			checksJsonValue, err := json.Marshal(certifyScorecardSpec.Checks)
+			if err != nil {
+				checksJsonValue = nil
+			}
+			scorecardQ = scorecardQ.withPropString(checksJson, ptrfrom.String(string(checksJsonValue)))
+		}
 		q = q.withOutVertex(scorecardQ)
 	}
+	q.query.orderByKey = aggregateScore
+	q.query.orderByDirection = gremlingo.Order.Asc
 	return queryEdge[*model.CertifyScorecard](c, q, getScorecardObjectFromEdge)
 }
 

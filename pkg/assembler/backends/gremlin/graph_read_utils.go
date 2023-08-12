@@ -7,18 +7,20 @@ import (
 )
 
 type GraphQuery struct {
-	label        Label
-	id           string
-	partitionKey string
-	has          map[string]interface{}
-	outVQuery    *GraphQuery
-	inVQuery     *GraphQuery
-	orderByKey   string
+	label            Label
+	id               string
+	partitionKey     string
+	has              map[string]interface{}
+	outVQuery        *GraphQuery
+	inVQuery         *GraphQuery
+	orderByKey       string
+	orderByDirection interface{}
 }
 
 func createGraphQuery(label Label) *GraphQuery {
 	q := &GraphQuery{label: label}
 	q.has = make(map[string]interface{})
+	q.orderByDirection = gremlingo.Order.Desc
 	return q
 }
 
@@ -158,7 +160,7 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 	// retrieve all values
 	v = v.Select("edge")
 	if query.orderByKey != "" {
-		v = v.Order().By(query.orderByKey, gremlingo.Order.Desc)
+		v = v.Order().By(query.orderByKey, query.orderByDirection)
 	}
 	v = v.Project("from", "edge", "to").
 		By(gremlingo.T__.OutV().ValueMap(true)).
