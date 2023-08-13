@@ -70,7 +70,7 @@ func createUpsertForIsDependency(pkg *model.PkgInputSpec, depPkg *model.PkgInput
 //
 //	pkg ->isDependency-> depPkg
 func (c *gremlinClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
-	return createUpsertForIsDependency(&pkg, &depPkg, &dependency).upsert()
+	return createUpsertForIsDependency(&pkg, &depPkg, &dependency).upsert(c)
 }
 
 func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
@@ -82,7 +82,7 @@ func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.Pk
 
 	return createBulkUpsertForEdge[*model.IsDependency](IsDependency).
 		withQueries(queries).
-		upsertBulk()
+		upsertBulk(c)
 }
 
 func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {
@@ -101,5 +101,5 @@ func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *mode
 	if isDependencySpec.DependentPackage != nil {
 		q = q.withInVertex(createQueryToMatchPackageName[*model.IsDependency](isDependencySpec.DependentPackage))
 	}
-	return q.findAll()
+	return q.findAll(c)
 }

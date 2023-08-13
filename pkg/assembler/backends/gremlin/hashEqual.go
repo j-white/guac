@@ -24,56 +24,52 @@ const (
 	HashEqual Label = "hashEqual"
 )
 
-func getHashEqualQueryValues(artifact *model.ArtifactInputSpec, equalArtifact *model.ArtifactInputSpec, hashEqual *model.HashEqualInputSpec) *GraphQuery {
-	q := createGraphQuery(HashEqual)
-	q.has[justification] = hashEqual.Justification
-	q.has[origin] = hashEqual.Origin
-	q.has[collector] = hashEqual.Collector
-	return q
-}
-
-func getHashEqualObject(id string, values map[interface{}]interface{}) *model.HashEqual {
-	hashEqual := &model.HashEqual{
-		ID:            id,
-		Justification: values[justification].(string),
-		Origin:        values[collector].(string),
-		Collector:     values[origin].(string),
+func getHashEqualObjectFromEdge(result *gremlinQueryResult) *model.HashEqual {
+	return &model.HashEqual{
+		ID:            result.id,
+		Justification: result.edge[justification].(string),
+		Origin:        result.edge[collector].(string),
+		Collector:     result.edge[origin].(string),
 	}
-	return hashEqual
 }
 
-func getHashEqualObjectFromEdge(id string, outValues map[interface{}]interface{}, edgeValues map[interface{}]interface{}, inValues map[interface{}]interface{}) *model.HashEqual {
-	return getHashEqualObject(id, edgeValues)
+func createUpsertForHashEqual(artifact *model.ArtifactInputSpec, equalArtifact *model.ArtifactInputSpec, hashEqual *model.HashEqualInputSpec) *gremlinQueryBuilder[*model.HashEqual] {
+	return createUpsertForEdge[*model.HashEqual](HashEqual).
+		withPropString(justification, &hashEqual.Justification).
+		withPropString(origin, &hashEqual.Origin).
+		withPropString(collector, &hashEqual.Collector).
+		withOutVertex(createQueryToMatchArtifactInput[*model.HashEqual](artifact)).
+		withInVertex(createQueryToMatchArtifactInput[*model.HashEqual](equalArtifact)).
+		withMapper(getHashEqualObjectFromEdge)
 }
 
 // IngestHashEqual
 //
-//	artifact ->hashEqualSubjectArtEdges-> hashEqual  ->hashEqualArtEdges-> artifact
+//	artifact -> hashEqual  -> artifact
 func (c *gremlinClient) IngestHashEqual(ctx context.Context, artifact model.ArtifactInputSpec, equalArtifact model.ArtifactInputSpec, hashEqual model.HashEqualInputSpec) (*model.HashEqual, error) {
-	return ingestModelObjectsWithRelation[*model.ArtifactInputSpec, *model.HashEqualInputSpec, *model.HashEqual](
-		c, &artifact, &equalArtifact, &hashEqual, getArtifactQueryValues, getArtifactQueryValues, getHashEqualQueryValues, getHashEqualObjectFromEdge)
+	return createUpsertForHashEqual(&artifact, &equalArtifact, &hashEqual).upsert(c)
 }
 
 func (c *gremlinClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
-	return bulkIngestModelObjectsWithRelation[*model.ArtifactInputSpec, *model.HashEqualInputSpec, *model.HashEqual](
-		c, artifacts, otherArtifacts, hashEquals, getArtifactQueryValues, getArtifactQueryValues, getHashEqualQueryValues, getHashEqualObjectFromEdge)
+	// build the queries
+	var queries []*gremlinQueryBuilder[*model.HashEqual]
+	for k := range artifacts {
+		queries = append(queries, createUpsertForHashEqual(artifacts[k], otherArtifacts[k], hashEquals[k]))
+	}
+	return createBulkUpsertForEdge[*model.HashEqual](HashEqual).
+		withQueries(queries).
+		upsertBulk(c)
 }
 
 func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.HashEqualSpec) ([]*model.HashEqual, error) {
-	query := createGraphQuery(HashEqual)
-	if hashEqualSpec != nil {
-		if hashEqualSpec.ID != nil {
-			query.id = *hashEqualSpec.ID
-		}
-		if hashEqualSpec.Justification != nil {
-			query.has[justification] = *hashEqualSpec.Justification
-		}
-		if hashEqualSpec.Origin != nil {
-			query.has[origin] = *hashEqualSpec.Origin
-		}
-		if hashEqualSpec.Collector != nil {
-			query.has[collector] = *hashEqualSpec.Collector
-		}
+	q := createQueryForEdge[*model.HashEqual](HashEqual).
+		withId(hashEqualSpec.ID).
+		withPropString(justification, hashEqualSpec.Justification).
+		withPropString(origin, hashEqualSpec.Justification).
+		withPropString(collector, hashEqualSpec.Justification)
+	if len(hashEqualSpec.Artifacts) > 0 {
+		// FIXME: More work to do here
+		q = q.withInVertex(createQueryToMatchArtifact[*model.HashEqual](hashEqualSpec.Artifacts[0]))
 	}
-	return queryModelObjectsFromVertex[*model.HashEqual](c, query, getHashEqualObject)
+	return q.findAll(c)
 }

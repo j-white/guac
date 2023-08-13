@@ -15,6 +15,7 @@ type GraphQuery struct {
 	inVQuery         *GraphQuery
 	orderByKey       string
 	orderByDirection interface{}
+	isUpsert         bool
 }
 
 func createGraphQuery(label Label) *GraphQuery {
@@ -100,7 +101,7 @@ func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, des
 	return objects, nil
 }
 
-func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deserializer EdgeObjectDeserializer[M]) ([]M, error) {
+func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deserializer func(*gremlinQueryResult) M) ([]M, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	var v *gremlingo.GraphTraversal
@@ -189,25 +190,28 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 			edgeId = resultMap[string(gremlingo.T.Id)].(string)
 		}
 
-		object := deserializer(edgeId, fromMap, edgeMap, toMap)
+		gResult := &gremlinQueryResult{
+			id:   edgeId,
+			out:  fromMap,
+			edge: edgeMap,
+			in:   toMap,
+		}
+
+		object := deserializer(gResult)
 		objects = append(objects, object)
 	}
 
 	return objects, nil
 }
 
-/*
-*
-in responses, values are in arrays, even single values like so:
-
-	namespace: ["somenamespace"]
-
-we convert this to:
-
-	namespace: "somenamespace"
-
-for single values, and keep arrays otherwise
-*/
+// flattenResultMap
+//
+//	in responses, values are in arrays, even single values like so:
+//	namespace: ["somenamespace"]
+//	we convert this to:
+//	namespace: "somenamespace"
+//
+// for single values, and keep arrays otherwise
 func flattenResultMap(resultMap map[interface{}]interface{}) map[interface{}]interface{} {
 	newResultMap := make(map[interface{}]interface{})
 	for k, v := range resultMap {

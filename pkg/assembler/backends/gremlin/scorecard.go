@@ -52,9 +52,9 @@ const (
 )
 
 func createUpsertForScorecardVertex(scorecard *model.ScorecardInputSpec) *gremlinQueryBuilder[*model.CertifyScorecard] {
-	q := createQueryForEdge[*model.CertifyScorecard](Scorecard).
+	q := createUpsertForVertex[*model.CertifyScorecard](Scorecard).
 		withPropString(scorecardVersion, &scorecard.ScorecardVersion).
-		withPropString(commit, &scorecard.ScorecardCommit).
+		withPropString(scorecardCommit, &scorecard.ScorecardCommit).
 		withPropString(collector, &scorecard.Collector).
 		withPropString(origin, &scorecard.Origin).
 		withPropTime(timeScanned, &scorecard.TimeScanned).
@@ -65,6 +65,8 @@ func createUpsertForScorecardVertex(scorecard *model.ScorecardInputSpec) *gremli
 			checksJsonValue = nil
 		}
 		q = q.withPropString(checksJson, ptrfrom.String(string(checksJsonValue)))
+	} else {
+		q = q.withPropString(checksJson, ptrfrom.String("[]"))
 	}
 	return q
 }
@@ -73,13 +75,13 @@ func createUpsertForScorecard(source *model.SourceInputSpec, scorecard *model.Sc
 	return createUpsertForEdge[*model.CertifyScorecard](ScorecardToSource).
 		// used for sorting
 		withPropFloat64(aggregateScore, &scorecard.AggregateScore).
-		withOutVertex(createUpsertForScorecardVertex[*model.CertifyScorecard](scorecard)).
+		withOutVertex(createUpsertForScorecardVertex(scorecard)).
 		withInVertex(createQueryToMatchSourceInput[*model.CertifyScorecard](source)).
 		withMapper(getScorecardObjectFromEdge)
 }
 
 func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
-	return createUpsertForScorecard(&source, &scorecard).upsert()
+	return createUpsertForScorecard(&source, &scorecard).upsert(c)
 }
 
 func (c *gremlinClient) CertifyScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
@@ -94,26 +96,26 @@ func (c *gremlinClient) IngestScorecards(ctx context.Context, sources []*model.S
 
 	return createBulkUpsertForEdge[*model.CertifyScorecard](Scorecard).
 		withQueries(queries).
-		upsertBulk()
+		upsertBulk(c)
 }
 
 func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
-	q := createQueryForEdge[*model.CertifyScorecard](ScorecardToSource)
+	q := createQueryForEdge[*model.CertifyScorecard](ScorecardToSource).
+		withOrderByKey(aggregateScore).
+		withOrderByDirection(gremlingo.Order.Asc).
+		withMapper(getScorecardObjectFromEdge)
 	if certifyScorecardSpec != nil {
 		if certifyScorecardSpec.Source != nil {
 			q = q.withInVertex(createQueryToMatchSource[*model.CertifyScorecard](certifyScorecardSpec.Source))
 		}
-		scorecardQ := createQueryForEdge[*model.CertifyScorecard](Scorecard).
+		scorecardQ := createQueryForVertex[*model.CertifyScorecard](Scorecard).
 			withId(certifyScorecardSpec.ID).
 			withPropString(scorecardVersion, certifyScorecardSpec.ScorecardVersion).
-			withPropString(commit, certifyScorecardSpec.ScorecardCommit).
+			withPropString(scorecardCommit, certifyScorecardSpec.ScorecardCommit).
 			withPropString(collector, certifyScorecardSpec.Collector).
 			withPropString(origin, certifyScorecardSpec.Origin).
 			withPropTime(timeScanned, certifyScorecardSpec.TimeScanned).
-			withPropFloat64(aggregateScore, certifyScorecardSpec.AggregateScore).
-			withOrderByKey(aggregateScore).
-			withOrderByDirection(gremlingo.Order.Asc).
-			withMapper(getScorecardObjectFromEdge)
+			withPropFloat64(aggregateScore, certifyScorecardSpec.AggregateScore)
 		if certifyScorecardSpec.Checks != nil {
 			checksJsonValue, err := json.Marshal(certifyScorecardSpec.Checks)
 			if err != nil {
@@ -123,14 +125,16 @@ func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *mo
 		}
 		q = q.withOutVertex(scorecardQ)
 	}
-	return q.findAll()
+	return q.findAll(c)
 }
 
 func getScorecardObjectFromEdge(result *gremlinQueryResult) *model.CertifyScorecard {
 	var checks []*model.ScorecardCheck
-	err := json.Unmarshal([]byte(result.out[checksJson].(string)), &checks)
-	if err != nil {
-		checks = nil
+	if result.out[checksJson] != nil {
+		err := json.Unmarshal([]byte(result.out[checksJson].(string)), &checks)
+		if err != nil {
+			checks = nil
+		}
 	}
 
 	scorecard := &model.CertifyScorecard{

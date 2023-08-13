@@ -100,8 +100,6 @@ type Relation struct {
 	outV *GraphQuery
 	inV  *GraphQuery
 	edge *GraphQuery
-
-	upsertOutV bool
 }
 
 type RelationWithId struct {
@@ -192,68 +190,44 @@ func storeArrayInVertexProperties(q *GraphQuery, propertyName string, mapToStore
 	q.has[propertyName] = string(mapToStoreJson)
 }
 
-func ingestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *gremlinClient,
-	v1InputObject VInput,
-	v2InputObject VInput,
-	edgeInputObject EInput,
-	v1InputSerializer MapSerializer[VInput],
-	v2InputSerializer MapSerializer[VInput],
-	edgeInputSerializer EdgeMapSerializer[VInput, EInput],
-	edgeOutputDeserializer EdgeObjectDeserializer[EOutput]) (EOutput, error) {
+func ingestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBuilder[M]) (M, error) {
+	var object M
 
-	var edgeObject EOutput
-
-	relation := &Relation{
-		outV: v1InputSerializer(v1InputObject),
-		inV:  v2InputSerializer(v2InputObject),
-		edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
+	if gqb.query.inVQuery != nil || gqb.query.outVQuery != nil {
+		// this is an edge
+		relation := &Relation{
+			outV: gqb.query.outVQuery,
+			inV:  gqb.query.inVQuery,
+			edge: gqb.query,
+		}
+		relationWithId, err := c.upsertRelationDirect(relation)
+		if err != nil {
+			return object, err
+		}
+		result := &gremlinQueryResult{
+			id:   relationWithId.edgeId,
+			edge: relation.edge.toReadMap(),
+			out:  flattenResultMap(relationWithId.outV),
+			in:   flattenResultMap(relationWithId.inV),
+		}
+		return gqb.mapper(result), nil
+	} else {
+		// this is a vertex
+		panic("TODO")
 	}
 
-	ch := make(chan []*RelationWithId, 1)
-	err := c.upsertRelation(ch, relation)
-	if err != nil {
-		return edgeObject, err
-	}
-	close(ch)
-	// return the first element from the first list in the channel
-	for _, relationWithId := range <-ch {
-		return edgeOutputDeserializer(relationWithId.edgeId,
-			flattenResultMap(relationWithId.outV),
-			relationWithId.relation.edge.toReadMap(),
-			flattenResultMap(relationWithId.inV)), nil
-	}
-	return edgeObject, errors.New("no results returned by upsert")
+	return object, nil
 }
 
-func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *gremlinClient,
-	v1InputObjects []VInput,
-	v2InputObjects []VInput,
-	edgeInputObjects []EInput,
-	v1InputSerializer MapSerializer[VInput],
-	v2InputSerializer MapSerializer[VInput],
-	edgeInputSerializer EdgeMapSerializer[VInput, EInput],
-	edgeOutputDeserializer EdgeObjectDeserializer[EOutput]) ([]EOutput, error) {
-
-	var objects []EOutput
-	// basic input validation
-	if len(v1InputObjects) < 1 {
-		// nothing to do
-		return objects, nil
-	}
-	if len(v1InputObjects) != len(v2InputObjects) || len(v1InputObjects) != len(edgeInputObjects) {
-		return objects, fmt.Errorf("size of inputs do not match outV(%d) inV(%d) e(%d)",
-			len(v1InputObjects), len(v2InputObjects), len(edgeInputObjects))
-	}
-
-	// serialize all the values
+func bulkIngestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBuilder[M]) ([]M, error) {
+	var objects []M
+	// build the relations
 	var allRelations []*Relation
-	for k, v1InputObject := range v1InputObjects {
-		v2InputObject := v2InputObjects[k]
-		edgeInputObject := edgeInputObjects[k]
+	for _, q := range gqb.queries {
 		relation := &Relation{
-			outV: v1InputSerializer(v1InputObject),
-			inV:  v2InputSerializer(v2InputObject),
-			edge: edgeInputSerializer(v1InputObject, v2InputObject, edgeInputObject),
+			outV: q.query.outVQuery,
+			inV:  q.query.inVQuery,
+			edge: q.query,
 		}
 		allRelations = append(allRelations, relation)
 	}
@@ -288,10 +262,13 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 	// map back out to the target object
 	for result := range resultChan {
 		for _, relationWithId := range result {
-			object := edgeOutputDeserializer(relationWithId.edgeId,
-				flattenResultMap(relationWithId.outV),
-				relationWithId.relation.edge.toReadMap(),
-				flattenResultMap(relationWithId.inV))
+			gResult := &gremlinQueryResult{
+				id:   relationWithId.edgeId,
+				edge: relationWithId.relation.edge.toReadMap(),
+				out:  flattenResultMap(relationWithId.outV),
+				in:   flattenResultMap(relationWithId.inV),
+			}
+			object := gqb.queries[0].mapper(gResult)
 			objects = append(objects, object)
 		}
 	}
@@ -307,7 +284,7 @@ func bulkIngestModelObjectsWithRelation[VInput any, EInput any, EOutput any](c *
 func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
 	var t *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	if !relation.upsertOutV {
+	if !relation.outV.isUpsert {
 		// match from
 		t = g.V().HasLabel(string(relation.outV.label))
 		for k, v := range relation.outV.has {
@@ -392,14 +369,30 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 
 		// match from
 		if k == 0 {
-			t = g.V().HasLabel(string(relation.outV.label))
+			if !relation.outV.isUpsert {
+				// match from
+				t = g.V().HasLabel(string(relation.outV.label))
+				for k, v := range relation.outV.has {
+					t = t.Has(k, v)
+				}
+				t = t.Limit(1).As(v1Ref)
+			} else {
+				// upsert from
+				t = g.MergeV(relation.outV.toVertexMap()).As(v1Ref)
+			}
 		} else {
-			t = t.V().HasLabel(string(relation.outV.label))
+			if !relation.outV.isUpsert {
+				// match from
+				t = t.V().HasLabel(string(relation.outV.label))
+				for k, v := range relation.outV.has {
+					t = t.Has(k, v)
+				}
+				t = t.Limit(1).As(v1Ref)
+			} else {
+				// upsert from
+				t = t.MergeV(relation.outV.toVertexMap()).As(v1Ref)
+			}
 		}
-		for k, v := range relation.outV.has {
-			t = t.Has(k, v)
-		}
-		t = t.Limit(1).As(v1Ref)
 		// match to
 		t = t.V().HasLabel(string(relation.inV.label))
 		for k, v := range relation.inV.has {

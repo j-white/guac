@@ -33,7 +33,7 @@ func createQueryToMatchPackageInput[M any](pkg *model.PkgInputSpec) *gremlinQuer
 }
 
 func createQueryToMatchSourceInput[M any](src *model.SourceInputSpec) *gremlinQueryBuilder[M] {
-	return createQueryForVertex[M](Package).
+	return createQueryForVertex[M](Source).
 		withPropString(typeStr, &src.Type).
 		withPropString(name, &src.Name).
 		withPropString(namespace, &src.Namespace).
@@ -100,7 +100,7 @@ func createUpsertForIsOccurrence(subject *model.PackageOrSourceInput, artifact *
 }
 
 func (c *gremlinClient) IngestOccurrence(ctx context.Context, subject model.PackageOrSourceInput, artifact model.ArtifactInputSpec, occurrence model.IsOccurrenceInputSpec) (*model.IsOccurrence, error) {
-	return createUpsertForIsOccurrence(&subject, &artifact, &occurrence).upsert()
+	return createUpsertForIsOccurrence(&subject, &artifact, &occurrence).upsert(c)
 }
 
 func (c *gremlinClient) IngestOccurrences(ctx context.Context, inputs model.PackageOrSourceInputs, artifacts []*model.ArtifactInputSpec, occurrences []*model.IsOccurrenceInputSpec) ([]*model.IsOccurrence, error) {
@@ -124,7 +124,7 @@ func (c *gremlinClient) IngestOccurrences(ctx context.Context, inputs model.Pack
 
 	return createBulkUpsertForEdge[*model.IsOccurrence](IsDependency).
 		withQueries(queries).
-		upsertBulk()
+		upsertBulk(c)
 }
 
 func (c *gremlinClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *model.IsOccurrenceSpec) ([]*model.IsOccurrence, error) {
@@ -144,5 +144,5 @@ func (c *gremlinClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *mode
 			q = q.withInVertex(createQueryToMatchSource[*model.IsOccurrence](isOccurrenceSpec.Subject.Source))
 		}
 	}
-	return q.findAll()
+	return q.findAll(c)
 }
