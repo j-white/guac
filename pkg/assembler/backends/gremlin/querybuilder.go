@@ -180,6 +180,10 @@ func (q *gremlinQueryBuilder[M]) findAll() ([]M, error) {
 	return nil, nil
 }
 
+func (gqb *gremlinQueryBuilder[M]) withOrderByDirection(asc interface{}) *gremlinQueryBuilder[M] {
+	return gqb
+}
+
 /*
 func queryEdge[M any](c *gremlinClient, q *gremlinQueryBuilder, deserializer EdgeObjectDeserializer[M]) ([]M, error) {
 	return queryModelObjectsFromEdge[M](c, q.query, deserializer)

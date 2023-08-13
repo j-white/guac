@@ -53,6 +53,29 @@ func createQueryToMatchPackageOrSource[M any](subject *model.PackageOrSourceInpu
 	return q
 }
 
+func createQueryToMatchSource[M any](src *model.SourceSpec) *gremlinQueryBuilder[M] {
+	query := createGraphQuery(Source)
+	if src.ID != nil {
+		query.id = *src.ID
+	}
+	if src.Name != nil {
+		query.has[name] = *src.Name
+	}
+	if src.Type != nil {
+		query.has[typeStr] = *src.Type
+	}
+	if src.Namespace != nil {
+		query.has[namespace] = *src.Namespace
+	}
+	if src.Commit != nil {
+		query.has[commit] = *src.Commit
+	}
+	if src.Tag != nil {
+		query.has[tag] = *src.Tag
+	}
+	return &gremlinQueryBuilder[M]{query: query}
+}
+
 func getIsOccurrenceObjectFromEdge(result *gremlinQueryResult) *model.IsOccurrence {
 	isOccurrence := &model.IsOccurrence{
 		ID: result.id,
