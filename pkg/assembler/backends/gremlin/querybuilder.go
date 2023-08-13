@@ -5,11 +5,7 @@ import (
 	"time"
 )
 
-type gremlinQueryBuilder struct {
-	query *GraphQuery
-}
-
-type gremlinQueryBuilderGeneric[M any] struct {
+type gremlinQueryBuilder[M any] struct {
 	query *GraphQuery
 }
 
@@ -20,31 +16,31 @@ type gremlinQueryResult struct {
 	in   map[interface{}]interface{}
 }
 
-func createQueryForVertex(label Label) *gremlinQueryBuilder {
-	return &gremlinQueryBuilder{
+func createQueryForVertex[M any](label Label) *gremlinQueryBuilder[M] {
+	return &gremlinQueryBuilder[M]{
 		query: createGraphQuery(label),
 	}
 }
 
-func createQueryForEdge(label Label) *gremlinQueryBuilder {
-	return &gremlinQueryBuilder{
+func createQueryForEdge[M any](label Label) *gremlinQueryBuilder[M] {
+	return &gremlinQueryBuilder[M]{
 		query: createGraphQuery(label),
 	}
 }
 
-func createUpsertForEdge[M any](label Label) *gremlinQueryBuilder {
-	return &gremlinQueryBuilder{
+func createUpsertForEdge[M any](label Label) *gremlinQueryBuilder[M] {
+	return &gremlinQueryBuilder[M]{
 		query: createGraphQuery(label),
 	}
 }
 
-func createBulkUpsertForEdge[M any](label Label) *gremlinQueryBuilderGeneric[M] {
-	return &gremlinQueryBuilderGeneric[M]{
+func createBulkUpsertForEdge[M any](label Label) *gremlinQueryBuilder[M] {
+	return &gremlinQueryBuilder[M]{
 		query: createGraphQuery(label),
 	}
 }
 
-func createQueryToMatchPackage(pkg *model.PkgSpec) *gremlinQueryBuilder {
+func createQueryToMatchPackage[M any](pkg *model.PkgSpec) *gremlinQueryBuilder[M] {
 	query := createGraphQuery(Package)
 	if pkg.ID != nil {
 		query.id = *pkg.ID
@@ -66,10 +62,10 @@ func createQueryToMatchPackage(pkg *model.PkgSpec) *gremlinQueryBuilder {
 		//	noMatchInput(filter.Subpath, v.subpath) ||
 		//	noMatchQualifiers(filter, v.qualifiers) {
 	}
-	return &gremlinQueryBuilder{query: query}
+	return &gremlinQueryBuilder[M]{query: query}
 }
 
-func createQueryToMatchPackageDependency(pkg *model.PkgSpec) *gremlinQueryBuilder {
+func createQueryToMatchPackageDependency[M any](pkg *model.PkgSpec) *gremlinQueryBuilder[M] {
 	query := createGraphQuery(Package)
 	if pkg.ID != nil {
 		query.id = *pkg.ID
@@ -88,10 +84,10 @@ func createQueryToMatchPackageDependency(pkg *model.PkgSpec) *gremlinQueryBuilde
 		//	noMatchInput(filter.Subpath, v.subpath) ||
 		//	noMatchQualifiers(filter, v.qualifiers) {
 	}
-	return &gremlinQueryBuilder{query: query}
+	return &gremlinQueryBuilder[M]{query: query}
 }
 
-func createQueryToMatchPackageName(pkg *model.PkgNameSpec) *gremlinQueryBuilder {
+func createQueryToMatchPackageName[M any](pkg *model.PkgNameSpec) *gremlinQueryBuilder[M] {
 	query := createGraphQuery(Package)
 	if pkg.ID != nil {
 		query.id = *pkg.ID
@@ -105,87 +101,86 @@ func createQueryToMatchPackageName(pkg *model.PkgNameSpec) *gremlinQueryBuilder 
 	if pkg.Name != nil {
 		query.has[name] = *pkg.Name
 	}
-	return &gremlinQueryBuilder{query: query}
+	return &gremlinQueryBuilder[M]{query: query}
 }
 
-func (gqb *gremlinQueryBuilder) withId(id *string) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withOrderByKey(orderBy string) *gremlinQueryBuilder[M] {
+	gqb.query.orderByKey = orderBy
+	return gqb
+}
+
+func (gqb *gremlinQueryBuilder[M]) withId(id *string) *gremlinQueryBuilder[M] {
 	if id != nil {
 		gqb.query.id = *id
 	}
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) withPropString(key string, value *string) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withPropString(key string, value *string) *gremlinQueryBuilder[M] {
 	if value != nil {
 		gqb.query.has[key] = *value
 	}
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) withPropDependencyType(key string, value *model.DependencyType) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withPropDependencyType(key string, value *model.DependencyType) *gremlinQueryBuilder[M] {
 	if value != nil {
 		gqb.query.has[key] = value.String()
 	}
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) withPropTime(key string, value *time.Time) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withPropTime(key string, value *time.Time) *gremlinQueryBuilder[M] {
 	if value != nil {
 		gqb.query.has[key] = *value
 	}
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) withPropFloat64(key string, value *float64) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withPropFloat64(key string, value *float64) *gremlinQueryBuilder[M] {
 	if value != nil {
 		gqb.query.has[key] = *value
 	}
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) withInVertex(q *gremlinQueryBuilder) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withInVertex(q *gremlinQueryBuilder[M]) *gremlinQueryBuilder[M] {
 	gqb.query.inVQuery = q.query
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) withOutVertex(q *gremlinQueryBuilder) *gremlinQueryBuilder {
+func (gqb *gremlinQueryBuilder[M]) withOutVertex(q *gremlinQueryBuilder[M]) *gremlinQueryBuilder[M] {
 	gqb.query.outVQuery = q.query
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder) isEmpty() bool {
+func (gqb *gremlinQueryBuilder[M]) isEmpty() bool {
 	return gqb.query.isEmpty()
 }
 
-func (q *gremlinQueryBuilder) withMapper(m func(result *gremlinQueryResult) *model.IsOccurrence) *gremlinQueryBuilder {
-
-	return nil
-}
-
-func (q *gremlinQueryBuilder) upsert() (*model.IsOccurrence, error) {
-	return nil, nil
-}
-
-func (q *gremlinQueryBuilder) find() ([]*model.IsOccurrence, error) {
-	return nil, nil
-}
-
-func (gqb *gremlinQueryBuilderGeneric[M]) withQueries(queries []*gremlinQueryBuilder) *gremlinQueryBuilderGeneric[M] {
+func (gqb *gremlinQueryBuilder[M]) withMapper(mapper func(*gremlinQueryResult) M) *gremlinQueryBuilder[M] {
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilderGeneric[M]) withMapper(mapper func(*gremlinQueryResult) M) *gremlinQueryBuilderGeneric[M] {
+func (gqb *gremlinQueryBuilder[M]) withQueries(queries []*gremlinQueryBuilder[M]) *gremlinQueryBuilder[M] {
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilderGeneric[M]) upsert() ([]M, error) {
+// terminal steps
+func (gqb *gremlinQueryBuilder[M]) upsertBulk() ([]M, error) {
 	return nil, nil
 }
 
-func (gqb *gremlinQueryBuilderGeneric[M]) upsertSingle() ([]M, error) {
+func (gqb *gremlinQueryBuilder[M]) upsert() (M, error) {
+	var object M
+	return object, nil
+}
+
+func (q *gremlinQueryBuilder[M]) findAll() ([]M, error) {
 	return nil, nil
 }
 
+/*
 func queryEdge[M any](c *gremlinClient, q *gremlinQueryBuilder, deserializer EdgeObjectDeserializer[M]) ([]M, error) {
 	return queryModelObjectsFromEdge[M](c, q.query, deserializer)
 }
@@ -203,3 +198,4 @@ func upsertEdge[M any](c *gremlinClient, q *gremlinQueryBuilder, deserializer Ed
 	}
 	return deserializer(relationWithId.edgeId, relationWithId.outV, relation.edge.toReadMap(), relationWithId.inV), nil
 }
+*/

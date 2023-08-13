@@ -162,7 +162,7 @@ func (c *gremlinClient) CertifyScorecard(ctx context.Context, source model.Sourc
 	return c.IngestScorecard(ctx, source, scorecard)
 }
 
-func createQueryToMatchSource(src *model.SourceSpec) *gremlinQueryBuilder {
+func createQueryToMatchSource[M any](src *model.SourceSpec) *gremlinQueryBuilder[M] {
 	query := createGraphQuery(Source)
 	if src.ID != nil {
 		query.id = *src.ID
@@ -182,7 +182,7 @@ func createQueryToMatchSource(src *model.SourceSpec) *gremlinQueryBuilder {
 	if src.Tag != nil {
 		query.has[tag] = *src.Tag
 	}
-	return &gremlinQueryBuilder{query: query}
+	return &gremlinQueryBuilder[M]{query: query}
 }
 
 func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
