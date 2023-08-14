@@ -19,8 +19,8 @@ func createQueryToMatchArtifactInput[M any](artifact *model.ArtifactInputSpec) *
 func createQueryToMatchArtifact[M any](artifact *model.ArtifactSpec) *gremlinQueryBuilder[M] {
 	return createQueryForVertex[M](Artifact).
 		withId(artifact.ID).
-		withPropString(algorithm, artifact.Algorithm).
-		withPropString(digest, artifact.Digest)
+		withPropStringToLower(algorithm, artifact.Algorithm).
+		withPropStringToLower(digest, artifact.Digest)
 }
 
 func createQueryToMatchPackageInput[M any](pkg *model.PkgInputSpec) *gremlinQueryBuilder[M] {

@@ -2,7 +2,6 @@
 
 ## Model objects
 
-[ ] isOccurrence
 [ ] pointOfContact
 [ ] certifyBad
 [ ] hashEqual

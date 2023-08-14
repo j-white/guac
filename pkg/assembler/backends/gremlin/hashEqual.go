@@ -25,11 +25,16 @@ const (
 )
 
 func getHashEqualObjectFromEdge(result *gremlinQueryResult) (*model.HashEqual, error) {
+
 	return &model.HashEqual{
 		ID:            result.id,
 		Justification: result.edge[justification].(string),
 		Origin:        result.edge[collector].(string),
 		Collector:     result.edge[origin].(string),
+		Artifacts: []*model.Artifact{
+			getArtifactObject(result.outId, result.out),
+			getArtifactObject(result.inId, result.in),
+		},
 	}, nil
 }
 
@@ -65,8 +70,9 @@ func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.Hash
 	q := createQueryForEdge[*model.HashEqual](HashEqual).
 		withId(hashEqualSpec.ID).
 		withPropString(justification, hashEqualSpec.Justification).
-		withPropString(origin, hashEqualSpec.Justification).
-		withPropString(collector, hashEqualSpec.Justification)
+		withPropString(origin, hashEqualSpec.Origin).
+		withPropString(collector, hashEqualSpec.Collector).
+		withMapper(getHashEqualObjectFromEdge)
 	if len(hashEqualSpec.Artifacts) > 0 {
 		// FIXME: More work to do here
 		q = q.withInVertex(createQueryToMatchArtifact[*model.HashEqual](hashEqualSpec.Artifacts[0]))
