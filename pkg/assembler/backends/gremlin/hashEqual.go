@@ -24,13 +24,13 @@ const (
 	HashEqual Label = "hashEqual"
 )
 
-func getHashEqualObjectFromEdge(result *gremlinQueryResult) *model.HashEqual {
+func getHashEqualObjectFromEdge(result *gremlinQueryResult) (*model.HashEqual, error) {
 	return &model.HashEqual{
 		ID:            result.id,
 		Justification: result.edge[justification].(string),
 		Origin:        result.edge[collector].(string),
 		Collector:     result.edge[origin].(string),
-	}
+	}, nil
 }
 
 func createUpsertForHashEqual(artifact *model.ArtifactInputSpec, equalArtifact *model.ArtifactInputSpec, hashEqual *model.HashEqualInputSpec) *gremlinQueryBuilder[*model.HashEqual] {

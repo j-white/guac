@@ -9,7 +9,7 @@ const (
 	IsDependency Label = "isDependency"
 )
 
-func getDependencyObjectFromEdgeMuted(result *gremlinQueryResult) *model.IsDependency {
+func getDependencyObjectFromEdgeMuted(result *gremlinQueryResult) (*model.IsDependency, error) {
 	// remove other values
 	inValuesSpec := make(map[interface{}]interface{})
 	inValuesSpec[typeStr] = result.in[typeStr]
@@ -19,7 +19,7 @@ func getDependencyObjectFromEdgeMuted(result *gremlinQueryResult) *model.IsDepen
 	return getDependencyObjectFromEdge(result)
 }
 
-func getDependencyObjectFromEdge(result *gremlinQueryResult) *model.IsDependency {
+func getDependencyObjectFromEdge(result *gremlinQueryResult) (*model.IsDependency, error) {
 	id := result.id
 	outValues := result.out
 	edgeValues := result.edge
@@ -38,7 +38,7 @@ func getDependencyObjectFromEdge(result *gremlinQueryResult) *model.IsDependency
 		Origin:           edgeValues[collector].(string),
 		Collector:        edgeValues[origin].(string),
 	}
-	return isDependency
+	return isDependency, nil
 }
 
 func createQueryToMatchPackageNameFromInput[M any](pkg *model.PkgInputSpec) *gremlinQueryBuilder[M] {

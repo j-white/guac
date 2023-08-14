@@ -2,6 +2,7 @@ package gremlin
 
 import (
 	"context"
+	"fmt"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -76,7 +77,7 @@ func createQueryToMatchSource[M any](src *model.SourceSpec) *gremlinQueryBuilder
 	return &gremlinQueryBuilder[M]{query: query}
 }
 
-func getIsOccurrenceObjectFromEdge(result *gremlinQueryResult) *model.IsOccurrence {
+func getIsOccurrenceObjectFromEdge(result *gremlinQueryResult) (*model.IsOccurrence, error) {
 	isOccurrence := &model.IsOccurrence{
 		ID:            result.id,
 		Artifact:      getArtifactObject(result.outId, result.out),
@@ -90,10 +91,10 @@ func getIsOccurrenceObjectFromEdge(result *gremlinQueryResult) *model.IsOccurren
 	} else if result.inLabel == Package {
 		isOccurrence.Subject = getPackageObject(result.inId, result.in)
 	} else {
-		return nil
+		return nil, fmt.Errorf("unsupported result type: %v", result.inLabel)
 	}
 
-	return isOccurrence
+	return isOccurrence, nil
 }
 
 func createUpsertForIsOccurrence(subject *model.PackageOrSourceInput, artifact *model.ArtifactInputSpec, occurrence *model.IsOccurrenceInputSpec) *gremlinQueryBuilder[*model.IsOccurrence] {

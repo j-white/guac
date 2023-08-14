@@ -96,20 +96,6 @@ type EdgeMapSerializer[VInput any, EInput any] func(v1 VInput, v2 VInput, edge E
 
 type EdgeObjectDeserializer[M any] func(id string, out map[interface{}]interface{}, edge map[interface{}]interface{}, in map[interface{}]interface{}) (model M)
 
-type Relation struct {
-	outV *GraphQuery
-	inV  *GraphQuery
-	edge *GraphQuery
-}
-
-type RelationWithId struct {
-	edgeId   string
-	relation *Relation
-
-	outV map[interface{}]interface{}
-	inV  map[interface{}]interface{}
-}
-
 /*
 C is typically an InputSpec
 D is model object w/ id after upsert
@@ -194,24 +180,11 @@ func ingestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBu
 	var object M
 
 	if gqb.query.inVQuery != nil || gqb.query.outVQuery != nil {
-		// this is an edge
-		relation := &Relation{
-			outV: gqb.query.outVQuery,
-			inV:  gqb.query.inVQuery,
-			edge: gqb.query,
-		}
-		relationWithId, err := c.upsertRelationDirect(relation)
+		result, err := upsertRelationDirect(c, gqb)
 		if err != nil {
 			return object, err
 		}
-		result := &gremlinQueryResult{
-			id:    relationWithId.edgeId,
-			edge:  relation.edge.toReadMap(),
-			out:   flattenResultMap(relationWithId.outV),
-			in:    flattenResultMap(relationWithId.inV),
-			query: gqb.query,
-		}
-		return gqb.mapper(result), nil
+		return gqb.mapper(result)
 	} else {
 		panic("Simple vertices aren't supported through this API yet. I am sad :(")
 	}
@@ -221,33 +194,23 @@ func ingestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBu
 
 func bulkIngestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBuilder[M]) ([]M, error) {
 	var objects []M
-	// build the relations
-	var allRelations []*Relation
-	for _, q := range gqb.queries {
-		relation := &Relation{
-			outV: q.query.outVQuery,
-			inV:  q.query.inVQuery,
-			edge: q.query,
-		}
-		allRelations = append(allRelations, relation)
-	}
 
 	// split into chunks and run upserts in parallel
 	var g errgroup.Group
-	numChunksUpper := int(math.Ceil(float64(len(allRelations))/MaxEdgeUpsertChunkSize)) + 1
-	resultChan := make(chan []*RelationWithId, numChunksUpper)
-	for _, chunk := range chunkSlice(allRelations, MaxEdgeUpsertChunkSize) {
+	numChunksUpper := int(math.Ceil(float64(len(gqb.queries))/MaxEdgeUpsertChunkSize)) + 1
+	resultChan := make(chan []*gremlinQueryResult, numChunksUpper)
+	for _, chunk := range chunkSlice(gqb.queries, MaxEdgeUpsertChunkSize) {
 		if len(chunk) == 1 {
 			// if there's only 1, the result handling is different, so do a normal upsert
 			localRelationRef := chunk[0]
 			g.Go(func() error {
-				err := c.upsertRelation(resultChan, localRelationRef)
+				err := upsertRelation[M](c, resultChan, localRelationRef)
 				return err
 			})
 		} else {
 			localChunkRef := chunk
 			g.Go(func() error {
-				err := c.bulkUpsertRelations(resultChan, localChunkRef)
+				err := bulkUpsertRelations[M](c, resultChan, localChunkRef)
 				return err
 			})
 		}
@@ -260,50 +223,47 @@ func bulkIngestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQue
 	// all upserts are done, we can close the channel
 	close(resultChan)
 	// map back out to the target object
-	for result := range resultChan {
-		for _, relationWithId := range result {
-			gResult := &gremlinQueryResult{
-				id:   relationWithId.edgeId,
-				edge: relationWithId.relation.edge.toReadMap(),
-				out:  flattenResultMap(relationWithId.outV),
-				in:   flattenResultMap(relationWithId.inV),
+	for results := range resultChan {
+		for _, result := range results {
+			object, err := gqb.queries[0].mapper(result)
+			if err != nil {
+				return objects, err
 			}
-			object := gqb.queries[0].mapper(gResult)
 			objects = append(objects, object)
 		}
 	}
 	// verify the results are somewhat sane
-	if len(objects) != len(allRelations) {
+	if len(objects) != len(gqb.queries) {
 		return nil, fmt.Errorf("bulkIngestModelObjectsWithRelation: number of objects(%d) gathered does not match number of inputs(%d)",
-			len(objects), len(allRelations))
+			len(objects), len(gqb.queries))
 	}
 
 	return objects, nil
 }
 
-func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *Relation) error {
+func upsertRelation[M any](c *gremlinClient, queue chan []*gremlinQueryResult, q *gremlinQueryBuilder[M]) error {
 	var t *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
-	if !relation.outV.isUpsert {
+	if !q.query.outVQuery.isUpsert {
 		// match from
-		t = g.V().HasLabel(string(relation.outV.label))
-		for k, v := range relation.outV.has {
+		t = g.V().HasLabel(string(q.query.outVQuery.label))
+		for k, v := range q.query.outVQuery.has {
 			t = t.Has(k, v)
 		}
 		t = t.Limit(1).As("from")
 	} else {
 		// upsert from
-		t = g.MergeV(relation.outV.toVertexMap()).As("from")
+		t = g.MergeV(q.query.outVQuery.toVertexMap()).As("from")
 	}
 
 	// match to
-	t = t.V().HasLabel(string(relation.inV.label))
-	for k, v := range relation.inV.has {
+	t = t.V().HasLabel(string(q.query.inVQuery.label))
+	for k, v := range q.query.inVQuery.has {
 		t = t.Has(k, v)
 	}
 	t = t.Order().By(gremlingo.T__.Id(), gremlingo.Order.Desc).Limit(1).As("to")
 	// upsert edge
-	t = t.MergeE(relation.edge.toEdgeMap()).
+	t = t.MergeE(q.query.toEdgeMap()).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("from")).
 		Option(gremlingo.Merge.InV, gremlingo.T__.Select("to")).
 		As("edge")
@@ -323,45 +283,58 @@ func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *R
 	toMap := resultMap["to"].(map[interface{}]interface{})
 
 	var edgeId string
+	var outId string
+	var inId string
 	if c.config.Flavor == JanusGraph {
 		edgeId = strconv.FormatInt(edgeValue.(*janusgraphRelationIdentifier).RelationId, 10)
+		outId = strconv.FormatInt(fromMap[string(gremlingo.T.Id)].(int64), 10)
+		inId = strconv.FormatInt(toMap[string(gremlingo.T.Id)].(int64), 10)
 	} else {
 		edgeMap := edgeValue.(map[interface{}]interface{})
 		edgeId = edgeMap["id"].(string)
+
+		outId = fromMap[string(gremlingo.T.Id)].(string)
+		inId = toMap[string(gremlingo.T.Id)].(string)
 	}
 
-	relationWithId := &RelationWithId{
-		edgeId:   edgeId,
-		relation: relation,
-		outV:     fromMap,
-		inV:      toMap,
+	result := &gremlinQueryResult{
+		id:        edgeId,
+		edge:      q.query.toReadMap(),
+		edgeLabel: q.query.label,
+		out:       flattenResultMap(fromMap),
+		outLabel:  q.query.outVQuery.label,
+		outId:     outId,
+		in:        flattenResultMap(toMap),
+		inLabel:   q.query.inVQuery.label,
+		inId:      inId,
+		query:     q.query,
 	}
 
 	// ship it
-	queue <- []*RelationWithId{relationWithId}
+	queue <- []*gremlinQueryResult{result}
 	return nil
 }
 
-func (c *gremlinClient) upsertRelationDirect(relation *Relation) (*RelationWithId, error) {
-	ch := make(chan []*RelationWithId, 1)
-	err := c.upsertRelation(ch, relation)
+func upsertRelationDirect[M any](c *gremlinClient, q *gremlinQueryBuilder[M]) (*gremlinQueryResult, error) {
+	ch := make(chan []*gremlinQueryResult, 1)
+	err := upsertRelation(c, ch, q)
 	if err != nil {
 		return nil, err
 	}
 	close(ch)
 	// return the first element from the first list in the channel
-	for _, relationWithId := range <-ch {
-		return relationWithId, nil
+	for _, result := range <-ch {
+		return result, nil
 	}
 	return nil, errors.New("no results returned by upsert")
 }
 
-func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relations []*Relation) error {
+func bulkUpsertRelations[M any](c *gremlinClient, queue chan []*gremlinQueryResult, queries []*gremlinQueryBuilder[M]) error {
 	var edgeRefs []interface{}
 	var t *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	// chain the upserts
-	for k, relation := range relations {
+	for k, q := range queries {
 		v1Ref := fmt.Sprintf("from-%d", k)
 		v2Ref := fmt.Sprintf("to-%d", k)
 		edgeRef := fmt.Sprintf("e-%d", k)
@@ -370,38 +343,38 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 		// FIXME: cleanup this k==0 business and dedup
 		// match from
 		if k == 0 {
-			if !relation.outV.isUpsert {
+			if !q.query.outVQuery.isUpsert {
 				// match from
-				t = g.V().HasLabel(string(relation.outV.label))
-				for k, v := range relation.outV.has {
+				t = g.V().HasLabel(string(q.query.outVQuery.label))
+				for k, v := range q.query.outVQuery.has {
 					t = t.Has(k, v)
 				}
 				t = t.Limit(1).As(v1Ref)
 			} else {
 				// upsert from
-				t = g.MergeV(relation.outV.toVertexMap()).As(v1Ref)
+				t = g.MergeV(q.query.outVQuery.toVertexMap()).As(v1Ref)
 			}
 		} else {
-			if !relation.outV.isUpsert {
+			if !q.query.outVQuery.isUpsert {
 				// match from
-				t = t.V().HasLabel(string(relation.outV.label))
-				for k, v := range relation.outV.has {
+				t = t.V().HasLabel(string(q.query.outVQuery.label))
+				for k, v := range q.query.outVQuery.has {
 					t = t.Has(k, v)
 				}
 				t = t.Limit(1).As(v1Ref)
 			} else {
 				// upsert from
-				t = t.MergeV(relation.outV.toVertexMap()).As(v1Ref)
+				t = t.MergeV(q.query.outVQuery.toVertexMap()).As(v1Ref)
 			}
 		}
 		// match to
-		t = t.V().HasLabel(string(relation.inV.label))
-		for k, v := range relation.inV.has {
+		t = t.V().HasLabel(string(q.query.inVQuery.label))
+		for k, v := range q.query.inVQuery.has {
 			t = t.Has(k, v)
 		}
 		t = t.Limit(1).As(v2Ref)
 		// upsert edge
-		t = t.MergeE(relation.edge.toEdgeMap()).
+		t = t.MergeE(q.query.toEdgeMap()).
 			Option(gremlingo.Merge.OutV, gremlingo.T__.Select(v1Ref)).
 			Option(gremlingo.Merge.InV, gremlingo.T__.Select(v2Ref)).
 			As(edgeRef)
@@ -416,12 +389,12 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 	}
 
 	// verify the results are somewhat sane
-	if len(results) != len(relations) {
+	if len(results) != len(queries) {
 		return fmt.Errorf("bulkUpsertRelations: number of results(%d) gathered does not match number of inputs(%d)",
-			len(results), len(relations))
+			len(results), len(queries))
 	}
 
-	var relationsWithIds []*RelationWithId
+	var queryResults []*gremlinQueryResult
 	for k, r := range results {
 		resultMap := r.GetInterface().(map[interface{}]interface{})
 		edgeValue := resultMap["edge"]
@@ -429,22 +402,36 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 		toMap := resultMap["to"].(map[interface{}]interface{})
 
 		var edgeId string
+		var outId string
+		var inId string
 		if c.config.Flavor == JanusGraph {
 			edgeId = strconv.FormatInt(edgeValue.(*janusgraphRelationIdentifier).RelationId, 10)
+			outId = strconv.FormatInt(fromMap[string(gremlingo.T.Id)].(int64), 10)
+			inId = strconv.FormatInt(toMap[string(gremlingo.T.Id)].(int64), 10)
 		} else {
 			edgeMap := edgeValue.(map[interface{}]interface{})
 			edgeId = edgeMap["id"].(string)
+
+			outId = fromMap[string(gremlingo.T.Id)].(string)
+			inId = toMap[string(gremlingo.T.Id)].(string)
 		}
 
-		relationWithId := &RelationWithId{
-			edgeId:   edgeId,
-			relation: relations[k],
-			outV:     fromMap,
-			inV:      toMap,
+		result := &gremlinQueryResult{
+			id:        edgeId,
+			edge:      queries[k].query.toReadMap(),
+			edgeLabel: queries[k].query.label,
+			out:       flattenResultMap(fromMap),
+			outLabel:  queries[k].query.outVQuery.label,
+			outId:     outId,
+			in:        flattenResultMap(toMap),
+			inLabel:   queries[k].query.inVQuery.label,
+			inId:      inId,
+			query:     queries[k].query,
 		}
-		relationsWithIds = append(relationsWithIds, relationWithId)
+
+		queryResults = append(queryResults, result)
 	}
 
-	queue <- relationsWithIds
+	queue <- queryResults
 	return nil
 }

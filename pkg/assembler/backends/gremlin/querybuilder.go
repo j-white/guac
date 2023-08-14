@@ -8,7 +8,7 @@ import (
 
 type gremlinQueryBuilder[M any] struct {
 	query   *GraphQuery
-	mapper  func(*gremlinQueryResult) M
+	mapper  func(*gremlinQueryResult) (M, error)
 	queries []*gremlinQueryBuilder[M]
 }
 
@@ -125,7 +125,7 @@ func (gqb *gremlinQueryBuilder[M]) withOutVertex(q *gremlinQueryBuilder[M]) *gre
 	return gqb
 }
 
-func (gqb *gremlinQueryBuilder[M]) withMapper(mapper func(*gremlinQueryResult) M) *gremlinQueryBuilder[M] {
+func (gqb *gremlinQueryBuilder[M]) withMapper(mapper func(*gremlinQueryResult) (M, error)) *gremlinQueryBuilder[M] {
 	gqb.mapper = mapper
 	return gqb
 }

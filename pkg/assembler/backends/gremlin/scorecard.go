@@ -128,12 +128,12 @@ func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *mo
 	return q.findAll(c)
 }
 
-func getScorecardObjectFromEdge(result *gremlinQueryResult) *model.CertifyScorecard {
+func getScorecardObjectFromEdge(result *gremlinQueryResult) (*model.CertifyScorecard, error) {
 	var checks []*model.ScorecardCheck
 	if result.out[checksJson] != nil {
 		err := json.Unmarshal([]byte(result.out[checksJson].(string)), &checks)
 		if err != nil {
-			checks = nil
+			return nil, err
 		}
 	}
 
@@ -155,5 +155,5 @@ func getScorecardObjectFromEdge(result *gremlinQueryResult) *model.CertifyScorec
 		},
 	}
 
-	return scorecard
+	return scorecard, nil
 }

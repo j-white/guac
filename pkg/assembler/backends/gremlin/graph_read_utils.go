@@ -101,7 +101,7 @@ func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, des
 	return objects, nil
 }
 
-func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deserializer func(*gremlinQueryResult) M) ([]M, error) {
+func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deserializer func(*gremlinQueryResult) (M, error)) ([]M, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	var v *gremlingo.GraphTraversal
@@ -192,6 +192,8 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 			inId = strconv.FormatInt(toMap[string(gremlingo.T.Id)].(int64), 10)
 		} else {
 			edgeId = resultMap[string(gremlingo.T.Id)].(string)
+			outId = fromMap[string(gremlingo.T.Id)].(string)
+			inId = toMap[string(gremlingo.T.Id)].(string)
 		}
 
 		var outLabel Label
@@ -220,7 +222,10 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 			query:    query,
 		}
 
-		object := deserializer(gResult)
+		object, err := deserializer(gResult)
+		if err != nil {
+			return objects, err
+		}
 		objects = append(objects, object)
 	}
 
