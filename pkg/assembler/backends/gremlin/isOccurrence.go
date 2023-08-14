@@ -11,8 +11,8 @@ const (
 
 func createQueryToMatchArtifactInput[M any](artifact *model.ArtifactInputSpec) *gremlinQueryBuilder[M] {
 	return createQueryForVertex[M](Artifact).
-		withPropString(algorithm, &artifact.Algorithm).
-		withPropString(digest, &artifact.Digest)
+		withPropStringToLower(algorithm, &artifact.Algorithm).
+		withPropStringToLower(digest, &artifact.Digest)
 }
 
 func createQueryToMatchArtifact[M any](artifact *model.ArtifactSpec) *gremlinQueryBuilder[M] {
@@ -28,7 +28,7 @@ func createQueryToMatchPackageInput[M any](pkg *model.PkgInputSpec) *gremlinQuer
 		withPropString(name, &pkg.Name).
 		withPropString(namespace, pkg.Namespace).
 		withPropString(subpath, pkg.Subpath).
-		withPropString(version, pkg.Version)
+		withPropStringOrEmpty(version, pkg.Version)
 	// FIXME: Match on qualifiers too
 }
 
@@ -78,14 +78,21 @@ func createQueryToMatchSource[M any](src *model.SourceSpec) *gremlinQueryBuilder
 
 func getIsOccurrenceObjectFromEdge(result *gremlinQueryResult) *model.IsOccurrence {
 	isOccurrence := &model.IsOccurrence{
-		ID: result.id,
-		// FIXME: Render these too
-		Subject:       nil,
-		Artifact:      nil,
-		Justification: result.edge[origin].(string),
+		ID:            result.id,
+		Artifact:      getArtifactObject(result.outId, result.out),
+		Justification: result.edge[justification].(string),
 		Origin:        result.edge[origin].(string),
 		Collector:     result.edge[collector].(string),
 	}
+
+	if result.inLabel == Source {
+		isOccurrence.Subject = getSourceObject(result.inId, result.in)
+	} else if result.inLabel == Package {
+		isOccurrence.Subject = getPackageObject(result.inId, result.in)
+	} else {
+		return nil
+	}
+
 	return isOccurrence
 }
 
@@ -94,8 +101,8 @@ func createUpsertForIsOccurrence(subject *model.PackageOrSourceInput, artifact *
 		withPropString(justification, &occurrence.Justification).
 		withPropString(origin, &occurrence.Origin).
 		withPropString(collector, &occurrence.Collector).
-		withOutVertex(createQueryToMatchPackageOrSource[*model.IsOccurrence](subject)).
-		withInVertex(createQueryToMatchArtifactInput[*model.IsOccurrence](artifact)).
+		withOutVertex(createQueryToMatchArtifactInput[*model.IsOccurrence](artifact)).
+		withInVertex(createQueryToMatchPackageOrSource[*model.IsOccurrence](subject)).
 		withMapper(getIsOccurrenceObjectFromEdge)
 }
 
@@ -133,7 +140,8 @@ func (c *gremlinClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *mode
 		withPropString(justification, isOccurrenceSpec.Justification).
 		withPropString(origin, isOccurrenceSpec.Origin).
 		withPropString(collector, isOccurrenceSpec.Collector).
-		withMapper(getIsOccurrenceObjectFromEdge)
+		withMapper(getIsOccurrenceObjectFromEdge).
+		withOrderByKey(justification)
 	if isOccurrenceSpec.Artifact != nil {
 		q = q.withOutVertex(createQueryToMatchArtifact[*model.IsOccurrence](isOccurrenceSpec.Artifact))
 	}

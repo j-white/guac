@@ -183,18 +183,41 @@ func queryModelObjectsFromEdge[M any](c *gremlinClient, query *GraphQuery, deser
 		toMap := flattenResultMap(resultMap["to"].(map[interface{}]interface{}))
 
 		var edgeId string
+		var outId string
+		var inId string
 		if c.config.Flavor == JanusGraph {
 			relationId := edgeMap[string(gremlingo.T.Id)].(*janusgraphRelationIdentifier)
 			edgeId = strconv.FormatInt(relationId.RelationId, 10)
+			outId = strconv.FormatInt(fromMap[string(gremlingo.T.Id)].(int64), 10)
+			inId = strconv.FormatInt(toMap[string(gremlingo.T.Id)].(int64), 10)
 		} else {
 			edgeId = resultMap[string(gremlingo.T.Id)].(string)
 		}
 
+		var outLabel Label
+		if query.outVQuery != nil {
+			outLabel = query.outVQuery.label
+		} else {
+			outLabel = Label(fromMap[string(gremlingo.T.Label)].(string))
+		}
+
+		var inLabel Label
+		if query.inVQuery != nil {
+			inLabel = query.inVQuery.label
+		} else {
+			inLabel = Label(toMap[string(gremlingo.T.Label)].(string))
+		}
+
 		gResult := &gremlinQueryResult{
-			id:   edgeId,
-			out:  fromMap,
-			edge: edgeMap,
-			in:   toMap,
+			id:       edgeId,
+			out:      fromMap,
+			outLabel: outLabel,
+			outId:    outId,
+			edge:     edgeMap,
+			in:       toMap,
+			inLabel:  inLabel,
+			inId:     inId,
+			query:    query,
 		}
 
 		object := deserializer(gResult)

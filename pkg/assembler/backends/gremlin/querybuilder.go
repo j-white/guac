@@ -2,6 +2,7 @@ package gremlin
 
 import (
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	"strings"
 	"time"
 )
 
@@ -12,10 +13,21 @@ type gremlinQueryBuilder[M any] struct {
 }
 
 type gremlinQueryResult struct {
-	id   string
-	out  map[interface{}]interface{}
+	out      map[interface{}]interface{}
+	outId    string
+	outLabel Label
+
 	edge map[interface{}]interface{}
-	in   map[interface{}]interface{}
+	// FIXME: Refactor to edge id
+	id        string
+	edgeLabel Label
+
+	in      map[interface{}]interface{}
+	inId    string
+	inLabel Label
+
+	// the source query
+	query *GraphQuery
 }
 
 func createQueryForVertex[M any](label Label) *gremlinQueryBuilder[M] {
@@ -60,6 +72,24 @@ func (gqb *gremlinQueryBuilder[M]) withId(id *string) *gremlinQueryBuilder[M] {
 func (gqb *gremlinQueryBuilder[M]) withPropString(key string, value *string) *gremlinQueryBuilder[M] {
 	if value != nil {
 		gqb.query.has[key] = *value
+	}
+	return gqb
+}
+
+func (gqb *gremlinQueryBuilder[M]) withPropStringOrEmpty(key string, value *string) *gremlinQueryBuilder[M] {
+	if value != nil {
+		gqb.query.has[key] = *value
+	} else {
+		gqb.query.has[key] = ""
+	}
+	return gqb
+}
+
+func (gqb *gremlinQueryBuilder[M]) withPropStringToLower(key string, value *string) *gremlinQueryBuilder[M] {
+	if value != nil {
+		gqb.query.has[key] = strings.ToLower(*value)
+	} else {
+		gqb.query.has[key] = ""
 	}
 	return gqb
 }

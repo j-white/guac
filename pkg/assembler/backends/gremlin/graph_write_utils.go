@@ -205,15 +205,15 @@ func ingestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBu
 			return object, err
 		}
 		result := &gremlinQueryResult{
-			id:   relationWithId.edgeId,
-			edge: relation.edge.toReadMap(),
-			out:  flattenResultMap(relationWithId.outV),
-			in:   flattenResultMap(relationWithId.inV),
+			id:    relationWithId.edgeId,
+			edge:  relation.edge.toReadMap(),
+			out:   flattenResultMap(relationWithId.outV),
+			in:    flattenResultMap(relationWithId.inV),
+			query: gqb.query,
 		}
 		return gqb.mapper(result), nil
 	} else {
-		// this is a vertex
-		panic("TODO")
+		panic("Simple vertices aren't supported through this API yet. I am sad :(")
 	}
 
 	return object, nil
@@ -301,7 +301,7 @@ func (c *gremlinClient) upsertRelation(queue chan []*RelationWithId, relation *R
 	for k, v := range relation.inV.has {
 		t = t.Has(k, v)
 	}
-	t = t.Limit(1).As("to")
+	t = t.Order().By(gremlingo.T__.Id(), gremlingo.Order.Desc).Limit(1).As("to")
 	// upsert edge
 	t = t.MergeE(relation.edge.toEdgeMap()).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("from")).
@@ -367,6 +367,7 @@ func (c *gremlinClient) bulkUpsertRelations(queue chan []*RelationWithId, relati
 		edgeRef := fmt.Sprintf("e-%d", k)
 		edgeRefs = append(edgeRefs, edgeRef)
 
+		// FIXME: cleanup this k==0 business and dedup
 		// match from
 		if k == 0 {
 			if !relation.outV.isUpsert {
