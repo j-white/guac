@@ -108,6 +108,14 @@ func (gqb *gremlinQueryBuilder[M]) withPropTime(key string, value *time.Time) *g
 	return gqb
 }
 
+func (gqb *gremlinQueryBuilder[M]) withPropTimeGreaterOrEqual(key string, value *time.Time) *gremlinQueryBuilder[M] {
+	if value != nil {
+		panic("TODO")
+		gqb.query.has[key] = *value
+	}
+	return gqb
+}
+
 func (gqb *gremlinQueryBuilder[M]) withPropFloat64(key string, value *float64) *gremlinQueryBuilder[M] {
 	if value != nil {
 		gqb.query.has[key] = *value

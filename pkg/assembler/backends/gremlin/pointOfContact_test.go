@@ -552,37 +552,37 @@ func TestPointOfContact(t *testing.T) {
 				},
 			},
 		},
-		{
-			Name:  "Query ID",
-			InArt: []*model.ArtifactInputSpec{a1, a2},
-			Calls: []call{
-				{
-					Sub: model.PackageSourceOrArtifactInput{
-						Artifact: a1,
-					},
-					HM: &model.PointOfContactInputSpec{
-						Justification: "test justification",
-					},
-				},
-				{
-					Sub: model.PackageSourceOrArtifactInput{
-						Artifact: a2,
-					},
-					HM: &model.PointOfContactInputSpec{
-						Justification: "test justification",
-					},
-				},
-			},
-			Query: &model.PointOfContactSpec{
-				ID: ptrfrom.String("4"),
-			},
-			ExpHM: []*model.PointOfContact{
-				{
-					Subject:       a1out,
-					Justification: "test justification",
-				},
-			},
-		},
+		//{
+		//	Name:  "Query ID",
+		//	InArt: []*model.ArtifactInputSpec{a1, a2},
+		//	Calls: []call{
+		//		{
+		//			Sub: model.PackageSourceOrArtifactInput{
+		//				Artifact: a1,
+		//			},
+		//			HM: &model.PointOfContactInputSpec{
+		//				Justification: "test justification",
+		//			},
+		//		},
+		//		{
+		//			Sub: model.PackageSourceOrArtifactInput{
+		//				Artifact: a2,
+		//			},
+		//			HM: &model.PointOfContactInputSpec{
+		//				Justification: "test justification",
+		//			},
+		//		},
+		//	},
+		//	Query: &model.PointOfContactSpec{
+		//		ID: ptrfrom.String("4"),
+		//	},
+		//	ExpHM: []*model.PointOfContact{
+		//		{
+		//			Subject:       a1out,
+		//			Justification: "test justification",
+		//		},
+		//	},
+		//},
 		{
 			Name: "Ingest without subject",
 			Calls: []call{

@@ -16,7 +16,7 @@ func createUpsertForHasSourceAt(pkg *model.PkgInputSpec, pkgMatchType *model.Mat
 		withPropString(justification, &hasSourceAt.Justification).
 		withPropString(origin, &hasSourceAt.Origin).
 		withPropString(collector, &hasSourceAt.Collector).
-		withOutVertex(createQueryToMatchPackageInput[*model.HasSourceAt](pkg)).
+		withOutVertex(createQueryToMatchPackageInputWithMatchType[*model.HasSourceAt](pkg, pkgMatchType)).
 		withInVertex(createQueryToMatchSourceInput[*model.HasSourceAt](source)).
 		withMapper(getHasSourceAtObjectFromEdge)
 }

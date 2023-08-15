@@ -256,12 +256,18 @@ func upsertRelation[M any](c *gremlinClient, queue chan []*gremlinQueryResult, q
 		t = g.MergeV(q.query.outVQuery.toVertexMap()).As("from")
 	}
 
-	// match to
-	t = t.V().HasLabel(string(q.query.inVQuery.label))
-	for k, v := range q.query.inVQuery.has {
-		t = t.Has(k, v)
+	if !q.query.inVQuery.isUpsert {
+		// match to
+		t = t.V().HasLabel(string(q.query.inVQuery.label))
+		for k, v := range q.query.inVQuery.has {
+			t = t.Has(k, v)
+		}
+		t = t.Limit(1).As("to")
+	} else {
+		// upsert to
+		t = g.MergeV(q.query.inVQuery.toVertexMap()).As("to")
 	}
-	t = t.Order().By(gremlingo.T__.Id(), gremlingo.Order.Desc).Limit(1).As("to")
+
 	// upsert edge
 	t = t.MergeE(q.query.toEdgeMap()).
 		Option(gremlingo.Merge.OutV, gremlingo.T__.Select("from")).

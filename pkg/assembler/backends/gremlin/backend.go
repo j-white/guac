@@ -41,6 +41,9 @@ const (
 	guacPkgVersionKey    string = "guac-pkg-version-key"
 	guacSecondPkgNameKey string = "guac-second-pkg-name-key"
 	knownSince           string = "knownSince"
+	email                string = "email"
+	since                string = "since"
+	info                 string = "info"
 )
 
 type Flavor int64
