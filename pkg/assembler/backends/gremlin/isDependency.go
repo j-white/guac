@@ -25,8 +25,8 @@ func getDependencyObjectFromEdge(result *gremlinQueryResult) (*model.IsDependenc
 	edgeValues := result.edge
 	inValues := result.in
 
-	pkg := getPackageObject("", outValues)
-	depPkg := getPackageObject("", inValues)
+	pkg := getPackageObject(result.outId, outValues)
+	depPkg := getPackageObject(result.inId, inValues)
 
 	isDependency := &model.IsDependency{
 		ID:               id,

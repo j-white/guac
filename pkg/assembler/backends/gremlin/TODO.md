@@ -4,11 +4,11 @@
 
 [ ] pointOfContact
 [ ] certifyBad
-[ ] hashEqual
+[ ] hashEqual (tests depend on a lot of ids, edges are bidirectional :D)
 [ ] hasMetadata
 [ ] hasSBOM
 [ ] hasSLSA
-[ ] hasSourceAt
+[ ] hasSourceAt (pkg dependency types)
 [ ] isVulnerability
 [ ] pkgEqual
 

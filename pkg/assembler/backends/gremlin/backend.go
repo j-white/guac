@@ -40,6 +40,7 @@ const (
 	guacPartitionKey     string = "guac-partition-key"
 	guacPkgVersionKey    string = "guac-pkg-version-key"
 	guacSecondPkgNameKey string = "guac-second-pkg-name-key"
+	knownSince           string = "knownSince"
 )
 
 type Flavor int64
@@ -183,11 +184,6 @@ func (c *gremlinClient) HasSlsa(ctx context.Context, hasSLSASpec *model.HasSLSAS
 	panic("implement me")
 }
 
-func (c *gremlinClient) HasSourceAt(ctx context.Context, hasSourceAtSpec *model.HasSourceAtSpec) ([]*model.HasSourceAt, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) IsVulnerability(ctx context.Context, isVulnerabilitySpec *model.IsVulnerabilitySpec) ([]*model.IsVulnerability, error) {
 	//TODO implement me
 	panic("implement me")
@@ -204,11 +200,6 @@ func (c *gremlinClient) IngestMaterials(ctx context.Context, materials []*model.
 }
 
 func (c *gremlinClient) IngestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec) (*model.CertifyGood, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestHasSourceAt(ctx context.Context, pkg model.PkgInputSpec, pkgMatchType model.MatchFlags, source model.SourceInputSpec, hasSourceAt model.HasSourceAtInputSpec) (*model.HasSourceAt, error) {
 	//TODO implement me
 	panic("implement me")
 }
