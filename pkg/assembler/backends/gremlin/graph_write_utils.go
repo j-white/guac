@@ -244,6 +244,7 @@ func bulkIngestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQue
 func upsertRelation[M any](c *gremlinClient, queue chan []*gremlinQueryResult, q *gremlinQueryBuilder[M]) error {
 	var t *gremlingo.GraphTraversal
 	g := gremlingo.Traversal_().WithRemote(c.remote)
+
 	if !q.query.outVQuery.isUpsert {
 		// match from
 		t = g.V().HasLabel(string(q.query.outVQuery.label))
@@ -265,7 +266,7 @@ func upsertRelation[M any](c *gremlinClient, queue chan []*gremlinQueryResult, q
 		t = t.Limit(1).As("to")
 	} else {
 		// upsert to
-		t = g.MergeV(q.query.inVQuery.toVertexMap()).As("to")
+		t = t.MergeV(q.query.inVQuery.toVertexMap()).As("to")
 	}
 
 	// upsert edge

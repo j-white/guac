@@ -32,18 +32,21 @@ const (
 	typeStr              string = "type"
 	uri                  string = "uri"
 	year                 string = "year"
-	cveId                string = "cveId"
-	osvId                string = "osvId"
-	ghsaId               string = "ghsaId"
+	cveId                string = "cve-id"
+	osvId                string = "osv-id"
+	ghsaId               string = "ghsa-id"
 	guacEmpty            string = "guac-empty-@@"
 	justification        string = "justification"
 	guacPartitionKey     string = "guac-partition-key"
 	guacPkgVersionKey    string = "guac-pkg-version-key"
 	guacSecondPkgNameKey string = "guac-second-pkg-name-key"
-	knownSince           string = "knownSince"
+	knownSince           string = "known-since"
 	email                string = "email"
 	since                string = "since"
 	info                 string = "info"
+	key                  string = "guak-key"
+	value                string = "value"
+	timestamp            string = "timestamp"
 )
 
 type Flavor int64
@@ -155,16 +158,6 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 
 	client := &gremlinClient{*config, remote}
 	return client, nil
-}
-
-func (c *gremlinClient) HasMetadata(ctx context.Context, hasMetadataSpec *model.HasMetadataSpec) ([]*model.HasMetadata, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestHasMetadata(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, hasMetadata model.HasMetadataInputSpec) (*model.HasMetadata, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (c *gremlinClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {

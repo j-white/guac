@@ -3,7 +3,6 @@ package gremlin
 import (
 	"context"
 	"fmt"
-	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"time"
 )
@@ -25,30 +24,29 @@ func createUpsertForPointOfContactVertex(pointOfContact *model.PointOfContactInp
 
 func createUpsertForPointOfContact(subject *model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, pointOfContact *model.PointOfContactInputSpec) *gremlinQueryBuilder[*model.PointOfContact] {
 	return createUpsertForEdge[*model.PointOfContact](SubjectToPointOfContact).
-		withPropString("test", ptrfrom.String("asdf")).
-		withInVertex(createQueryToMatchPackageSourceOrArtifactInput[*model.PointOfContact](subject, pkgMatchType)).
-		withOutVertex(createUpsertForPointOfContactVertex(pointOfContact)).
+		withInVertex(createUpsertForPointOfContactVertex(pointOfContact)).
+		withOutVertex(createQueryToMatchPackageSourceOrArtifactInput[*model.PointOfContact](subject, pkgMatchType)).
 		withMapper(getPointOfContactFromEdge)
 }
 
 func getPointOfContactFromEdge(result *gremlinQueryResult) (*model.PointOfContact, error) {
 	pointOfContact := &model.PointOfContact{
-		ID:            result.outId,
-		Email:         result.out[email].(string),
-		Info:          result.out[info].(string),
-		Since:         result.out[since].(time.Time),
-		Justification: result.out[justification].(string),
-		Origin:        result.out[collector].(string),
-		Collector:     result.out[origin].(string),
+		ID:            result.inId,
+		Email:         result.in[email].(string),
+		Info:          result.in[info].(string),
+		Since:         result.in[since].(time.Time),
+		Justification: result.in[justification].(string),
+		Origin:        result.in[collector].(string),
+		Collector:     result.in[origin].(string),
 	}
-	if result.inLabel == Package {
-		pointOfContact.Subject = getPackageObject(result.inId, result.in)
-	} else if result.inLabel == Source {
-		pointOfContact.Subject = getSourceObject(result.inId, result.in)
-	} else if result.inLabel == Artifact {
-		pointOfContact.Subject = getArtifactObject(result.inId, result.in)
+	if result.outLabel == Package {
+		pointOfContact.Subject = getPackageObject(result.outId, result.out)
+	} else if result.outLabel == Source {
+		pointOfContact.Subject = getSourceObject(result.outId, result.out)
+	} else if result.outLabel == Artifact {
+		pointOfContact.Subject = getArtifactObject(result.outId, result.out)
 	} else {
-		return nil, fmt.Errorf("unsupported label: %v", result.inLabel)
+		return nil, fmt.Errorf("unsupported label: %v", result.outLabel)
 	}
 	return pointOfContact, nil
 }
@@ -95,7 +93,7 @@ func (c *gremlinClient) IngestPointOfContact(ctx context.Context, subject model.
 
 func (c *gremlinClient) PointOfContact(ctx context.Context, pointOfContactSpec *model.PointOfContactSpec) ([]*model.PointOfContact, error) {
 	q := createQueryForEdge[*model.PointOfContact](SubjectToPointOfContact).
-		withOutVertex(createQueryForVertex[*model.PointOfContact](PointOfContact).
+		withInVertex(createQueryForVertex[*model.PointOfContact](PointOfContact).
 			withId(pointOfContactSpec.ID).
 			withPropString(email, pointOfContactSpec.Email).
 			withPropString(info, pointOfContactSpec.Info).
@@ -105,7 +103,7 @@ func (c *gremlinClient) PointOfContact(ctx context.Context, pointOfContactSpec *
 			withPropString(collector, pointOfContactSpec.Collector)).
 		withMapper(getPointOfContactFromEdge)
 	if pointOfContactSpec.Subject != nil {
-		q = q.withInVertex(createQueryToMatchPackageSourceOrArtifactSpec[*model.PointOfContact](pointOfContactSpec.Subject))
+		q = q.withOutVertex(createQueryToMatchPackageSourceOrArtifactSpec[*model.PointOfContact](pointOfContactSpec.Subject))
 	}
 	return q.findAll(c)
 }

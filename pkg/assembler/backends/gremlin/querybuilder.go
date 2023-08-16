@@ -1,6 +1,7 @@
 package gremlin
 
 import (
+	gremlingo "github.com/apache/tinkerpop/gremlin-go/v3/driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"strings"
 	"time"
@@ -110,8 +111,7 @@ func (gqb *gremlinQueryBuilder[M]) withPropTime(key string, value *time.Time) *g
 
 func (gqb *gremlinQueryBuilder[M]) withPropTimeGreaterOrEqual(key string, value *time.Time) *gremlinQueryBuilder[M] {
 	if value != nil {
-		panic("TODO")
-		gqb.query.has[key] = *value
+		gqb.query.has[key] = gremlingo.P.Gte(*value)
 	}
 	return gqb
 }
