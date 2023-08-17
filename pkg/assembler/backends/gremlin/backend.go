@@ -47,6 +47,7 @@ const (
 	key                  string = "guak-key"
 	value                string = "value"
 	timestamp            string = "timestamp"
+	vulnerabilityId      string = "vulnerabilityId"
 )
 
 type Flavor int64
@@ -231,6 +232,16 @@ func (c *gremlinClient) Path(ctx context.Context, subject string, target string,
 }
 
 func (c *gremlinClient) FindSoftware(ctx context.Context, searchText string) ([]model.PackageSourceOrArtifact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) VulnEqual(ctx context.Context, vulnEqualSpec *model.VulnEqualSpec) ([]*model.VulnEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVulnEqual(ctx context.Context, vulnerability model.VulnerabilityInputSpec, otherVulnerability model.VulnerabilityInputSpec, vulnEqual model.VulnEqualInputSpec) (*model.VulnEqual, error) {
 	//TODO implement me
 	panic("implement me")
 }

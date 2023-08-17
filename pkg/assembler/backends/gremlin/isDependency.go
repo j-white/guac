@@ -101,5 +101,5 @@ func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *mode
 	if isDependencySpec.DependentPackage != nil {
 		q = q.withInVertex(createQueryToMatchPackageName[*model.IsDependency](isDependencySpec.DependentPackage))
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }

@@ -69,5 +69,5 @@ func (c *gremlinClient) HasMetadata(ctx context.Context, hasMetadataSpec *model.
 	if hasMetadataSpec.Subject != nil {
 		q = q.withOutVertex(createQueryToMatchPackageSourceOrArtifactSpec[*model.HasMetadata](hasMetadataSpec.Subject))
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }

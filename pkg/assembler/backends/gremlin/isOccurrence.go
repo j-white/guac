@@ -153,5 +153,5 @@ func (c *gremlinClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *mode
 			q = q.withInVertex(createQueryToMatchSource[*model.IsOccurrence](isOccurrenceSpec.Subject.Source))
 		}
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }

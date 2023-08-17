@@ -32,12 +32,12 @@ func getArtifactQueryValues(artifact *model.ArtifactInputSpec) *GraphQuery {
 	return q
 }
 
-func getArtifactObject(id string, values map[interface{}]interface{}) *model.Artifact {
+func getArtifactObject(result *gremlinQueryResult) (*model.Artifact, error) {
 	return &model.Artifact{
-		ID:        id,
-		Algorithm: values[algorithm].(string),
-		Digest:    values[digest].(string),
-	}
+		ID:        result.vertexId,
+		Algorithm: result.vertex[algorithm].(string),
+		Digest:    result.vertex[digest].(string),
+	}, nil
 }
 
 func (c *gremlinClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {

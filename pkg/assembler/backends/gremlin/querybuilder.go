@@ -14,6 +14,10 @@ type gremlinQueryBuilder[M any] struct {
 }
 
 type gremlinQueryResult struct {
+	vertex      map[interface{}]interface{}
+	vertexId    string
+	vertexLabel Label
+
 	out      map[interface{}]interface{}
 	outId    string
 	outLabel Label
@@ -55,6 +59,12 @@ func createUpsertForVertex[M any](label Label) *gremlinQueryBuilder[M] {
 	}
 	gqb.query.isUpsert = true
 	return gqb
+}
+
+func createBulkUpsertForVertex[M any](label Label) *gremlinQueryBuilder[M] {
+	return &gremlinQueryBuilder[M]{
+		query: createGraphQuery(label),
+	}
 }
 
 func createBulkUpsertForEdge[M any](label Label) *gremlinQueryBuilder[M] {
@@ -166,6 +176,10 @@ func (gqb *gremlinQueryBuilder[M]) upsertBulk(c *gremlinClient) ([]M, error) {
 	return bulkIngestModelObjectsWithRelation[M](c, gqb)
 }
 
-func (gqb *gremlinQueryBuilder[M]) findAll(c *gremlinClient) ([]M, error) {
+func (gqb *gremlinQueryBuilder[M]) findAllEdges(c *gremlinClient) ([]M, error) {
 	return queryModelObjectsFromEdge[M](c, gqb.query, gqb.mapper)
+}
+
+func (gqb *gremlinQueryBuilder[M]) findAllVertices(c *gremlinClient) ([]M, error) {
+	return queryModelObjectsFromVertex[M](c, gqb.query, gqb.mapper)
 }

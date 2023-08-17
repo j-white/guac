@@ -15,11 +15,11 @@ func getBuilderQueryValues(builder *model.BuilderInputSpec) *GraphQuery {
 	return q
 }
 
-func getBuilderObject(id string, values map[interface{}]interface{}) *model.Builder {
+func getBuilderObject(result *gremlinQueryResult) (*model.Builder, error) {
 	return &model.Builder{
-		ID:  id,
-		URI: values[uri].(string),
-	}
+		ID:  result.vertexId,
+		URI: result.vertex[uri].(string),
+	}, nil
 }
 
 func (c *gremlinClient) IngestBuilder(ctx context.Context, builder *model.BuilderInputSpec) (*model.Builder, error) {

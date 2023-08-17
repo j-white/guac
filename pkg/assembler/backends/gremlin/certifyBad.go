@@ -59,5 +59,5 @@ func (c *gremlinClient) CertifyBad(ctx context.Context, certifyBadSpec *model.Ce
 	if certifyBadSpec.Subject != nil {
 		q = q.withOutVertex(createQueryToMatchPackageSourceOrArtifactSpec[*model.CertifyBad](certifyBadSpec.Subject))
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }

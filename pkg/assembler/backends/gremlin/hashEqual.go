@@ -77,5 +77,5 @@ func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.Hash
 		// FIXME: More work to do here
 		q = q.withInVertex(createQueryToMatchArtifact[*model.HashEqual](hashEqualSpec.Artifacts[0]))
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }

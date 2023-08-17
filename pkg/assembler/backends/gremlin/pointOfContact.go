@@ -105,5 +105,5 @@ func (c *gremlinClient) PointOfContact(ctx context.Context, pointOfContactSpec *
 	if pointOfContactSpec.Subject != nil {
 		q = q.withOutVertex(createQueryToMatchPackageSourceOrArtifactSpec[*model.PointOfContact](pointOfContactSpec.Subject))
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }

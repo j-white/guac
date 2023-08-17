@@ -125,7 +125,7 @@ func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *mo
 		}
 		q = q.withOutVertex(scorecardQ)
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }
 
 func getScorecardObjectFromEdge(result *gremlinQueryResult) (*model.CertifyScorecard, error) {

@@ -53,7 +53,7 @@ func (query *GraphQuery) isEmpty() bool {
 	return query.id == "" && len(query.has) < 1
 }
 
-func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, deserializer ObjectDeserializer[M]) ([]M, error) {
+func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, deserializer func(*gremlinQueryResult) (M, error)) ([]M, error) {
 	// build the query
 	g := gremlingo.Traversal_().WithRemote(c.remote)
 	var v *gremlingo.GraphTraversal
@@ -94,7 +94,16 @@ func queryModelObjectsFromVertex[M any](c *gremlinClient, query *GraphQuery, des
 			vertexId = resultMap[string(gremlingo.T.Id)].(string)
 		}
 
-		object := deserializer(vertexId, resultMap)
+		gremlinResult := gremlinQueryResult{
+			vertexId:    vertexId,
+			vertexLabel: query.label,
+			vertex:      query.toReadMap(),
+		}
+
+		object, err := deserializer(&gremlinResult)
+		if err != nil {
+			return objects, err
+		}
 		objects = append(objects, object)
 	}
 

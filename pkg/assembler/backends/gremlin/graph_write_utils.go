@@ -100,7 +100,7 @@ type EdgeObjectDeserializer[M any] func(id string, out map[interface{}]interface
 C is typically an InputSpec
 D is model object w/ id after upsert
 */
-func ingestModelObject[C any, D any](c *gremlinClient, modelObject C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) (D, error) {
+func ingestModelObject[C any, D any](c *gremlinClient, modelObject C, serializer MapSerializer[C], deserializer func(*gremlinQueryResult) (D, error)) (D, error) {
 	var object D
 	values := serializer(modelObject)
 
@@ -108,11 +108,20 @@ func ingestModelObject[C any, D any](c *gremlinClient, modelObject C, serializer
 	if err != nil {
 		return object, err
 	}
-	object = deserializer(id, values.toReadMap())
+	result := &gremlinQueryResult{
+		vertexId: id,
+		vertex:   values.toReadMap(),
+	}
+
+	object, err = deserializer(result)
+	if err != nil {
+		return object, err
+	}
+
 	return object, nil
 }
 
-func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, serializer MapSerializer[C], deserializer ObjectDeserializer[D]) ([]D, error) {
+func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, serializer MapSerializer[C], deserializer func(*gremlinQueryResult) (D, error)) ([]D, error) {
 	var objects []D
 	if len(modelObjects) < 1 {
 		// nothing to do
@@ -153,7 +162,16 @@ func bulkIngestModelObjects[C any, D any](c *gremlinClient, modelObjects []C, se
 	}
 
 	for k := range modelObjects {
-		object := deserializer(ids[k], qs[k].toReadMap())
+		result := &gremlinQueryResult{
+			vertexId:    ids[k],
+			vertexLabel: qs[k].label,
+			vertex:      qs[k].toReadMap(),
+		}
+
+		object, err := deserializer(result)
+		if err != nil {
+			return objects, err
+		}
 		objects = append(objects, object)
 	}
 	return objects, nil
@@ -186,10 +204,25 @@ func ingestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBu
 		}
 		return gqb.mapper(result)
 	} else {
-		panic("Simple vertices aren't supported through this API yet. I am sad :(")
+		result, err := upsertVertexDirect(c, gqb)
+		if err != nil {
+			return object, err
+		}
+		return gqb.mapper(result)
+	}
+}
+
+func upsertVertexDirect[M any](c *gremlinClient, q *gremlinQueryBuilder[M]) (*gremlinQueryResult, error) {
+	id, err := c.upsertVertex(q.query)
+	if err != nil {
+		return nil, err
 	}
 
-	return object, nil
+	return &gremlinQueryResult{
+		vertexId:    id,
+		vertexLabel: q.query.label,
+		vertex:      q.query.toReadMap(),
+	}, nil
 }
 
 func bulkIngestModelObjectsWithRelation[M any](c *gremlinClient, gqb *gremlinQueryBuilder[M]) ([]M, error) {

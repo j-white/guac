@@ -55,5 +55,5 @@ func (c *gremlinClient) HasSourceAt(ctx context.Context, hasSourceAtSpec *model.
 	if hasSourceAtSpec.Source != nil {
 		q = q.withInVertex(createQueryToMatchSource[*model.HasSourceAt](hasSourceAtSpec.Source))
 	}
-	return q.findAll(c)
+	return q.findAllEdges(c)
 }
