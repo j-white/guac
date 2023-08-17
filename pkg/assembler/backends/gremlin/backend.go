@@ -73,6 +73,16 @@ type gremlinClient struct {
 	remote *gremlingo.DriverRemoteConnection
 }
 
+func (c *gremlinClient) IngestVEXStatement(ctx context.Context, subject model.PackageOrArtifactInput, vulnerability model.VulnerabilityInputSpec, vexStatement model.VexStatementInputSpec) (*model.CertifyVEXStatement, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestCertifyVuln(ctx context.Context, pkg model.PkgInputSpec, vulnerability model.VulnerabilityInputSpec, certifyVuln model.ScanMetadataInput) (*model.CertifyVuln, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (c *gremlinClient) IngestCertifyBads(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, certifyBads []*model.CertifyBadInputSpec) ([]*model.CertifyBad, error) {
 	//TODO implement me
 	panic("implement me")
@@ -180,11 +190,6 @@ func (c *gremlinClient) HasSlsa(ctx context.Context, hasSLSASpec *model.HasSLSAS
 	panic("implement me")
 }
 
-func (c *gremlinClient) IsVulnerability(ctx context.Context, isVulnerabilitySpec *model.IsVulnerabilitySpec) ([]*model.IsVulnerability, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
 	//TODO implement me
 	panic("implement me")
@@ -200,22 +205,7 @@ func (c *gremlinClient) IngestCertifyGood(ctx context.Context, subject model.Pac
 	panic("implement me")
 }
 
-func (c *gremlinClient) IngestIsVulnerability(ctx context.Context, osv model.OSVInputSpec, vulnerability model.CveOrGhsaInput, isVulnerability model.IsVulnerabilityInputSpec) (*model.IsVulnerability, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *gremlinClient) IngestPkgEqual(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, pkgEqual model.PkgEqualInputSpec) (*model.PkgEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestVEXStatement(ctx context.Context, subject model.PackageOrArtifactInput, vulnerability model.VulnerabilityInput, vexStatement model.VexStatementInputSpec) (*model.CertifyVEXStatement, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestVulnerability(ctx context.Context, pkg model.PkgInputSpec, vulnerability model.VulnerabilityInput, certifyVuln model.VulnerabilityMetaDataInput) (*model.CertifyVuln, error) {
 	//TODO implement me
 	panic("implement me")
 }
