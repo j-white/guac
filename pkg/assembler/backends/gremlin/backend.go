@@ -74,12 +74,182 @@ type gremlinClient struct {
 	remote *gremlingo.DriverRemoteConnection
 }
 
-func (c *gremlinClient) IngestVEXStatement(ctx context.Context, subject model.PackageOrArtifactInput, vulnerability model.VulnerabilityInputSpec, vexStatement model.VexStatementInputSpec) (*model.CertifyVEXStatement, error) {
+func (c *gremlinClient) Artifacts(ctx context.Context, artifactSpec *model.ArtifactSpec) ([]*model.Artifact, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *gremlinClient) IngestCertifyVuln(ctx context.Context, pkg model.PkgInputSpec, vulnerability model.VulnerabilityInputSpec, certifyVuln model.ScanMetadataInput) (*model.CertifyVuln, error) {
+func (c *gremlinClient) Builders(ctx context.Context, builderSpec *model.BuilderSpec) ([]*model.Builder, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Licenses(ctx context.Context, licenseSpec *model.LicenseSpec) ([]*model.License, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Packages(ctx context.Context, pkgSpec *model.PkgSpec) ([]*model.Package, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Vulnerabilities(ctx context.Context, vulnSpec *model.VulnerabilitySpec) ([]*model.Vulnerability, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) CertifyBad(ctx context.Context, certifyBadSpec *model.CertifyBadSpec) ([]*model.CertifyBad, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) CertifyVEXStatement(ctx context.Context, certifyVEXStatementSpec *model.CertifyVEXStatementSpec) ([]*model.CertifyVEXStatement, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) CertifyVuln(ctx context.Context, certifyVulnSpec *model.CertifyVulnSpec) ([]*model.CertifyVuln, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) CertifyLegal(ctx context.Context, certifyLegalSpec *model.CertifyLegalSpec) ([]*model.CertifyLegal, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) HasSBOM(ctx context.Context, hasSBOMSpec *model.HasSBOMSpec) ([]*model.HasSbom, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) HasSlsa(ctx context.Context, hasSLSASpec *model.HasSLSASpec) ([]*model.HasSlsa, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) HasSourceAt(ctx context.Context, hasSourceAtSpec *model.HasSourceAtSpec) ([]*model.HasSourceAt, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) HasMetadata(ctx context.Context, hasMetadataSpec *model.HasMetadataSpec) ([]*model.HasMetadata, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) HashEqual(ctx context.Context, hashEqualSpec *model.HashEqualSpec) ([]*model.HashEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IsDependency(ctx context.Context, isDependencySpec *model.IsDependencySpec) ([]*model.IsDependency, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *model.IsOccurrenceSpec) ([]*model.IsOccurrence, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) PointOfContact(ctx context.Context, pointOfContactSpec *model.PointOfContactSpec) ([]*model.PointOfContact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Scorecards(ctx context.Context, certifyScorecardSpec *model.CertifyScorecardSpec) ([]*model.CertifyScorecard, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) VulnEqual(ctx context.Context, vulnEqualSpec *model.VulnEqualSpec) ([]*model.VulnEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) VulnerabilityMetadata(ctx context.Context, vulnerabilityMetadataSpec *model.VulnerabilityMetadataSpec) ([]*model.VulnerabilityMetadata, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestArtifact(ctx context.Context, artifact *model.ArtifactInputSpec) (*model.Artifact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestArtifacts(ctx context.Context, artifacts []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestBuilder(ctx context.Context, builder *model.BuilderInputSpec) (*model.Builder, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestBuilders(ctx context.Context, builders []*model.BuilderInputSpec) ([]*model.Builder, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestLicense(ctx context.Context, license *model.LicenseInputSpec) (*model.License, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestLicenses(ctx context.Context, licenses []*model.LicenseInputSpec) ([]*model.License, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestPackage(ctx context.Context, pkg model.PkgInputSpec) (*model.Package, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestSource(ctx context.Context, source model.SourceInputSpec) (*model.Source, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestSources(ctx context.Context, sources []*model.SourceInputSpec) ([]*model.Source, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVulnerability(ctx context.Context, vuln model.VulnerabilityInputSpec) (*model.Vulnerability, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVulnerabilities(ctx context.Context, vulns []*model.VulnerabilityInputSpec) ([]*model.Vulnerability, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestCertifyBad(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyBad model.CertifyBadInputSpec) (*model.CertifyBad, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -89,7 +259,187 @@ func (c *gremlinClient) IngestCertifyBads(ctx context.Context, subjects model.Pa
 	panic("implement me")
 }
 
+func (c *gremlinClient) IngestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec) (*model.CertifyGood, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (c *gremlinClient) IngestCertifyGoods(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, certifyGoods []*model.CertifyGoodInputSpec) ([]*model.CertifyGood, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestCertifyVuln(ctx context.Context, pkg model.PkgInputSpec, vulnerability model.VulnerabilityInputSpec, certifyVuln model.ScanMetadataInput) (*model.CertifyVuln, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestCertifyVulns(ctx context.Context, pkgs []*model.PkgInputSpec, vulnerabilities []*model.VulnerabilityInputSpec, certifyVulns []*model.ScanMetadataInput) ([]*model.CertifyVuln, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestCertifyLegal(ctx context.Context, subject model.PackageOrSourceInput, declaredLicenses []*model.LicenseInputSpec, discoveredLicenses []*model.LicenseInputSpec, certifyLegal *model.CertifyLegalInputSpec) (*model.CertifyLegal, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestCertifyLegals(ctx context.Context, subjects model.PackageOrSourceInputs, declaredLicensesList [][]*model.LicenseInputSpec, discoveredLicensesList [][]*model.LicenseInputSpec, certifyLegals []*model.CertifyLegalInputSpec) ([]*model.CertifyLegal, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHasSbom(ctx context.Context, subject model.PackageOrArtifactInput, hasSbom model.HasSBOMInputSpec, includes model.HasSBOMIncludesInputSpec) (*model.HasSbom, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageOrArtifactInputs, hasSBOMs []*model.HasSBOMInputSpec, includes []*model.HasSBOMIncludesInputSpec) ([]*model.HasSbom, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHasSourceAt(ctx context.Context, pkg model.PkgInputSpec, pkgMatchType model.MatchFlags, source model.SourceInputSpec, hasSourceAt model.HasSourceAtInputSpec) (*model.HasSourceAt, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHasSourceAts(ctx context.Context, pkgs []*model.PkgInputSpec, pkgMatchType *model.MatchFlags, sources []*model.SourceInputSpec, hasSourceAts []*model.HasSourceAtInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHasMetadata(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, hasMetadata model.HasMetadataInputSpec) (*model.HasMetadata, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestBulkHasMetadata(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, hasMetadataList []*model.HasMetadataInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHashEqual(ctx context.Context, artifact model.ArtifactInputSpec, equalArtifact model.ArtifactInputSpec, hashEqual model.HashEqualInputSpec) (*model.HashEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestOccurrence(ctx context.Context, subject model.PackageOrSourceInput, artifact model.ArtifactInputSpec, occurrence model.IsOccurrenceInputSpec) (*model.IsOccurrence, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestOccurrences(ctx context.Context, subjects model.PackageOrSourceInputs, artifacts []*model.ArtifactInputSpec, occurrences []*model.IsOccurrenceInputSpec) ([]*model.IsOccurrence, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestPkgEqual(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, pkgEqual model.PkgEqualInputSpec) (*model.PkgEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestPkgEquals(ctx context.Context, pkgs []*model.PkgInputSpec, otherPackages []*model.PkgInputSpec, pkgEquals []*model.PkgEqualInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestPointOfContact(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, pointOfContact model.PointOfContactInputSpec) (*model.PointOfContact, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestPointOfContacts(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, pointOfContacts []*model.PointOfContactInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestSLSA(ctx context.Context, subject model.ArtifactInputSpec, builtFrom []*model.ArtifactInputSpec, builtBy model.BuilderInputSpec, slsa model.SLSAInputSpec) (*model.HasSlsa, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestScorecard(ctx context.Context, source model.SourceInputSpec, scorecard model.ScorecardInputSpec) (*model.CertifyScorecard, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestScorecards(ctx context.Context, sources []*model.SourceInputSpec, scorecards []*model.ScorecardInputSpec) ([]*model.CertifyScorecard, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVEXStatement(ctx context.Context, subject model.PackageOrArtifactInput, vulnerability model.VulnerabilityInputSpec, vexStatement model.VexStatementInputSpec) (*model.CertifyVEXStatement, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVEXStatements(ctx context.Context, subjects model.PackageOrArtifactInputs, vulnerabilities []*model.VulnerabilityInputSpec, vexStatements []*model.VexStatementInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVulnEqual(ctx context.Context, vulnerability model.VulnerabilityInputSpec, otherVulnerability model.VulnerabilityInputSpec, vulnEqual model.VulnEqualInputSpec) (*model.VulnEqual, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVulnEquals(ctx context.Context, vulnerabilities []*model.VulnerabilityInputSpec, otherVulnerabilities []*model.VulnerabilityInputSpec, vulnEquals []*model.VulnEqualInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestVulnerabilityMetadata(ctx context.Context, vulnerability model.VulnerabilityInputSpec, vulnerabilityMetadata model.VulnerabilityMetadataInputSpec) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) IngestBulkVulnerabilityMetadata(ctx context.Context, vulnerabilities []*model.VulnerabilityInputSpec, vulnerabilityMetadataList []*model.VulnerabilityMetadataInputSpec) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Neighbors(ctx context.Context, node string, usingOnly []model.Edge) ([]model.Node, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Node(ctx context.Context, node string) (model.Node, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Nodes(ctx context.Context, nodes []string) ([]model.Node, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) Path(ctx context.Context, subject string, target string, maxPathLength int, usingOnly []model.Edge) ([]model.Node, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *gremlinClient) FindSoftware(ctx context.Context, searchText string) ([]model.PackageSourceOrArtifact, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -169,79 +519,4 @@ func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
 
 	client := &gremlinClient{*config, remote}
 	return client, nil
-}
-
-func (c *gremlinClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) CertifyVEXStatement(ctx context.Context, certifyVEXStatementSpec *model.CertifyVEXStatementSpec) ([]*model.CertifyVEXStatement, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) CertifyVuln(ctx context.Context, certifyVulnSpec *model.CertifyVulnSpec) ([]*model.CertifyVuln, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) HasSlsa(ctx context.Context, hasSLSASpec *model.HasSLSASpec) ([]*model.HasSlsa, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestMaterials(ctx context.Context, materials []*model.ArtifactInputSpec) ([]*model.Artifact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec) (*model.CertifyGood, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestPkgEqual(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, pkgEqual model.PkgEqualInputSpec) (*model.PkgEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) Neighbors(ctx context.Context, node string, usingOnly []model.Edge) ([]model.Node, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) Node(ctx context.Context, node string) (model.Node, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) Nodes(ctx context.Context, nodes []string) ([]model.Node, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) Path(ctx context.Context, subject string, target string, maxPathLength int, usingOnly []model.Edge) ([]model.Node, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) FindSoftware(ctx context.Context, searchText string) ([]model.PackageSourceOrArtifact, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) VulnEqual(ctx context.Context, vulnEqualSpec *model.VulnEqualSpec) ([]*model.VulnEqual, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (c *gremlinClient) IngestVulnEqual(ctx context.Context, vulnerability model.VulnerabilityInputSpec, otherVulnerability model.VulnerabilityInputSpec, vulnEqual model.VulnEqualInputSpec) (*model.VulnEqual, error) {
-	//TODO implement me
-	panic("implement me")
 }

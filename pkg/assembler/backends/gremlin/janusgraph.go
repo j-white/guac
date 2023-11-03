@@ -150,7 +150,7 @@ func printSchema(remote *gremlingo.DriverRemoteConnection) (string, error) {
 }
 
 func createIndexForVertexPropertyKey(remote *gremlingo.DriverRemoteConnection, key string) error {
-	// FIXME: bind w/ parameters instead of sprintf (avoid possiblity of injection)
+	// FIXME: bind w/ parameters instead of sprintf (avoid possibility of injection)
 	createIndexStmt := fmt.Sprintf("mgmt = graph.openManagement()\n"+
 		"propKey = mgmt.containsPropertyKey('%s') ? mgmt.getPropertyKey('%s') : mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
 		"index = mgmt.getGraphIndex('by%sComposite')\n"+
@@ -179,7 +179,7 @@ func createIndicesForVertexProperties(remote *gremlingo.DriverRemoteConnection, 
 }
 
 func createIndexForEdge(remote *gremlingo.DriverRemoteConnection, edgeLabel string, vertexPropertyKey string) error {
-	// FIXME: bind w/ parameters instead of sprintf (avoid possiblity of injection)
+	// FIXME: bind w/ parameters instead of sprintf (avoid possibility of injection)
 	createIndexStmt := fmt.Sprintf("mgmt = graph.openManagement()\n"+
 		"propKey = mgmt.containsPropertyKey('%s') ? mgmt.getPropertyKey('%s') : mgmt.makePropertyKey('%s').dataType(String.class).cardinality(Cardinality.SINGLE).make()\n"+
 		"edgeLabel = mgmt.getEdgeLabel('%s')\n"+

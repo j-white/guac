@@ -204,7 +204,7 @@ require (
 	github.com/DATA-DOG/go-txdb v0.1.7
 	github.com/Khan/genqlient v0.6.0
 	github.com/Masterminds/semver v1.5.0
-	github.com/apache/tinkerpop/gremlin-go/v3 v3.7.0
+	github.com/apache/tinkerpop/gremlin-go/v3 v3.6.6-0.20231102205201-0cf6da8d5438
 	github.com/arangodb/go-driver v1.6.0
 	github.com/aws/aws-sdk-go v1.46.2
 	github.com/aws/aws-sdk-go-v2 v1.21.2
