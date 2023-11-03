@@ -33,12 +33,23 @@ type HasSBOM {
   origin: String!
   "GUAC collector for the document"
   collector: String!
+  "Timestamp for SBOM creation"
+  knownSince: Time!
+  "Included packages and artifacts"
+  includedSoftware: [PackageOrArtifact!]!
+  "Included dependencies"
+  includedDependencies: [IsDependency!]!
+  "Included occurrences"
+  includedOccurrences: [IsOccurrence!]!
 }
 
 """
 HasSBOMSpec allows filtering the list of HasSBOM to return.
 
 Only the package or artifact can be added, not both.
+
+If KnownSince is specified, the returned value will be after or equal to the specified time.
+Any nodes time that is before KnownSince is excluded.
 """
 input HasSBOMSpec {
   id: ID
@@ -49,9 +60,19 @@ input HasSBOMSpec {
   downloadLocation: String
   origin: String
   collector: String
+  knownSince: Time
+  includedSoftware: [PackageOrArtifactSpec]!
+  includedDependencies: [IsDependencySpec]!
+  includedOccurrences: [IsOccurrenceSpec]!
 }
 
-"HasSBOMInputSpec is the same as HasSBOM but for mutation input."
+input HasSBOMIncludesInputSpec {
+  software: [ID!]!
+  dependencies: [ID!]!
+  occurrences: [ID!]!
+}
+
+"HasSBOMInputSpec is similar to HasSBOM but for mutation input."
 input HasSBOMInputSpec {
   uri: String!
   algorithm: String!
@@ -59,6 +80,7 @@ input HasSBOMInputSpec {
   downloadLocation: String!
   origin: String!
   collector: String!
+  knownSince: Time!
 }
 
 extend type Query {
@@ -67,8 +89,16 @@ extend type Query {
 }
 
 extend type Mutation {
-  "Certifies that a package or artifact has an SBOM."
-  ingestHasSBOM(subject: PackageOrArtifactInput!, hasSBOM: HasSBOMInputSpec!): HasSBOM!
-  "Bulk ingest that package or artifact has an SBOM."
-  ingestHasSBOMs(subjects: PackageOrArtifactInputs!, hasSBOMs: [HasSBOMInputSpec!]!): [HasSBOM!]!
+  "Certifies that a package or artifact has an SBOM. The returned ID can be empty string."
+  ingestHasSBOM(
+    subject: PackageOrArtifactInput!
+    hasSBOM: HasSBOMInputSpec!
+    includes: HasSBOMIncludesInputSpec!
+  ): ID!
+  "Bulk ingest that package or artifact has an SBOM. The returned array of IDs can be a an array of empty string."
+  ingestHasSBOMs(
+    subjects: PackageOrArtifactInputs!
+    hasSBOMs: [HasSBOMInputSpec!]!
+    includes: [HasSBOMIncludesInputSpec!]!
+  ): [ID!]!
 }

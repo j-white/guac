@@ -17,20 +17,21 @@ package inmem_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
-	"github.com/guacsec/guac/pkg/assembler/backends/inmem"
+	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"golang.org/x/exp/slices"
 )
 
 var b1 = &model.BuilderInputSpec{
 	URI: "asdf",
 }
+
 var b1out = &model.Builder{
 	URI: "asdf",
 }
@@ -497,7 +498,7 @@ func TestHasSLSA(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}
@@ -558,7 +559,7 @@ func TestIngestHasSLSAs(t *testing.T) {
 			Calls: []call{
 				{
 					Sub: []*model.ArtifactInputSpec{a1},
-					BF:  [][]*model.ArtifactInputSpec{[]*model.ArtifactInputSpec{a2}},
+					BF:  [][]*model.ArtifactInputSpec{{a2}},
 					BB:  []*model.BuilderInputSpec{b1},
 					SLSA: []*model.SLSAInputSpec{
 						{
@@ -588,7 +589,7 @@ func TestIngestHasSLSAs(t *testing.T) {
 			Calls: []call{
 				{
 					Sub: []*model.ArtifactInputSpec{a1, a1},
-					BF:  [][]*model.ArtifactInputSpec{[]*model.ArtifactInputSpec{a2}, []*model.ArtifactInputSpec{a2}},
+					BF:  [][]*model.ArtifactInputSpec{{a2}, {a2}},
 					BB:  []*model.BuilderInputSpec{b1, b1},
 					SLSA: []*model.SLSAInputSpec{
 						{
@@ -621,7 +622,7 @@ func TestIngestHasSLSAs(t *testing.T) {
 			Calls: []call{
 				{
 					Sub: []*model.ArtifactInputSpec{a1, a1},
-					BF:  [][]*model.ArtifactInputSpec{[]*model.ArtifactInputSpec{a2}, []*model.ArtifactInputSpec{a2}},
+					BF:  [][]*model.ArtifactInputSpec{{a2}, {a2}},
 					BB:  []*model.BuilderInputSpec{b1, b1},
 					SLSA: []*model.SLSAInputSpec{
 						{
@@ -654,7 +655,7 @@ func TestIngestHasSLSAs(t *testing.T) {
 			Calls: []call{
 				{
 					Sub: []*model.ArtifactInputSpec{a1, a3},
-					BF:  [][]*model.ArtifactInputSpec{[]*model.ArtifactInputSpec{a2}, []*model.ArtifactInputSpec{a2}},
+					BF:  [][]*model.ArtifactInputSpec{{a2}, {a2}},
 					BB:  []*model.BuilderInputSpec{b1, b1},
 					SLSA: []*model.SLSAInputSpec{
 						{},
@@ -684,7 +685,7 @@ func TestIngestHasSLSAs(t *testing.T) {
 			Calls: []call{
 				{
 					Sub: []*model.ArtifactInputSpec{a1, a1, a1},
-					BF:  [][]*model.ArtifactInputSpec{[]*model.ArtifactInputSpec{a2}, []*model.ArtifactInputSpec{a2, a3}, []*model.ArtifactInputSpec{a4}},
+					BF:  [][]*model.ArtifactInputSpec{{a2}, {a2, a3}, {a4}},
 					BB:  []*model.BuilderInputSpec{b1, b1, b1},
 					SLSA: []*model.SLSAInputSpec{
 						{},
@@ -715,22 +716,6 @@ func TestIngestHasSLSAs(t *testing.T) {
 				},
 			},
 		},
-		{
-			Name:  "Ingest no Materials 1",
-			InArt: []*model.ArtifactInputSpec{a1},
-			InBld: []*model.BuilderInputSpec{b1},
-			Calls: []call{
-				{
-					Sub: []*model.ArtifactInputSpec{a1},
-					BF:  [][]*model.ArtifactInputSpec{[]*model.ArtifactInputSpec{}},
-					BB:  []*model.BuilderInputSpec{b1},
-					SLSA: []*model.SLSAInputSpec{
-						{},
-					},
-				},
-			},
-			ExpIngestErr: true,
-		},
 	}
 	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
 		return strings.Compare(".ID", p[len(p)-1].String()) == 0
@@ -738,7 +723,7 @@ func TestIngestHasSLSAs(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}
@@ -804,10 +789,10 @@ func TestHasSLSANeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"1": []string{"4"},           // a1
-				"2": []string{"4"},           // a2
-				"3": []string{"4"},           // b1
-				"4": []string{"1", "2", "3"}, // hasSBOM
+				"1": {"4"},           // a1
+				"2": {"4"},           // a2
+				"3": {"4"},           // b1
+				"4": {"1", "2", "3"}, // hasSBOM
 			},
 		},
 		{
@@ -833,20 +818,20 @@ func TestHasSLSANeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"1": []string{"6"},           // a1
-				"2": []string{"6"},           // a2
-				"3": []string{"7"},           // a3
-				"4": []string{"7"},           // a4
-				"5": []string{"6", "7"},      // b1
-				"6": []string{"1", "2", "5"}, // hasSBOM 1
-				"7": []string{"3", "4", "5"}, // hasSBOM 2
+				"1": {"6"},           // a1
+				"2": {"6"},           // a2
+				"3": {"7"},           // a3
+				"4": {"7"},           // a4
+				"5": {"6", "7"},      // b1
+				"6": {"1", "2", "5"}, // hasSBOM 1
+				"7": {"3", "4", "5"}, // hasSBOM 2
 			},
 		},
 	}
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}

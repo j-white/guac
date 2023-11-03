@@ -88,6 +88,7 @@ type srcNameNode struct {
 	goodLinks           []uint32
 	hasMetadataLinks    []uint32
 	pointOfContactLinks []uint32
+	certifyLegals       []uint32
 }
 
 func (n *srcNamespaceStruct) ID() uint32 { return n.id }
@@ -95,23 +96,31 @@ func (n *srcNameStruct) ID() uint32      { return n.id }
 func (n *srcNameNode) ID() uint32        { return n.id }
 
 func (n *srcNamespaceStruct) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := make([]uint32, 0, len(n.namespaces))
-	for _, v := range n.namespaces {
-		out = append(out, v.id)
+	var out []uint32
+	if allowedEdges[model.EdgeSourceTypeSourceNamespace] {
+		for _, v := range n.namespaces {
+			out = append(out, v.id)
+		}
 	}
 	return out
 }
 func (n *srcNameStruct) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := make([]uint32, 0, 1+len(n.names))
-	for _, v := range n.names {
-		out = append(out, v.id)
+	var out []uint32
+	if allowedEdges[model.EdgeSourceNamespaceSourceName] {
+		for _, v := range n.names {
+			out = append(out, v.id)
+		}
 	}
-	out = append(out, n.parent)
+	if allowedEdges[model.EdgeSourceNamespaceSourceType] {
+		out = append(out, n.parent)
+	}
 	return out
 }
 func (n *srcNameNode) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := []uint32{n.parent}
-
+	var out []uint32
+	if allowedEdges[model.EdgeSourceNameSourceNamespace] {
+		out = append(out, n.parent)
+	}
 	if allowedEdges[model.EdgeSourceHasSourceAt] {
 		out = append(out, n.srcMapLinks...)
 	}
@@ -133,6 +142,9 @@ func (n *srcNameNode) Neighbors(allowedEdges edgeMap) []uint32 {
 	if allowedEdges[model.EdgeSourcePointOfContact] {
 		out = append(out, n.pointOfContactLinks...)
 	}
+	if allowedEdges[model.EdgeSourceCertifyLegal] {
+		out = append(out, n.certifyLegals...)
+	}
 
 	return out
 }
@@ -152,6 +164,7 @@ func (p *srcNameNode) setScorecardLinks(id uint32)   { p.scorecardLinks = append
 func (p *srcNameNode) setOccurrenceLinks(id uint32)  { p.occurrences = append(p.occurrences, id) }
 func (p *srcNameNode) setCertifyBadLinks(id uint32)  { p.badLinks = append(p.badLinks, id) }
 func (p *srcNameNode) setCertifyGoodLinks(id uint32) { p.goodLinks = append(p.goodLinks, id) }
+func (p *srcNameNode) setCertifyLegals(id uint32)    { p.certifyLegals = append(p.certifyLegals, id) }
 func (p *srcNameNode) setHasMetadataLinks(id uint32) {
 	p.hasMetadataLinks = append(p.hasMetadataLinks, id)
 }
@@ -263,11 +276,6 @@ func duplicateSrcName(names srcNameList, input model.SourceInputSpec) (bool, *sr
 func (c *demoClient) Sources(ctx context.Context, filter *model.SourceSpec) ([]*model.Source, error) {
 	c.m.RLock()
 	defer c.m.RUnlock()
-	if filter != nil && filter.Commit != nil && filter.Tag != nil {
-		if *filter.Commit != "" && *filter.Tag != "" {
-			return nil, gqlerror.Errorf("Passing both commit and tag selectors is an error")
-		}
-	}
 	if filter != nil && filter.ID != nil {
 		id, err := strconv.ParseUint(*filter.ID, 10, 32)
 		if err != nil {

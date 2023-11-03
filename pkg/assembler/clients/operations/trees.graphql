@@ -67,6 +67,13 @@ fragment AllBuilderTree on Builder {
   uri
 }
 
+fragment AllLicenseTree on License {
+  id
+  name
+  inline
+  listVersion
+}
+
 fragment AllVulnerabilityTree on Vulnerability {
   id
   type
@@ -74,6 +81,23 @@ fragment AllVulnerabilityTree on Vulnerability {
     id
     vulnerabilityID
   }
+}
+
+fragment AllVulnMetadataTree on VulnerabilityMetadata {
+  id
+  vulnerability {
+    id
+    type
+    vulnerabilityIDs {
+      id
+      vulnerabilityID
+    }
+  }
+  scoreType
+  scoreValue
+  timestamp
+  origin
+  collector
 }
 
 fragment AllCertifyScorecard on CertifyScorecard {
@@ -99,10 +123,10 @@ fragment AllIsOccurrencesTree on IsOccurrence {
   id
   subject {
     __typename
-    ...on Package {
+    ... on Package {
       ...AllPkgTree
     }
-   ...on Source {
+    ... on Source {
       ...AllSourceTree
     }
   }
@@ -120,7 +144,7 @@ fragment AllIsDependencyTree on IsDependency {
   package {
     ...AllPkgTree
   }
-  dependentPackage {
+  dependencyPackage {
     ...AllPkgTree
   }
   dependencyType
@@ -155,9 +179,36 @@ fragment AllSLSATree on HasSLSA {
   }
 }
 
+fragment AllCertifyLegalTree on CertifyLegal {
+  id
+  subject {
+    __typename
+    ... on Package {
+      ...AllPkgTree
+    }
+    ... on Source {
+      ...AllSourceTree
+    }
+  }
+  declaredLicense
+  declaredLicenses {
+    ...AllLicenseTree
+  }
+  discoveredLicense
+  discoveredLicenses {
+    ...AllLicenseTree
+  }
+  attribution
+  justification
+  timeScanned
+  origin
+  collector
+}
+
 fragment AllCertifyBad on CertifyBad {
   id
   justification
+  knownSince
   subject {
     __typename
     ... on Package {
@@ -177,6 +228,7 @@ fragment AllCertifyBad on CertifyBad {
 fragment AllCertifyGood on CertifyGood {
   id
   justification
+  knownSince
   subject {
     __typename
     ... on Package {
@@ -220,6 +272,22 @@ fragment AllHasSBOMTree on HasSBOM {
   downloadLocation
   origin
   collector
+  knownSince
+  includedSoftware {
+    __typename
+    ... on Artifact {
+      ...AllArtifactTree
+    }
+    ... on Package {
+      ...AllPkgTree
+    }
+  }
+  includedDependencies {
+    ...AllIsDependencyTree
+  }
+  includedOccurrences {
+    ...AllIsOccurrencesTree
+  }
 }
 
 fragment AllHasSourceAt on HasSourceAt {
@@ -242,7 +310,7 @@ fragment AllCertifyVuln on CertifyVuln {
     ...AllPkgTree
   }
   vulnerability {
-      ...AllVulnerabilityTree
+    ...AllVulnerabilityTree
   }
   metadata {
     dbUri
@@ -322,24 +390,24 @@ fragment AllHasMetadata on HasMetadata {
 }
 
 fragment AllPointOfContact on PointOfContact {
-    id
-    subject {
-      __typename
-      ... on Package {
-        ...AllPkgTree
-      }
-      ... on Source {
-        ...AllSourceTree
-      }
-      ... on Artifact {
-        ...AllArtifactTree
-      }
+  id
+  subject {
+    __typename
+    ... on Package {
+      ...AllPkgTree
     }
+    ... on Source {
+      ...AllSourceTree
+    }
+    ... on Artifact {
+      ...AllArtifactTree
+    }
+  }
 
-    email
-    info
-    since
-    justification
-    origin
-    collector
+  email
+  info
+  since
+  justification
+  origin
+  collector
 }

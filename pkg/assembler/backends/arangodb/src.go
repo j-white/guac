@@ -17,10 +17,10 @@ package arangodb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/arangodb/go-driver"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
@@ -298,25 +298,34 @@ func setSrcMatchValues(srcSpec *model.SourceSpec, queryValues map[string]any) *a
 }
 
 func (c *arangoClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec) ([]*model.Source, error) {
-
-	// fields: [type namespaces namespaces.namespace namespaces.names namespaces.names.name namespaces.names.tag namespaces.names.commit]
-	fields := getPreloads(ctx)
-
-	nameRequired := false
-	namespaceRequired := false
-	for _, f := range fields {
-		if f == namespaces {
-			namespaceRequired = true
+	if sourceSpec != nil && sourceSpec.ID != nil {
+		p, err := c.buildSourceResponseFromID(ctx, *sourceSpec.ID, sourceSpec)
+		if err != nil {
+			return nil, fmt.Errorf("buildSourceResponseFromID failed with an error: %w", err)
 		}
-		if f == names {
-			nameRequired = true
-		}
+		return []*model.Source{p}, nil
 	}
 
-	if !namespaceRequired && !nameRequired {
-		return c.sourcesType(ctx, sourceSpec)
-	} else if !nameRequired {
-		return c.sourcesNamespace(ctx, sourceSpec)
+	// fields: [type namespaces namespaces.namespace namespaces.names namespaces.names.name namespaces.names.tag namespaces.names.commit]
+	if _, ok := ctx.Value("graphql").(graphql.OperationContext); ok {
+		fields := getPreloads(ctx)
+
+		nameRequired := false
+		namespaceRequired := false
+		for _, f := range fields {
+			if f == namespaces {
+				namespaceRequired = true
+			}
+			if f == names {
+				nameRequired = true
+			}
+		}
+
+		if !namespaceRequired && !nameRequired {
+			return c.sourcesType(ctx, sourceSpec)
+		} else if !nameRequired {
+			return c.sourcesNamespace(ctx, sourceSpec)
+		}
 	}
 
 	values := map[string]any{}
@@ -334,8 +343,6 @@ func (c *arangoClient) Sources(ctx context.Context, sourceSpec *model.SourceSpec
 		"commit": sName.commit,
 		"tag": sName.tag
 	  }`)
-
-	fmt.Println(arangoQueryBuilder.string())
 
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "Sources")
 	if err != nil {
@@ -360,8 +367,6 @@ func (c *arangoClient) sourcesType(ctx context.Context, sourceSpec *model.Source
 		"type_id": sType._id,
 		"type": sType.type
 	}`)
-
-	fmt.Println(arangoQueryBuilder.string())
 
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "sourcesType")
 	if err != nil {
@@ -412,8 +417,6 @@ func (c *arangoClient) sourcesNamespace(ctx context.Context, sourceSpec *model.S
 		"namespace_id": sNs._id,
 		"namespace": sNs.namespace
 	  }`)
-
-	fmt.Println(arangoQueryBuilder.string())
 
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "sourcesNamespace")
 	if err != nil {
@@ -533,4 +536,422 @@ func generateModelSource(srcTypeID, srcType, namespaceID, namespaceStr, nameID, 
 		Namespaces: []*model.SourceNamespace{namespace},
 	}
 	return &src
+}
+
+// Builds a model.Source to send as GraphQL response, starting from id.
+// The optional filter allows restricting output (on selection operations).
+func (c *arangoClient) buildSourceResponseFromID(ctx context.Context, id string, filter *model.SourceSpec) (*model.Source, error) {
+	if filter != nil && filter.ID != nil {
+		if *filter.ID != id {
+			return nil, fmt.Errorf("ID does not match filter")
+		}
+	}
+
+	idSplit := strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	snl := []*model.SourceName{}
+	if idSplit[0] == srcNamesStr {
+		var foundSrcName *model.SourceName
+		var err error
+
+		foundSrcName, id, err = c.querySrcNameNodeByID(ctx, id, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get src name node by ID with error: %w", err)
+		}
+		snl = append(snl, foundSrcName)
+	}
+
+	idSplit = strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	snsl := []*model.SourceNamespace{}
+	if idSplit[0] == srcNamespacesStr {
+		var foundSrcNamespace *model.SourceNamespace
+		var err error
+
+		foundSrcNamespace, id, err = c.querySrcNamespaceNodeByID(ctx, id, filter, snl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get src namespace node by ID with error: %w", err)
+		}
+		snsl = append(snsl, foundSrcNamespace)
+	}
+
+	idSplit = strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	var s *model.Source
+	if idSplit[0] == srcTypesStr {
+		var err error
+		s, err = c.querySrcTypeNodeByID(ctx, id, filter, snsl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get src type node by ID with error: %w", err)
+		}
+	}
+	return s, nil
+}
+
+func (c *arangoClient) querySrcNameNodeByID(ctx context.Context, id string, filter *model.SourceSpec) (*model.SourceName, string, error) {
+	values := map[string]any{}
+	arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+	arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+	values["id"] = id
+	if filter != nil {
+		if filter.Name != nil {
+			arangoQueryBuilder.filter("sName", "name", "==", "@name")
+			values["name"] = *filter.Name
+		}
+		if filter.Commit != nil {
+			arangoQueryBuilder.filter("sName", "commit", "==", "@commit")
+			values["commit"] = *filter.Commit
+		}
+		if filter.Tag != nil {
+			arangoQueryBuilder.filter("sName", "tag", "==", "@tag")
+			values["tag"] = *filter.Tag
+		}
+	}
+	arangoQueryBuilder.query.WriteString("\n")
+	arangoQueryBuilder.query.WriteString(`RETURN {
+		"name_id": sName._id,
+		"name": sName.name,
+		"commit": sName.commit,
+		"tag": sName.tag,
+		'parent': sName._parent
+  	}`)
+
+	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "querySrcNameNodeByID")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to query for source name: %w, values: %v", err, values)
+	}
+	defer cursor.Close()
+
+	type parsedSrcName struct {
+		NameID string `json:"name_id"`
+		Name   string `json:"name"`
+		Commit string `json:"commit"`
+		Tag    string `json:"tag"`
+		Parent string `json:"parent"`
+	}
+
+	var collectedValues []parsedSrcName
+	for {
+		var doc parsedSrcName
+		_, err := cursor.ReadDocument(ctx, &doc)
+		if err != nil {
+			if driver.IsNoMoreDocuments(err) {
+				break
+			} else {
+				return nil, "", fmt.Errorf("failed to source name from cursor: %w", err)
+			}
+		} else {
+			collectedValues = append(collectedValues, doc)
+		}
+	}
+
+	if len(collectedValues) != 1 {
+		return nil, "", fmt.Errorf("number of source name nodes found for ID: %s is greater than one", id)
+	}
+
+	return &model.SourceName{
+		ID:     collectedValues[0].NameID,
+		Name:   collectedValues[0].Name,
+		Tag:    &collectedValues[0].Tag,
+		Commit: &collectedValues[0].Commit,
+	}, collectedValues[0].Parent, nil
+}
+
+func (c *arangoClient) querySrcNamespaceNodeByID(ctx context.Context, id string, filter *model.SourceSpec, snl []*model.SourceName) (*model.SourceNamespace, string, error) {
+	values := map[string]any{}
+	arangoQueryBuilder := newForQuery(srcNamespacesStr, "sNs")
+	arangoQueryBuilder.filter("sNs", "_id", "==", "@id")
+	values["id"] = id
+
+	if filter != nil && filter.Namespace != nil {
+		arangoQueryBuilder.filter("sNs", "namespace", "==", "@namespace")
+		values["namespace"] = *filter.Namespace
+	}
+	arangoQueryBuilder.query.WriteString("\n")
+	arangoQueryBuilder.query.WriteString(`RETURN {
+		"namespace_id": sNs._id,
+		"namespace": sNs.namespace,
+		'parent': sNs._parent
+  	}`)
+
+	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "querySrcNamespaceNodeByID")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to query for source namespace: %w, values: %v", err, values)
+	}
+	defer cursor.Close()
+
+	type parsedSrcNamespace struct {
+		NamespaceID string `json:"namespace_id"`
+		Namespace   string `json:"namespace"`
+		Parent      string `json:"parent"`
+	}
+
+	var collectedValues []parsedSrcNamespace
+	for {
+		var doc parsedSrcNamespace
+		_, err := cursor.ReadDocument(ctx, &doc)
+		if err != nil {
+			if driver.IsNoMoreDocuments(err) {
+				break
+			} else {
+				return nil, "", fmt.Errorf("failed to source namespace from cursor: %w", err)
+			}
+		} else {
+			collectedValues = append(collectedValues, doc)
+		}
+	}
+
+	if len(collectedValues) != 1 {
+		return nil, "", fmt.Errorf("number of source namespace nodes found for ID: %s is greater than one", id)
+	}
+
+	return &model.SourceNamespace{
+		ID:        collectedValues[0].NamespaceID,
+		Namespace: collectedValues[0].Namespace,
+		Names:     snl,
+	}, collectedValues[0].Parent, nil
+}
+
+func (c *arangoClient) querySrcTypeNodeByID(ctx context.Context, id string, filter *model.SourceSpec, snsl []*model.SourceNamespace) (*model.Source, error) {
+	values := map[string]any{}
+	arangoQueryBuilder := newForQuery(srcTypesStr, "sType")
+	arangoQueryBuilder.filter("sType", "_id", "==", "@id")
+	values["id"] = id
+
+	if filter != nil && filter.Type != nil {
+		arangoQueryBuilder.filter("sType", "type", "==", "@srcType")
+		values["srcType"] = *filter.Type
+	}
+	arangoQueryBuilder.query.WriteString("\n")
+	arangoQueryBuilder.query.WriteString(`RETURN {
+		"type_id": sType._id,
+		"type":sType.type,
+  	}`)
+
+	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "querySrcTypeNodeByID")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for source type: %w, values: %v", err, values)
+	}
+	defer cursor.Close()
+
+	type parsedSrcType struct {
+		TypeID  string `json:"type_id"`
+		SrcType string `json:"type"`
+	}
+
+	var collectedValues []parsedSrcType
+	for {
+		var doc parsedSrcType
+		_, err := cursor.ReadDocument(ctx, &doc)
+		if err != nil {
+			if driver.IsNoMoreDocuments(err) {
+				break
+			} else {
+				return nil, fmt.Errorf("failed to source type from cursor: %w", err)
+			}
+		} else {
+			collectedValues = append(collectedValues, doc)
+		}
+	}
+
+	if len(collectedValues) != 1 {
+		return nil, fmt.Errorf("number of source type nodes found for ID: %s is greater than one", id)
+	}
+
+	return &model.Source{
+		ID:         collectedValues[0].TypeID,
+		Type:       collectedValues[0].SrcType,
+		Namespaces: snsl,
+	}, nil
+}
+
+func (c *arangoClient) srcTypeNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := []string{}
+	if allowedEdges[model.EdgeSourceTypeSourceNamespace] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcTypesStr, "sType")
+		arangoQueryBuilder.filter("sType", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(srcHasNamespaceStr, "sNs", "sType")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: sNs._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcTypeNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	return out, nil
+}
+
+func (c *arangoClient) srcNamespaceNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := []string{}
+	if allowedEdges[model.EdgeSourceNamespaceSourceName] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamespacesStr, "sNs")
+		arangoQueryBuilder.filter("sNs", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(srcHasNameStr, "sName", "sNs")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: sName._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNamespaceNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceNamespaceSourceType] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamespacesStr, "sNs")
+		arangoQueryBuilder.filter("sNs", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.query.WriteString("\nRETURN { parent: sNs._parent }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNamespaceNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	return out, nil
+}
+
+func (c *arangoClient) srcNameNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := []string{}
+	if allowedEdges[model.EdgeSourceNameSourceNamespace] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.query.WriteString("\nRETURN { parent: sName._parent}")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceHasSourceAt] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forInBound(hasSourceAtEdgesStr, "hasSourceAt", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: hasSourceAt._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceCertifyScorecard] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(scorecardSrcEdgesStr, "scorecard", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: scorecard._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceIsOccurrence] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(isOccurrenceSubjectSrcEdgesStr, "isOccurrence", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: isOccurrence._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceCertifyBad] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(certifyBadSrcEdgesStr, "certifyBad", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: certifyBad._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceCertifyGood] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(certifyGoodSrcEdgesStr, "certifyGood", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: certifyGood._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceHasMetadata] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(hasMetadataSrcEdgesStr, "hasMetadata", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: hasMetadata._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourcePointOfContact] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(pointOfContactSrcEdgesStr, "pointOfContact", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: pointOfContact._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeSourceCertifyLegal] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(srcNamesStr, "sName")
+		arangoQueryBuilder.filter("sName", "_id", "==", "@id")
+		values["id"] = nodeID
+		arangoQueryBuilder.forOutBound(certifyLegalSrcEdgesStr, "certifyLegal", "sName")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: certifyLegal._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "srcNameNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+
+	return out, nil
 }

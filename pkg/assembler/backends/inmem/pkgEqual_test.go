@@ -17,14 +17,15 @@ package inmem_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
+	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/backends/inmem"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"golang.org/x/exp/slices"
 )
 
 func TestPkgEqual(t *testing.T) {
@@ -231,6 +232,9 @@ func TestPkgEqual(t *testing.T) {
 				{
 					Packages: []*model.Package{p1out, p2out},
 				},
+				{
+					Packages: []*model.Package{p1out, p3out},
+				},
 			},
 		},
 		{
@@ -384,41 +388,6 @@ func TestPkgEqual(t *testing.T) {
 			ExpIngestErr: true,
 		},
 		{
-			Name:  "Query three",
-			InPkg: []*model.PkgInputSpec{p1, p2, p3},
-			Calls: []call{
-				{
-					P1: p1,
-					P2: p2,
-					HE: &model.PkgEqualInputSpec{},
-				},
-				{
-					P1: p2,
-					P2: p3,
-					HE: &model.PkgEqualInputSpec{},
-				},
-				{
-					P1: p1,
-					P2: p3,
-					HE: &model.PkgEqualInputSpec{},
-				},
-			},
-			Query: &model.PkgEqualSpec{
-				Packages: []*model.PkgSpec{
-					{
-						Name: ptrfrom.String("somename"),
-					},
-					{
-						Version: ptrfrom.String("1.2.3"),
-					},
-					{
-						Type: ptrfrom.String("asdf"),
-					},
-				},
-			},
-			ExpQueryErr: true,
-		},
-		{
 			Name:  "Query bad ID",
 			InPkg: []*model.PkgInputSpec{p1, p2, p3},
 			Calls: []call{
@@ -450,7 +419,7 @@ func TestPkgEqual(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}
@@ -475,13 +444,221 @@ func TestPkgEqual(t *testing.T) {
 			if err != nil {
 				return
 			}
-			// less := func(a, b *model.Package) bool { return a.Version < b.Version }
-			// for _, he := range got {
-			// 	slices.SortFunc(he.Packages, less)
-			// }
-			// for _, he := range test.ExpHE {
-			// 	slices.SortFunc(he.Packages, less)
-			// }
+
+			inmem.MakeCanonicalPkgEqualSlice(got)
+			inmem.MakeCanonicalPkgEqualSlice(test.ExpHE)
+
+			if diff := cmp.Diff(test.ExpHE, got, ignoreID); diff != "" {
+				t.Errorf("Unexpected results. (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestIngestPkgEquals(t *testing.T) {
+	type call struct {
+		P1 []*model.PkgInputSpec
+		P2 []*model.PkgInputSpec
+		PE []*model.PkgEqualInputSpec
+	}
+	tests := []struct {
+		Name         string
+		InPkg        []*model.PkgInputSpec
+		Calls        []call
+		Query        *model.PkgEqualSpec
+		ExpHE        []*model.PkgEqual
+		ExpIngestErr bool
+		ExpQueryErr  bool
+	}{
+		{
+			Name:  "HappyPath",
+			InPkg: []*model.PkgInputSpec{p1, p2},
+			Calls: []call{
+				{
+					P1: []*model.PkgInputSpec{p1, p1},
+					P2: []*model.PkgInputSpec{p2, p2},
+					PE: []*model.PkgEqualInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.PkgEqualSpec{
+				Justification: ptrfrom.String("test justification"),
+			},
+			ExpHE: []*model.PkgEqual{
+				{
+					Packages:      []*model.Package{p1out, p2out},
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Ingest same, different order",
+			InPkg: []*model.PkgInputSpec{p1, p2},
+			Calls: []call{
+				{
+					P1: []*model.PkgInputSpec{p1, p2},
+					P2: []*model.PkgInputSpec{p2, p1},
+					PE: []*model.PkgEqualInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.PkgEqualSpec{
+				Justification: ptrfrom.String("test justification"),
+			},
+			ExpHE: []*model.PkgEqual{
+				{
+					Packages:      []*model.Package{p1out, p2out},
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Query on pkg details",
+			InPkg: []*model.PkgInputSpec{p1, p2, p3},
+			Calls: []call{
+				{
+					P1: []*model.PkgInputSpec{p1, p1},
+					P2: []*model.PkgInputSpec{p2, p3},
+					PE: []*model.PkgEqualInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.PkgEqualSpec{
+				Packages: []*model.PkgSpec{{
+					Version: ptrfrom.String("2.11.1"),
+					Subpath: ptrfrom.String(""),
+				}},
+			},
+			ExpHE: []*model.PkgEqual{
+				{
+					Packages:      []*model.Package{p1out, p2out},
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Query on pkg algo and pkg",
+			InPkg: []*model.PkgInputSpec{p1, p2, p3},
+			Calls: []call{
+				{
+					P1: []*model.PkgInputSpec{p1, p1},
+					P2: []*model.PkgInputSpec{p2, p3},
+					PE: []*model.PkgEqualInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.PkgEqualSpec{
+				Packages: []*model.PkgSpec{{
+					Type:      ptrfrom.String("pypi"),
+					Namespace: ptrfrom.String(""),
+					Name:      ptrfrom.String("tensorflow"),
+					Version:   ptrfrom.String("2.11.1"),
+				}},
+			},
+			ExpHE: []*model.PkgEqual{
+				{
+					Packages:      []*model.Package{p1out, p2out},
+					Justification: "test justification",
+				},
+				{
+					Packages:      []*model.Package{p1out, p3out},
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Query on both pkgs, one filter",
+			InPkg: []*model.PkgInputSpec{p1, p2, p3},
+			Calls: []call{
+				{
+					P1: []*model.PkgInputSpec{p1, p1},
+					P2: []*model.PkgInputSpec{p2, p3},
+					PE: []*model.PkgEqualInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.PkgEqualSpec{
+				Packages: []*model.PkgSpec{
+					{
+						Version: ptrfrom.String(""),
+					},
+					{
+						Version: ptrfrom.String("2.11.1"),
+						Subpath: ptrfrom.String("saved_model_cli.py"),
+					},
+				},
+			},
+			ExpHE: []*model.PkgEqual{
+				{
+					Packages:      []*model.Package{p1out, p3out},
+					Justification: "test justification",
+				},
+			},
+		},
+	}
+	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
+		return strings.Compare(".ID", p[len(p)-1].String()) == 0
+	}, cmp.Ignore())
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			b, err := backends.Get("inmem", nil, nil)
+			if err != nil {
+				t.Fatalf("Could not instantiate testing backend: %v", err)
+			}
+			if _, err := b.IngestPackages(ctx, test.InPkg); err != nil {
+				t.Fatalf("Could not ingest pkg: %v", err)
+			}
+			for _, o := range test.Calls {
+				_, err := b.IngestPkgEquals(ctx, o.P1, o.P2, o.PE)
+				if (err != nil) != test.ExpIngestErr {
+					t.Fatalf("did not get expected ingest error, want: %v, got: %v", test.ExpIngestErr, err)
+				}
+				if err != nil {
+					return
+				}
+			}
+			got, err := b.PkgEqual(ctx, test.Query)
+			if (err != nil) != test.ExpQueryErr {
+				t.Fatalf("did not get expected query error, want: %v, got: %v", test.ExpQueryErr, err)
+			}
+			if err != nil {
+				return
+			}
+
+			inmem.MakeCanonicalPkgEqualSlice(got)
+			inmem.MakeCanonicalPkgEqualSlice(test.ExpHE)
+
 			if diff := cmp.Diff(test.ExpHE, got, ignoreID); diff != "" {
 				t.Errorf("Unexpected results. (-want +got):\n%s", diff)
 			}
@@ -514,9 +691,9 @@ func TestPkgEqualNeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"4": []string{"1", "6"}, // p1
-				"5": []string{"1", "6"}, // p2
-				"6": []string{"1", "1"}, // pkgequal
+				"4": {"1", "6"}, // p1
+				"5": {"1", "6"}, // p2
+				"6": {"1", "1"}, // pkgequal
 			},
 		},
 		{
@@ -539,18 +716,18 @@ func TestPkgEqualNeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"4": []string{"1", "7", "8"}, // p1
-				"5": []string{"1", "7"},      // p2
-				"6": []string{"1", "8"},      // p3
-				"7": []string{"1", "1"},      // pkgequal 1
-				"8": []string{"1", "1"},      // pkgequal 2
+				"4": {"1", "7", "8"}, // p1
+				"5": {"1", "7"},      // p2
+				"6": {"1", "8"},      // p3
+				"7": {"1", "1"},      // pkgequal 1
+				"8": {"1", "1"},      // pkgequal 2
 			},
 		},
 	}
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}

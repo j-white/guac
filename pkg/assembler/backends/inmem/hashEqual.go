@@ -18,25 +18,26 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/vektah/gqlparser/v2/gqlerror"
-	"golang.org/x/exp/slices"
-
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 // Internal hashEqual
 
-type hashEqualList []*hashEqualStruct
-type hashEqualStruct struct {
-	id            uint32
-	artifacts     []uint32
-	justification string
-	origin        string
-	collector     string
-}
+type (
+	hashEqualList   []*hashEqualStruct
+	hashEqualStruct struct {
+		id            uint32
+		artifacts     []uint32
+		justification string
+		origin        string
+		collector     string
+	}
+)
 
 func (n *hashEqualStruct) ID() uint32 { return n.id }
 
@@ -75,18 +76,11 @@ func (n *hashEqualStruct) BuildModelNode(c *demoClient) (model.Node, error) {
 // Ingest HashEqual
 
 func (c *demoClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
-	if len(artifacts) != len(otherArtifacts) {
-		return nil, gqlerror.Errorf("uneven artifacts and other artifacts for ingestion")
-	}
-	if len(artifacts) != len(hashEquals) {
-		return nil, gqlerror.Errorf("uneven artifacts and hashEquals nodes for ingestion")
-	}
-
 	var modelHashEquals []*model.HashEqual
 	for i := range hashEquals {
 		hashEqual, err := c.IngestHashEqual(ctx, *artifacts[i], *otherArtifacts[i], *hashEquals[i])
 		if err != nil {
-			return nil, gqlerror.Errorf("IngestDependency failed with err: %v", err)
+			return nil, gqlerror.Errorf("IngestHashEqual failed with err: %v", err)
 		}
 		modelHashEquals = append(modelHashEquals, hashEqual)
 	}
@@ -164,6 +158,9 @@ func (c *demoClient) matchArtifacts(filter []*model.ArtifactSpec, value []uint32
 		// drop error here if ID is bad
 		if a != nil {
 			matchID = append(matchID, a.id)
+		} else if aSpec.ID != nil {
+			// We had an id but it didn't match
+			return false
 		} else if aSpec.Algorithm != nil || aSpec.Digest != nil {
 			matchPartial = append(matchPartial, aSpec)
 		}
@@ -201,10 +198,6 @@ func (c *demoClient) matchArtifacts(filter []*model.ArtifactSpec, value []uint32
 
 func (c *demoClient) HashEqual(ctx context.Context, filter *model.HashEqualSpec) ([]*model.HashEqual, error) {
 	funcName := "HashEqual"
-	if len(filter.Artifacts) > 2 {
-		return nil, gqlerror.Errorf(
-			"%v :: Provided spec has too many Artifacts", funcName)
-	}
 	c.m.RLock()
 	defer c.m.RUnlock()
 	if filter.ID != nil {
@@ -286,7 +279,8 @@ func (c *demoClient) convHashEqual(h *hashEqualStruct) (*model.HashEqual, error)
 
 func (c *demoClient) addHEIfMatch(out []*model.HashEqual,
 	filter *model.HashEqualSpec, link *hashEqualStruct) (
-	[]*model.HashEqual, error) {
+	[]*model.HashEqual, error,
+) {
 	if noMatch(filter.Justification, link.justification) ||
 		noMatch(filter.Origin, link.origin) ||
 		noMatch(filter.Collector, link.collector) ||

@@ -17,12 +17,12 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/guacsec/guac/pkg/assembler/backends/gremlin"
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -30,28 +30,41 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/spf13/cobra"
-
+	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/backends/arangodb"
-	"github.com/guacsec/guac/pkg/assembler/backends/inmem"
+	_ "github.com/guacsec/guac/pkg/assembler/backends/inmem"
 	"github.com/guacsec/guac/pkg/assembler/backends/neo4j"
+	"github.com/guacsec/guac/pkg/assembler/backends/neptune"
 	"github.com/guacsec/guac/pkg/assembler/graphql/generated"
 	"github.com/guacsec/guac/pkg/assembler/graphql/resolvers"
 	"github.com/guacsec/guac/pkg/logging"
+	"github.com/spf13/cobra"
+	"golang.org/x/exp/maps"
 )
 
 const (
 	arango   = "arango"
 	neo4js   = "neo4j"
 	inmems   = "inmem"
-	neptune  = "neptune"
+	ent      = "ent"
+	neptunes = "neptune"
 	gremlins = "gremlin"
-
-	neptuneServiceName = "neptune-db"
 )
+
+type optsFunc func() backends.BackendArgs
+
+var getOpts map[string]optsFunc
+
+func init() {
+	if getOpts == nil {
+		getOpts = make(map[string]optsFunc)
+	}
+	getOpts[arango] = getArango
+	getOpts[neo4js] = getNeo4j
+	getOpts[inmems] = getInMem
+	getOpts[neptunes] = getNeptune
+	getOpts[gremlins] = getGremlin
+}
 
 func startServer(cmd *cobra.Command) {
 	ctx := logging.WithLogger(context.Background())
@@ -77,20 +90,23 @@ func startServer(cmd *cobra.Command) {
 	http.HandleFunc("/healthz", healthHandler)
 
 	http.Handle("/query", srv)
+	proto := "http"
+	if flags.tlsCertFile != "" && flags.tlsKeyFile != "" {
+		proto = "https"
+	}
 	if flags.debug {
 		http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-		logger.Infof("connect to http://localhost:%d/ for GraphQL playground", flags.port)
-	}
-
-	// Ingest additional test data in a go-routine.
-	if flags.testData {
-		go ingestData(flags.port)
+		logger.Infof("connect to %s://localhost:%d/ for GraphQL playground", proto, flags.port)
 	}
 
 	server := &http.Server{Addr: fmt.Sprintf(":%d", flags.port)}
 	logger.Info("starting server")
 	go func() {
-		logger.Infof("server finished: %s", server.ListenAndServe())
+		if proto == "https" {
+			logger.Infof("server finished: %s", server.ListenAndServeTLS(flags.tlsCertFile, flags.tlsKeyFile))
+		} else {
+			logger.Infof("server finished: %s", server.ListenAndServe())
+		}
 	}()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -113,8 +129,10 @@ func startServer(cmd *cobra.Command) {
 }
 
 func validateFlags() error {
-	if flags.backend != neo4js &&
-		flags.backend != inmems && flags.backend != arango && flags.backend != gremlins && flags.backend != neptune {
+	if !slices.Contains(maps.Keys(getOpts), flags.backend) {
+		return fmt.Errorf("invalid graphql backend specified: %v", flags.backend)
+	}
+	if !slices.Contains(backends.List(), flags.backend) {
 		return fmt.Errorf("invalid graphql backend specified: %v", flags.backend)
 	}
 	return nil
@@ -123,90 +141,11 @@ func validateFlags() error {
 func getGraphqlServer(ctx context.Context) (*handler.Server, error) {
 	var topResolver resolvers.Resolver
 
-	switch flags.backend {
-	case gremlins:
-		flavor := gremlin.JanusGraph
-		if strings.ToLower(flags.gremlinFlavor) == "neptune" {
-			flavor = gremlin.Neptune
-		} else if strings.ToLower(flags.gremlinFlavor) == "cosmosDB" {
-			flavor = gremlin.CosmosDB
-		}
-
-		args := gremlin.GremlinConfig{
-			Flavor:                flavor,
-			Url:                   flags.gremlinUrl,
-			MaxResultsPerQuery:    flags.gremlinMaxResultsPerQuery,
-			Username:              flags.gremlinUsername,
-			Password:              flags.gremlinPassword,
-			InsecureTLSSkipVerify: flags.gremlinInsecureTLSSkipVerify,
-		}
-
-		backend, err := gremlin.GetBackend(&args)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Gremlin backend: %w", err)
-		}
-		topResolver = resolvers.Resolver{Backend: backend}
-
-	case neo4js:
-		args := neo4j.Neo4jConfig{
-			User:   flags.nUser,
-			Pass:   flags.nPass,
-			Realm:  flags.nRealm,
-			DBAddr: flags.nAddr,
-		}
-
-		backend, err := neo4j.GetBackend(&args)
-		if err != nil {
-			return nil, fmt.Errorf("error creating neo4j backend: %w", err)
-		}
-
-		topResolver = resolvers.Resolver{Backend: backend}
-
-	case arango:
-		args := arangodb.ArangoConfig{
-			User:   flags.arangoUser,
-			Pass:   flags.arangoPass,
-			DBAddr: flags.arangoAddr,
-		}
-		backend, err := arangodb.GetBackend(ctx, &args)
-		if err != nil {
-			return nil, fmt.Errorf("error creating arango backend: %w", err)
-		}
-
-		topResolver = resolvers.Resolver{Backend: backend}
-	case inmems:
-		args := inmem.DemoCredentials{}
-		backend, err := inmem.GetBackend(&args)
-		if err != nil {
-			return nil, fmt.Errorf("error creating inmem backend: %w", err)
-		}
-
-		topResolver = resolvers.Resolver{Backend: backend}
-
-	case neptune:
-		// TODO: rename the neo4j config to something more generic since it would be used by Neptune as well.
-		neptuneRequestURL := fmt.Sprintf("https://%s:%d/opencypher", flags.neptuneEndpoint, flags.neptunePort)
-		neptuneToken, err := generateNeptuneToken(neptuneRequestURL, flags.neptuneRegion)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create password for neptune: %w", err)
-		}
-
-		neptuneDBAddr := fmt.Sprintf("bolt+s://%s:%d/opencypher", flags.neptuneEndpoint, flags.neptunePort)
-		args := neo4j.Neo4jConfig{
-			User:   flags.neptuneUser,
-			Pass:   neptuneToken,
-			DBAddr: neptuneDBAddr,
-			Realm:  flags.neptuneRealm,
-		}
-		backend, err := neo4j.GetBackend(&args)
-		if err != nil {
-			return nil, fmt.Errorf("error creating neptune backend: %w", err)
-		}
-
-		topResolver = resolvers.Resolver{Backend: backend}
-	default:
-		return nil, fmt.Errorf("invalid backend specified: %v", flags.backend)
+	backend, err := backends.Get(flags.backend, ctx, getOpts[flags.backend]())
+	if err != nil {
+		return nil, fmt.Errorf("Error creating %v backend: %w", flags.backend, err)
 	}
+	topResolver = resolvers.Resolver{Backend: backend}
 
 	config := generated.Config{Resolvers: &topResolver}
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(config))
@@ -219,54 +158,51 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprint(w, "Server is healthy")
 }
 
-// generateNeptuneToken generates a token for neptune using the AWS SDK.
-func generateNeptuneToken(neptuneURL string, region string) (string, error) {
-	req, err := http.NewRequest(http.MethodGet, neptuneURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("error creating http request for neptune: %w", err)
+func getArango() backends.BackendArgs {
+	return &arangodb.ArangoConfig{
+		User:   flags.arangoUser,
+		Pass:   flags.arangoPass,
+		DBAddr: flags.arangoAddr,
 	}
-
-	signer, err := getAWSRequestSigner()
-	if err != nil {
-		return "", fmt.Errorf("error creating AWS request signer: %w", err)
-	}
-
-	if _, err := signer.Sign(req, nil, neptuneServiceName, region, time.Now()); err != nil {
-		return "", fmt.Errorf("error signing neptune request: %w", err)
-	}
-
-	headers := []string{"Authorization", "X-Amz-Date", "X-Amz-Security-Token"}
-	hdrMap := make(map[string]string)
-	for _, h := range headers {
-		hdrMap[h] = req.Header.Get(h)
-	}
-
-	hdrMap["Host"] = req.Host
-	hdrMap["HttpMethod"] = req.Method
-	password, err := json.Marshal(hdrMap)
-	if err != nil {
-		return "", fmt.Errorf("error marshalling header map: %w", err)
-	}
-
-	return string(password), nil
 }
 
-// This method returns the AWS signer to be used for signing the request to be sent to Neptune Cluster.
-// It checks for the presence of AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN in the environment.
-// If not found, it creates a new session and gets the credentials from the session.
-func getAWSRequestSigner() (*v4.Signer, error) {
-	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
+func getNeo4j() backends.BackendArgs {
+	return &neo4j.Neo4jConfig{
+		User:   flags.nUser,
+		Pass:   flags.nPass,
+		Realm:  flags.nRealm,
+		DBAddr: flags.nAddr,
+	}
+}
 
-	if accessKeyID != "" && secretAccessKey != "" && sessionToken != "" {
-		return v4.NewSigner(credentials.NewEnvCredentials()), nil
+func getInMem() backends.BackendArgs {
+	return nil
+}
+
+func getNeptune() backends.BackendArgs {
+	return &neptune.NeptuneConfig{
+		Endpoint: flags.neptuneEndpoint,
+		Port:     flags.neptunePort,
+		Region:   flags.neptuneRegion,
+		User:     flags.neptuneUser,
+		Realm:    flags.neptuneRealm,
+	}
+}
+
+func getGremlin() backends.BackendArgs {
+	flavor := gremlin.JanusGraph
+	if strings.ToLower(flags.gremlinFlavor) == "neptune" {
+		flavor = gremlin.Neptune
+	} else if strings.ToLower(flags.gremlinFlavor) == "cosmosdb" {
+		flavor = gremlin.CosmosDB
 	}
 
-	sess, err := session.NewSession()
-	if err != nil {
-		return nil, err
+	return &gremlin.GremlinConfig{
+		Flavor:                flavor,
+		Url:                   flags.gremlinUrl,
+		MaxResultsPerQuery:    flags.gremlinMaxResultsPerQuery,
+		Username:              flags.gremlinUsername,
+		Password:              flags.gremlinPassword,
+		InsecureTLSSkipVerify: flags.gremlinInsecureTLSSkipVerify,
 	}
-
-	return v4.NewSigner(sess.Config.Credentials), nil
 }

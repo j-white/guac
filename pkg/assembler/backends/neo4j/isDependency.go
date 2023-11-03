@@ -44,11 +44,11 @@ func (c *neo4jClient) IsDependency(ctx context.Context, isDependencySpec *model.
 	selectedPkg := isDependencySpec.Package
 	var dependentPkg *model.PkgSpec = nil
 	depMatchOnlyEmptyQualifiers := false
-	if isDependencySpec.DependentPackage != nil {
+	if isDependencySpec.DependencyPackage != nil {
 		dependentPkg = &model.PkgSpec{
-			Type:      isDependencySpec.DependentPackage.Type,
-			Namespace: isDependencySpec.DependentPackage.Namespace,
-			Name:      isDependencySpec.DependentPackage.Name,
+			Type:      isDependencySpec.DependencyPackage.Type,
+			Namespace: isDependencySpec.DependencyPackage.Namespace,
+			Name:      isDependencySpec.DependencyPackage.Name,
 			// remove version, subpath and set qualifiers to empty list
 			Qualifiers: []*model.PackageQualifierSpec{},
 			// setting to default value of false as package version is not checked for dependent packages
@@ -112,12 +112,12 @@ func (c *neo4jClient) IsDependency(ctx context.Context, isDependencySpec *model.
 				}
 
 				isDependency := &model.IsDependency{
-					Package:          pkg,
-					DependentPackage: depPkg,
-					VersionRange:     isDependencyNode.Props[versionRange].(string),
-					DependencyType:   dependencyTypeEnum,
-					Origin:           isDependencyNode.Props[origin].(string),
-					Collector:        isDependencyNode.Props[collector].(string),
+					Package:           pkg,
+					DependencyPackage: depPkg,
+					VersionRange:      isDependencyNode.Props[versionRange].(string),
+					DependencyType:    dependencyTypeEnum,
+					Origin:            isDependencyNode.Props[origin].(string),
+					Collector:         isDependencyNode.Props[collector].(string),
 				}
 				collectedIsDependency = append(collectedIsDependency, isDependency)
 			}
@@ -159,15 +159,16 @@ func setIsDependencyValues(sb *strings.Builder, isDependencySpec *model.IsDepend
 
 // Ingest IngestDependencies
 
-func (c *neo4jClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
+func (c *neo4jClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
 	return []*model.IsDependency{}, fmt.Errorf("not implemented: IngestDependencies")
 }
 
 // Ingest IsDependency
 
-func (c *neo4jClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
+func (c *neo4jClient) IngestDependency(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
 	session := c.driver.NewSession(neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close()
+	// TODO: handle depPkgMatchType
 
 	var sb strings.Builder
 	var firstMatch bool = true
@@ -252,12 +253,12 @@ func (c *neo4jClient) IngestDependency(ctx context.Context, pkg model.PkgInputSp
 			}
 
 			isDependency := &model.IsDependency{
-				Package:          pkg,
-				DependentPackage: depPkg,
-				VersionRange:     isDependencyNode.Props[versionRange].(string),
-				DependencyType:   dependencyTypeEnum,
-				Origin:           isDependencyNode.Props[origin].(string),
-				Collector:        isDependencyNode.Props[collector].(string),
+				Package:           pkg,
+				DependencyPackage: depPkg,
+				VersionRange:      isDependencyNode.Props[versionRange].(string),
+				DependencyType:    dependencyTypeEnum,
+				Origin:            isDependencyNode.Props[origin].(string),
+				Collector:         isDependencyNode.Props[collector].(string),
 			}
 
 			return isDependency, nil

@@ -17,18 +17,25 @@ package arangodb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/arangodb/go-driver"
+	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
 func (c *arangoClient) HashEqual(ctx context.Context, hashEqualSpec *model.HashEqualSpec) ([]*model.HashEqual, error) {
-	if hashEqualSpec.Artifacts != nil && len(hashEqualSpec.Artifacts) > 2 {
-		return nil, fmt.Errorf("cannot specify more than 2 artifacts in HashEquals")
+
+	if hashEqualSpec != nil && hashEqualSpec.ID != nil {
+		he, err := c.buildHashEqualByID(ctx, *hashEqualSpec.ID, hashEqualSpec)
+		if err != nil {
+			return nil, fmt.Errorf("buildHashEqualByID failed with an error: %w", err)
+		}
+		return []*model.HashEqual{he}, nil
 	}
+
 	values := map[string]any{}
 	if hashEqualSpec.Artifacts != nil {
 		if len(hashEqualSpec.Artifacts) == 1 {
@@ -123,15 +130,13 @@ func getHashEqualForQuery(ctx context.Context, c *arangoClient, arangoQueryBuild
 				'origin': hashEqual.origin
 			}`)
 
-	fmt.Println(arangoQueryBuilder.string())
-
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "HashEqual")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query for HashEqual: %w", err)
 	}
 	defer cursor.Close()
 
-	return getHashEqual(ctx, cursor)
+	return getHashEqualFromCursor(ctx, cursor)
 }
 
 func setHashEqualMatchValues(arangoQueryBuilder *arangoQueryBuilder, hashEqualSpec *model.HashEqualSpec, queryValues map[string]any) {
@@ -141,24 +146,30 @@ func setHashEqualMatchValues(arangoQueryBuilder *arangoQueryBuilder, hashEqualSp
 	}
 	if hashEqualSpec.Justification != nil {
 		arangoQueryBuilder.filter("hashEqual", justification, "==", "@"+justification)
-		queryValues[justification] = hashEqualSpec.Justification
+		queryValues[justification] = *hashEqualSpec.Justification
 	}
 	if hashEqualSpec.Origin != nil {
 		arangoQueryBuilder.filter("hashEqual", origin, "==", "@"+origin)
-		queryValues[origin] = hashEqualSpec.Origin
+		queryValues[origin] = *hashEqualSpec.Origin
 	}
 	if hashEqualSpec.Collector != nil {
 		arangoQueryBuilder.filter("hashEqual", collector, "==", "@"+collector)
-		queryValues[collector] = hashEqualSpec.Collector
+		queryValues[collector] = *hashEqualSpec.Collector
 	}
 }
 
 func getHashEqualQueryValues(artifact *model.ArtifactInputSpec, equalArtifact *model.ArtifactInputSpec, hashEqual *model.HashEqualInputSpec) map[string]any {
+
+	artifacts := []model.ArtifactInputSpec{*artifact, *equalArtifact}
+	sort.SliceStable(artifacts, func(i, j int) bool {
+		return artifacts[i].Digest < artifacts[j].Digest
+	})
+
 	values := map[string]any{}
-	values["art_algorithm"] = strings.ToLower(artifact.Algorithm)
-	values["art_digest"] = strings.ToLower(artifact.Digest)
-	values["equal_algorithm"] = strings.ToLower(equalArtifact.Algorithm)
-	values["equal_digest"] = strings.ToLower(equalArtifact.Digest)
+	values["art_algorithm"] = strings.ToLower(artifacts[0].Algorithm)
+	values["art_digest"] = strings.ToLower(artifacts[0].Digest)
+	values["equal_algorithm"] = strings.ToLower(artifacts[1].Algorithm)
+	values["equal_digest"] = strings.ToLower(artifacts[1].Digest)
 	values["justification"] = strings.ToLower(hashEqual.Justification)
 	values["collector"] = strings.ToLower(hashEqual.Collector)
 	values["origin"] = strings.ToLower(hashEqual.Origin)
@@ -167,12 +178,6 @@ func getHashEqualQueryValues(artifact *model.ArtifactInputSpec, equalArtifact *m
 }
 
 func (c *arangoClient) IngestHashEquals(ctx context.Context, artifacts []*model.ArtifactInputSpec, otherArtifacts []*model.ArtifactInputSpec, hashEquals []*model.HashEqualInputSpec) ([]*model.HashEqual, error) {
-	if len(artifacts) != len(otherArtifacts) {
-		return nil, fmt.Errorf("uneven artifacts and other artifacts for ingestion")
-	} else if len(artifacts) != len(hashEquals) {
-		return nil, fmt.Errorf("uneven artifacts and hashEquals for ingestion")
-	}
-
 	var listOfValues []map[string]any
 
 	for i := range artifacts {
@@ -239,7 +244,7 @@ func (c *arangoClient) IngestHashEquals(ctx context.Context, artifacts []*model.
 	}
 	defer cursor.Close()
 
-	return getHashEqual(ctx, cursor)
+	return getHashEqualFromCursor(ctx, cursor)
 }
 
 func (c *arangoClient) IngestHashEqual(ctx context.Context, artifact model.ArtifactInputSpec, equalArtifact model.ArtifactInputSpec, hashEqual model.HashEqualInputSpec) (*model.HashEqual, error) {
@@ -279,7 +284,7 @@ RETURN {
 	}
 	defer cursor.Close()
 
-	hashEqualList, err := getHashEqual(ctx, cursor)
+	hashEqualList, err := getHashEqualFromCursor(ctx, cursor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hashEqual from arango cursor: %w", err)
 	}
@@ -291,11 +296,11 @@ RETURN {
 	}
 }
 
-func getHashEqual(ctx context.Context, cursor driver.Cursor) ([]*model.HashEqual, error) {
+func getHashEqualFromCursor(ctx context.Context, cursor driver.Cursor) ([]*model.HashEqual, error) {
 	type collectedData struct {
 		Artifact      *model.Artifact `json:"artifact"`
 		EqualArtifact *model.Artifact `json:"equalArtifact"`
-		HashEqualId   string          `json:"hashEqual"`
+		HashEqualId   string          `json:"hashEqual_id"`
 		Justification string          `json:"justification"`
 		Collector     string          `json:"collector"`
 		Origin        string          `json:"origin"`
@@ -322,10 +327,143 @@ func getHashEqual(ctx context.Context, cursor driver.Cursor) ([]*model.HashEqual
 			ID:            createdValue.HashEqualId,
 			Artifacts:     []*model.Artifact{createdValue.Artifact, createdValue.EqualArtifact},
 			Justification: createdValue.Justification,
-			Origin:        createdValue.Collector,
-			Collector:     createdValue.Origin,
+			Origin:        createdValue.Origin,
+			Collector:     createdValue.Collector,
 		}
 		hashEqualList = append(hashEqualList, hashEqual)
 	}
 	return hashEqualList, nil
+}
+
+func (c *arangoClient) buildHashEqualByID(ctx context.Context, id string, filter *model.HashEqualSpec) (*model.HashEqual, error) {
+	if filter != nil && filter.ID != nil {
+		if *filter.ID != id {
+			return nil, fmt.Errorf("ID does not match filter")
+		}
+	}
+
+	idSplit := strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	if idSplit[0] == hashEqualsStr {
+		if filter != nil {
+			filter.ID = ptrfrom.String(id)
+		} else {
+			filter = &model.HashEqualSpec{
+				ID: ptrfrom.String(id),
+			}
+		}
+		return c.queryHashEqualNodeByID(ctx, filter)
+	} else {
+		return nil, fmt.Errorf("id type does not match for hashEqual query: %s", id)
+	}
+}
+
+func (c *arangoClient) queryHashEqualNodeByID(ctx context.Context, filter *model.HashEqualSpec) (*model.HashEqual, error) {
+	values := map[string]any{}
+	arangoQueryBuilder := newForQuery(hashEqualsStr, "hashEqual")
+	setHashEqualMatchValues(arangoQueryBuilder, filter, values)
+	arangoQueryBuilder.query.WriteString("\n")
+	arangoQueryBuilder.query.WriteString(`RETURN hashEqual`)
+
+	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "queryHashEqualNodeByID")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for hashEqual: %w, values: %v", err, values)
+	}
+	defer cursor.Close()
+
+	type dbHashEqual struct {
+		HashEqualID     string `json:"_id"`
+		ArtifactID      string `json:"artifactID"`
+		EqualArtifactID string `json:"equalArtifactID"`
+		Justification   string `json:"justification"`
+		Collector       string `json:"collector"`
+		Origin          string `json:"origin"`
+	}
+
+	var collectedValues []dbHashEqual
+	for {
+		var doc dbHashEqual
+		_, err := cursor.ReadDocument(ctx, &doc)
+		if err != nil {
+			if driver.IsNoMoreDocuments(err) {
+				break
+			} else {
+				return nil, fmt.Errorf("failed to hashEqual from cursor: %w", err)
+			}
+		} else {
+			collectedValues = append(collectedValues, doc)
+		}
+	}
+
+	if len(collectedValues) != 1 {
+		return nil, fmt.Errorf("number of hashEqual nodes found for ID: %s is greater than one", *filter.ID)
+	}
+
+	hashEqual := &model.HashEqual{
+		ID:            collectedValues[0].HashEqualID,
+		Justification: collectedValues[0].Justification,
+		Origin:        collectedValues[0].Origin,
+		Collector:     collectedValues[0].Collector,
+	}
+
+	builtArtifact, err := c.buildArtifactResponseByID(ctx, collectedValues[0].ArtifactID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get artifact from ID: %s, with error: %w", collectedValues[0].ArtifactID, err)
+	}
+	hashEqual.Artifacts = append(hashEqual.Artifacts, builtArtifact)
+
+	builtEqualArtifact, err := c.buildArtifactResponseByID(ctx, collectedValues[0].EqualArtifactID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get equal artifact from ID: %s, with error: %w", collectedValues[0].EqualArtifactID, err)
+	}
+	hashEqual.Artifacts = append(hashEqual.Artifacts, builtEqualArtifact)
+
+	return hashEqual, nil
+}
+
+func (c *arangoClient) hashEqualNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := []string{}
+	if allowedEdges[model.EdgeHashEqualArtifact] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(hashEqualsStr, "hashEqual")
+		setHashEqualMatchValues(arangoQueryBuilder, &model.HashEqualSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { artifactID:  hashEqual.artifactID, equalArtifactID: hashEqual.equalArtifactID }")
+
+		cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "getNeighborIDFromCursor - hashEqualNeighbors")
+		if err != nil {
+			return nil, fmt.Errorf("failed to query for Neighbors for %s with error: %w", "hashEqualNeighbors", err)
+		}
+		defer cursor.Close()
+
+		type dbHashEqualNeighbor struct {
+			ArtifactID      string `json:"artifactID"`
+			EqualArtifactID string `json:"equalArtifactID"`
+		}
+
+		var foundNeighbors []dbHashEqualNeighbor
+		for {
+			var doc dbHashEqualNeighbor
+			_, err := cursor.ReadDocument(ctx, &doc)
+			if err != nil {
+				if driver.IsNoMoreDocuments(err) {
+					break
+				} else {
+					return nil, fmt.Errorf("failed to get neighbor id from cursor for %s with error: %w", "hashEqualNeighbors", err)
+				}
+			} else {
+				foundNeighbors = append(foundNeighbors, doc)
+			}
+		}
+
+		var foundIDs []string
+		for _, foundNeighbor := range foundNeighbors {
+			foundIDs = append(foundIDs, foundNeighbor.ArtifactID)
+			foundIDs = append(foundIDs, foundNeighbor.EqualArtifactID)
+		}
+		out = append(out, foundIDs...)
+	}
+	return out, nil
 }

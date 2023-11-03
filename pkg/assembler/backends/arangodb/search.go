@@ -31,7 +31,9 @@ func (c *arangoClient) FindSoftware(ctx context.Context, searchText string) ([]m
 	query := `
 
 FOR doc in GuacSearch
-SEARCH PHRASE(doc.guacKey, @searchText, "text_en") || PHRASE(doc.guacKey, @searchText, "customgram") || doc.digest == @searchText
+SEARCH PHRASE(doc.guacKey, @searchText, "text_en") || PHRASE(doc.guacKey, @searchText, "customgram") || 
+	PHRASE(doc.version, @searchText, "text_en") || PHRASE(doc.version, @searchText, "customgram") ||
+	doc.digest == @searchText 
 
 LET parsedDoc =
     IS_SAME_COLLECTION(doc, "pkgNames") ?
@@ -176,7 +178,7 @@ RETURN {
 				if p == nil {
 					return nil, fmt.Errorf("failed to parse result of pkgVersion, got nil when expected non-nil")
 				}
-				pkg := generateModelPackage(p.TypeID, p.PkgType, p.NamespaceID, p.Namespace, p.NameID, p.Name, &p.VersionID, &p.Version, &p.Subpath, p.QualifierList)
+				pkg := generateModelPackage(p.TypeID, p.PkgType, p.NamespaceID, p.Namespace, p.NameID, p.Name, p.VersionID, p.Version, p.Subpath, p.QualifierList)
 				results = append(results, pkg)
 			case "pkgName":
 				p := d.PkgName

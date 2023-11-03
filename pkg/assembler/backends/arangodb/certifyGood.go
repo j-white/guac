@@ -17,15 +17,25 @@ package arangodb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/arangodb/go-driver"
+	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
 func (c *arangoClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {
+
+	if certifyGoodSpec != nil && certifyGoodSpec.ID != nil {
+		cg, err := c.buildCertifyGoodByID(ctx, *certifyGoodSpec.ID, certifyGoodSpec)
+		if err != nil {
+			return nil, fmt.Errorf("buildCertifyGoodByID failed with an error: %w", err)
+		}
+		return []*model.CertifyGood{cg}, nil
+	}
+
 	var arangoQueryBuilder *arangoQueryBuilder
 	if certifyGoodSpec.Subject != nil {
 		var combinedCertifyGood []*model.CertifyGood
@@ -36,24 +46,27 @@ func (c *arangoClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.C
 			arangoQueryBuilder.forOutBound(certifyGoodPkgVersionEdgesStr, "certifyGood", "pVersion")
 			setCertifyGoodMatchValues(arangoQueryBuilder, certifyGoodSpec, values)
 
-			pkgVersionCertifyGoods, err := getPkgVersionCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values)
+			pkgVersionCertifyGoods, err := getPkgCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values, true)
 			if err != nil {
 				return nil, fmt.Errorf("failed to retrieve package version certifyGood with error: %w", err)
 			}
 
 			combinedCertifyGood = append(combinedCertifyGood, pkgVersionCertifyGoods...)
 
-			// pkgName certifyGood
-			arangoQueryBuilder = setPkgNameMatchValues(certifyGoodSpec.Subject.Package, values)
-			arangoQueryBuilder.forOutBound(certifyGoodPkgNameEdgesStr, "certifyGood", "pName")
-			setCertifyGoodMatchValues(arangoQueryBuilder, certifyGoodSpec, values)
+			if certifyGoodSpec.Subject.Package.ID == nil {
+				// pkgName certifyGood
+				values = map[string]any{}
+				arangoQueryBuilder = setPkgNameMatchValues(certifyGoodSpec.Subject.Package, values)
+				arangoQueryBuilder.forOutBound(certifyGoodPkgNameEdgesStr, "certifyGood", "pName")
+				setCertifyGoodMatchValues(arangoQueryBuilder, certifyGoodSpec, values)
 
-			pkgNameCertifyGoods, err := getPkgNameCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values)
-			if err != nil {
-				return nil, fmt.Errorf("failed to retrieve package name certifyGood with error: %w", err)
+				pkgNameCertifyGoods, err := getPkgCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values, false)
+				if err != nil {
+					return nil, fmt.Errorf("failed to retrieve package name certifyGood with error: %w", err)
+				}
+
+				combinedCertifyGood = append(combinedCertifyGood, pkgNameCertifyGoods...)
 			}
-
-			combinedCertifyGood = append(combinedCertifyGood, pkgNameCertifyGoods...)
 		}
 		if certifyGoodSpec.Subject.Source != nil {
 			values := map[string]any{}
@@ -94,26 +107,28 @@ func (c *arangoClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.C
 		arangoQueryBuilder.forInBound(pkgHasNameStr, "pNs", "pName")
 		arangoQueryBuilder.forInBound(pkgHasNamespaceStr, "pType", "pNs")
 
-		pkgVersionCertifyGoods, err := getPkgVersionCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values)
+		pkgVersionCertifyGoods, err := getPkgCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values, true)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve package version certifyGood  with error: %w", err)
 		}
 		combinedCertifyGood = append(combinedCertifyGood, pkgVersionCertifyGoods...)
 
 		// pkgName certifyGood
+		values = map[string]any{}
 		arangoQueryBuilder = newForQuery(certifyGoodsStr, "certifyGood")
 		setCertifyGoodMatchValues(arangoQueryBuilder, certifyGoodSpec, values)
 		arangoQueryBuilder.forInBound(certifyGoodPkgNameEdgesStr, "pName", "certifyGood")
 		arangoQueryBuilder.forInBound(pkgHasNameStr, "pNs", "pName")
 		arangoQueryBuilder.forInBound(pkgHasNamespaceStr, "pType", "pNs")
 
-		pkgNameCertifyGoods, err := getPkgNameCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values)
+		pkgNameCertifyGoods, err := getPkgCertifyGoodForQuery(ctx, c, arangoQueryBuilder, values, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve package name certifyGood  with error: %w", err)
 		}
 		combinedCertifyGood = append(combinedCertifyGood, pkgNameCertifyGoods...)
 
 		// get sources
+		values = map[string]any{}
 		arangoQueryBuilder = newForQuery(certifyGoodsStr, "certifyGood")
 		setCertifyGoodMatchValues(arangoQueryBuilder, certifyGoodSpec, values)
 		arangoQueryBuilder.forInBound(certifyGoodSrcEdgesStr, "sName", "certifyGood")
@@ -127,6 +142,7 @@ func (c *arangoClient) CertifyGood(ctx context.Context, certifyGoodSpec *model.C
 		combinedCertifyGood = append(combinedCertifyGood, srcCertifyGoods...)
 
 		// get artifacts
+		values = map[string]any{}
 		arangoQueryBuilder = newForQuery(certifyGoodsStr, "certifyGood")
 		setCertifyGoodMatchValues(arangoQueryBuilder, certifyGoodSpec, values)
 		arangoQueryBuilder.forInBound(certifyGoodArtEdgesStr, "art", "certifyGood")
@@ -157,10 +173,9 @@ func getSrcCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQuery
 		'certifyGood_id': certifyGood._id,
 		'justification': certifyGood.justification,
 		'collector': certifyGood.collector,
+		'knownSince': certifyGood.knownSince,
 		'origin': certifyGood.origin
 	  }`)
-
-	fmt.Println(arangoQueryBuilder.string())
 
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "certifyGood")
 	if err != nil {
@@ -168,7 +183,7 @@ func getSrcCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQuery
 	}
 	defer cursor.Close()
 
-	return getSourceCertifyGood(ctx, cursor)
+	return getCertifyGoodFromCursor(ctx, cursor)
 }
 
 func getArtCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQueryBuilder *arangoQueryBuilder, values map[string]any) ([]*model.CertifyGood, error) {
@@ -182,10 +197,9 @@ func getArtCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQuery
 		'certifyGood_id': certifyGood._id,
 		'justification': certifyGood.justification,
 		'collector': certifyGood.collector,
+		'knownSince': certifyGood.knownSince,
 		'origin': certifyGood.origin
 	  }`)
-
-	fmt.Println(arangoQueryBuilder.string())
 
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "certifyGood")
 	if err != nil {
@@ -193,27 +207,50 @@ func getArtCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQuery
 	}
 	defer cursor.Close()
 
-	return getArtifactCertifyGood(ctx, cursor)
+	return getCertifyGoodFromCursor(ctx, cursor)
 }
 
-func getPkgNameCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQueryBuilder *arangoQueryBuilder, values map[string]any) ([]*model.CertifyGood, error) {
-	arangoQueryBuilder.query.WriteString("\n")
-	arangoQueryBuilder.query.WriteString(`RETURN {
-		'pkgName': {
-			'type_id': pType._id,
-			'type': pType.type,
-			'namespace_id': pNs._id,
-			'namespace': pNs.namespace,
-			'name_id': pName._id,
-			'name': pName.name
-		},
-		'certifyGood_id': certifyGood._id,
-		'justification': certifyGood.justification,
-		'collector': certifyGood.collector,
-		'origin': certifyGood.origin
-	  }`)
+func getPkgCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQueryBuilder *arangoQueryBuilder, values map[string]any, includeDepPkgVersion bool) ([]*model.CertifyGood, error) {
+	if includeDepPkgVersion {
+		arangoQueryBuilder.query.WriteString("\n")
+		arangoQueryBuilder.query.WriteString(`RETURN {
+			'pkgVersion': {
+				'type_id': pType._id,
+				'type': pType.type,
+				'namespace_id': pNs._id,
+				'namespace': pNs.namespace,
+				'name_id': pName._id,
+				'name': pName.name,
+				'version_id': pVersion._id,
+				'version': pVersion.version,
+				'subpath': pVersion.subpath,
+				'qualifier_list': pVersion.qualifier_list
+			},
+			'certifyGood_id': certifyGood._id,
+			'justification': certifyGood.justification,
+			'collector': certifyGood.collector,
+			'knownSince': certifyGood.knownSince,
+			'origin': certifyGood.origin
+		  }`)
 
-	fmt.Println(arangoQueryBuilder.string())
+	} else {
+		arangoQueryBuilder.query.WriteString("\n")
+		arangoQueryBuilder.query.WriteString(`RETURN {
+			'pkgVersion': {
+				'type_id': pType._id,
+				'type': pType.type,
+				'namespace_id': pNs._id,
+				'namespace': pNs.namespace,
+				'name_id': pName._id,
+				'name': pName.name
+			},
+			'certifyGood_id': certifyGood._id,
+			'justification': certifyGood.justification,
+			'collector': certifyGood.collector,
+			'knownSince': certifyGood.knownSince,
+			'origin': certifyGood.origin
+		  }`)
+	}
 
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "certifyGood")
 	if err != nil {
@@ -221,39 +258,7 @@ func getPkgNameCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQ
 	}
 	defer cursor.Close()
 
-	return getPkgNameCertifyGood(ctx, cursor)
-}
-
-func getPkgVersionCertifyGoodForQuery(ctx context.Context, c *arangoClient, arangoQueryBuilder *arangoQueryBuilder, values map[string]any) ([]*model.CertifyGood, error) {
-	arangoQueryBuilder.query.WriteString("\n")
-	arangoQueryBuilder.query.WriteString(`RETURN {
-		'pkgVersion': {
-			'type_id': pType._id,
-			'type': pType.type,
-			'namespace_id': pNs._id,
-			'namespace': pNs.namespace,
-			'name_id': pName._id,
-			'name': pName.name,
-			'version_id': pVersion._id,
-			'version': pVersion.version,
-			'subpath': pVersion.subpath,
-			'qualifier_list': pVersion.qualifier_list
-		},
-		'certifyGood_id': certifyGood._id,
-		'justification': certifyGood.justification,
-		'collector': certifyGood.collector,
-		'origin': certifyGood.origin
-	  }`)
-
-	fmt.Println(arangoQueryBuilder.string())
-
-	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "CertifyGood")
-	if err != nil {
-		return nil, fmt.Errorf("failed to query for CertifyGood: %w", err)
-	}
-	defer cursor.Close()
-
-	return getPkgVersionCertifyGood(ctx, cursor)
+	return getCertifyGoodFromCursor(ctx, cursor)
 }
 
 func setCertifyGoodMatchValues(arangoQueryBuilder *arangoQueryBuilder, certifyGoodSpec *model.CertifyGoodSpec, queryValues map[string]any) {
@@ -263,15 +268,20 @@ func setCertifyGoodMatchValues(arangoQueryBuilder *arangoQueryBuilder, certifyGo
 	}
 	if certifyGoodSpec.Justification != nil {
 		arangoQueryBuilder.filter("certifyGood", justification, "==", "@"+justification)
-		queryValues[justification] = certifyGoodSpec.Justification
+		queryValues[justification] = *certifyGoodSpec.Justification
 	}
 	if certifyGoodSpec.Origin != nil {
 		arangoQueryBuilder.filter("certifyGood", origin, "==", "@"+origin)
-		queryValues[origin] = certifyGoodSpec.Origin
+		queryValues[origin] = *certifyGoodSpec.Origin
 	}
 	if certifyGoodSpec.Collector != nil {
 		arangoQueryBuilder.filter("certifyGood", collector, "==", "@"+collector)
-		queryValues[collector] = certifyGoodSpec.Collector
+		queryValues[collector] = *certifyGoodSpec.Collector
+	}
+	if certifyGoodSpec.KnownSince != nil {
+		certifyGoodKnownSince := *certifyGoodSpec.KnownSince
+		arangoQueryBuilder.filter("certifyGood", "knownSince", ">=", "@"+knownSince)
+		queryValues[knownSince] = certifyGoodKnownSince.UTC()
 	}
 }
 
@@ -296,6 +306,7 @@ func getCertifyGoodQueryValues(pkg *model.PkgInputSpec, pkgMatchType *model.Matc
 	values["justification"] = certifyGood.Justification
 	values["origin"] = certifyGood.Origin
 	values["collector"] = certifyGood.Collector
+	values["knownSince"] = certifyGood.KnownSince.UTC()
 
 	return values
 }
@@ -330,8 +341,8 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 		)
 
 		  LET certifyGood = FIRST(
-			  UPSERT {  packageID:firstPkg.version_id, justification:@justification, collector:@collector, origin:@origin }
-				  INSERT {  packageID:firstPkg.version_id, justification:@justification, collector:@collector, origin:@origin }
+			  UPSERT {  packageID:firstPkg.version_id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
+				  INSERT {  packageID:firstPkg.version_id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
 				  UPDATE {} IN certifyGoods
 				  RETURN NEW
 		  )
@@ -356,6 +367,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			'certifyGood_id': certifyGood._id,
 			'justification': certifyGood.justification,
 			'collector': certifyGood.collector,
+			'knownSince': certifyGood.knownSince,
 			'origin': certifyGood.origin
 		  }`
 
@@ -365,7 +377,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			}
 			defer cursor.Close()
 
-			certifyGoodList, err := getPkgVersionCertifyGood(ctx, cursor)
+			certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 			}
@@ -397,8 +409,8 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			)
 
 			  LET certifyGood = FIRST(
-				  UPSERT {  packageID:firstPkg.name_id, justification:@justification, collector:@collector, origin:@origin }
-					  INSERT {  packageID:firstPkg.name_id, justification:@justification, collector:@collector, origin:@origin }
+				  UPSERT {  packageID:firstPkg.name_id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
+					  INSERT {  packageID:firstPkg.name_id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
 					  UPDATE {} IN certifyGoods
 					  RETURN NEW
 			  )
@@ -408,7 +420,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			  )
 
 			  RETURN {
-				'pkgName': {
+				'pkgVersion': {
 					'type_id': firstPkg.typeID,
 					'type': firstPkg.type,
 					'namespace_id': firstPkg.namespace_id,
@@ -419,6 +431,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 				'certifyGood_id': certifyGood._id,
 				'justification': certifyGood.justification,
 				'collector': certifyGood.collector,
+				'knownSince': certifyGood.knownSince,
 				'origin': certifyGood.origin
 			  }`
 
@@ -428,7 +441,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			}
 			defer cursor.Close()
 
-			certifyGoodList, err := getPkgNameCertifyGood(ctx, cursor)
+			certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 			}
@@ -444,8 +457,8 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 		query := `LET artifact = FIRST(FOR art IN artifacts FILTER art.algorithm == @art_algorithm FILTER art.digest == @art_digest RETURN art)
 
 		LET certifyGood = FIRST(
-			UPSERT { artifactID:artifact._id, justification:@justification, collector:@collector, origin:@origin }
-				INSERT { artifactID:artifact._id, justification:@justification, collector:@collector, origin:@origin }
+			UPSERT { artifactID:artifact._id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
+				INSERT { artifactID:artifact._id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
 				UPDATE {} IN certifyGoods
 				RETURN NEW
 		)
@@ -463,6 +476,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 		  'certifyGood_id': certifyGood._id,
 		  'justification': certifyGood.justification,
 		  'collector': certifyGood.collector,
+		  'knownSince': certifyGood.knownSince,
 		  'origin': certifyGood.origin
 		}`
 
@@ -471,7 +485,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			return nil, fmt.Errorf("failed to ingest artifact certifyGood: %w", err)
 		}
 		defer cursor.Close()
-		certifyGoodList, err := getArtifactCertifyGood(ctx, cursor)
+		certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 		}
@@ -506,8 +520,8 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 		)
 
 		LET certifyGood = FIRST(
-			UPSERT { sourceID:firstSrc.name_id, justification:@justification, collector:@collector, origin:@origin }
-				INSERT { sourceID:firstSrc.name_id, justification:@justification, collector:@collector, origin:@origin }
+			UPSERT { sourceID:firstSrc.name_id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
+				INSERT { sourceID:firstSrc.name_id, justification:@justification, collector:@collector, origin:@origin, knownSince:@knownSince }
 				UPDATE {} IN certifyGoods
 				RETURN NEW
 		)
@@ -530,6 +544,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 		  'certifyGood_id': certifyGood._id,
 		  'justification': certifyGood.justification,
 		  'collector': certifyGood.collector,
+		  'knownSince': certifyGood.knownSince,
 		  'origin': certifyGood.origin
 		}`
 
@@ -538,7 +553,7 @@ func (c *arangoClient) IngestCertifyGood(ctx context.Context, subject model.Pack
 			return nil, fmt.Errorf("failed to ingest source certifyGood: %w", err)
 		}
 		defer cursor.Close()
-		certifyGoodList, err := getSourceCertifyGood(ctx, cursor)
+		certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 		}
@@ -616,8 +631,8 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 		)
 		  
 		  LET certifyGood = FIRST(
-			  UPSERT {  packageID:firstPkg.version_id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
-				  INSERT {  packageID:firstPkg.version_id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
+			  UPSERT {  packageID:firstPkg.version_id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
+				  INSERT {  packageID:firstPkg.version_id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
 				  UPDATE {} IN certifyGoods
 				  RETURN NEW
 		  )
@@ -642,6 +657,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			'certifyGood_id': certifyGood._id,
 			'justification': certifyGood.justification,
 			'collector': certifyGood.collector,
+			'knownSince': certifyGood.knownSince,
 			'origin': certifyGood.origin  
 		  }`
 
@@ -653,7 +669,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			}
 			defer cursor.Close()
 
-			certifyGoodList, err := getPkgVersionCertifyGood(ctx, cursor)
+			certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 			}
@@ -681,8 +697,8 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			)
 			  
 			  LET certifyGood = FIRST(
-				  UPSERT {  packageID:firstPkg.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
-					  INSERT {  packageID:firstPkg.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
+				  UPSERT {  packageID:firstPkg.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
+					  INSERT {  packageID:firstPkg.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
 					  UPDATE {} IN certifyGoods
 					  RETURN NEW
 			  )
@@ -692,7 +708,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			  )
 			  
 			  RETURN {
-				'pkgName': {
+				'pkgVersion': {
 					'type_id': firstPkg.typeID,
 					'type': firstPkg.type,
 					'namespace_id': firstPkg.namespace_id,
@@ -703,6 +719,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 				'certifyGood_id': certifyGood._id,
 				'justification': certifyGood.justification,
 				'collector': certifyGood.collector,
+				'knownSince': certifyGood.knownSince,
 				'origin': certifyGood.origin  
 			  }`
 
@@ -714,7 +731,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			}
 			defer cursor.Close()
 
-			certifyGoodList, err := getPkgNameCertifyGood(ctx, cursor)
+			certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 			}
@@ -759,8 +776,8 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 		query := `LET artifact = FIRST(FOR art IN artifacts FILTER art.algorithm == doc.art_algorithm FILTER art.digest == doc.art_digest RETURN art)
 		  
 		LET certifyGood = FIRST(
-			UPSERT { artifactID:artifact._id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
-				INSERT { artifactID:artifact._id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
+			UPSERT { artifactID:artifact._id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
+				INSERT { artifactID:artifact._id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
 				UPDATE {} IN certifyGoods
 				RETURN NEW
 		)
@@ -778,6 +795,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 		  'certifyGood_id': certifyGood._id,
 		  'justification': certifyGood.justification,
 		  'collector': certifyGood.collector,
+		  'knownSince': certifyGood.knownSince,
 		  'origin': certifyGood.origin
 		}`
 
@@ -788,7 +806,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			return nil, fmt.Errorf("failed to ingest artifact certifyGoods %w", err)
 		}
 		defer cursor.Close()
-		certifyGoodList, err := getArtifactCertifyGood(ctx, cursor)
+		certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 		}
@@ -852,8 +870,8 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 		)
 		  
 		LET certifyGood = FIRST(
-			UPSERT { sourceID:firstSrc.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
-				INSERT { sourceID:firstSrc.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin } 
+			UPSERT { sourceID:firstSrc.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
+				INSERT { sourceID:firstSrc.name_id, justification:doc.justification, collector:doc.collector, origin:doc.origin, knownSince:doc.knownSince } 
 				UPDATE {} IN certifyGoods
 				RETURN NEW
 		)
@@ -876,6 +894,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 		  'certifyGood_id': certifyGood._id,
 		  'justification': certifyGood.justification,
 		  'collector': certifyGood.collector,
+		  'knownSince': certifyGood.knownSince,
 		  'origin': certifyGood.origin
 		}`
 
@@ -886,7 +905,7 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 			return nil, fmt.Errorf("failed to ingest source certifyGoods: %w", err)
 		}
 		defer cursor.Close()
-		certifyGoodList, err := getSourceCertifyGood(ctx, cursor)
+		certifyGoodList, err := getCertifyGoodFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get certifyGoods from arango cursor: %w", err)
 		}
@@ -898,94 +917,15 @@ func (c *arangoClient) IngestCertifyGoods(ctx context.Context, subjects model.Pa
 	}
 }
 
-func getPkgNameCertifyGood(ctx context.Context, cursor driver.Cursor) ([]*model.CertifyGood, error) {
+func getCertifyGoodFromCursor(ctx context.Context, cursor driver.Cursor) ([]*model.CertifyGood, error) {
 	type collectedData struct {
-		PkgName       *dbPkgName `json:"pkgName"`
-		CertifyGoodID string     `json:"certifyGood_id"`
-		Justification string     `json:"justification"`
-		Collector     string     `json:"collector"`
-		Origin        string     `json:"origin"`
-	}
-
-	var createdValues []collectedData
-	for {
-		var doc collectedData
-		_, err := cursor.ReadDocument(ctx, &doc)
-		if err != nil {
-			if driver.IsNoMoreDocuments(err) {
-				break
-			} else {
-				return nil, fmt.Errorf("failed to package name certifyGood from cursor: %w", err)
-			}
-		} else {
-			createdValues = append(createdValues, doc)
-		}
-	}
-
-	var certifyGoodList []*model.CertifyGood
-	for _, createdValue := range createdValues {
-		pkg := generateModelPackage(createdValue.PkgName.TypeID, createdValue.PkgName.PkgType, createdValue.PkgName.NamespaceID, createdValue.PkgName.Namespace, createdValue.PkgName.NameID,
-			createdValue.PkgName.Name, nil, nil, nil, nil)
-
-		certifyGood := &model.CertifyGood{
-			ID:            createdValue.CertifyGoodID,
-			Subject:       pkg,
-			Justification: createdValue.Justification,
-			Origin:        createdValue.Collector,
-			Collector:     createdValue.Origin,
-		}
-		certifyGoodList = append(certifyGoodList, certifyGood)
-	}
-	return certifyGoodList, nil
-}
-
-func getPkgVersionCertifyGood(ctx context.Context, cursor driver.Cursor) ([]*model.CertifyGood, error) {
-	type collectedData struct {
-		PkgVersion    *dbPkgVersion `json:"pkgVersion"`
-		CertifyGoodID string        `json:"certifyGood_id"`
-		Justification string        `json:"justification"`
-		Collector     string        `json:"collector"`
-		Origin        string        `json:"origin"`
-	}
-
-	var createdValues []collectedData
-	for {
-		var doc collectedData
-		_, err := cursor.ReadDocument(ctx, &doc)
-		if err != nil {
-			if driver.IsNoMoreDocuments(err) {
-				break
-			} else {
-				return nil, fmt.Errorf("failed to package version certifyGood from cursor: %w", err)
-			}
-		} else {
-			createdValues = append(createdValues, doc)
-		}
-	}
-
-	var certifyGoodList []*model.CertifyGood
-	for _, createdValue := range createdValues {
-		pkg := generateModelPackage(createdValue.PkgVersion.TypeID, createdValue.PkgVersion.PkgType, createdValue.PkgVersion.NamespaceID, createdValue.PkgVersion.Namespace, createdValue.PkgVersion.NameID,
-			createdValue.PkgVersion.Name, &createdValue.PkgVersion.VersionID, &createdValue.PkgVersion.Version, &createdValue.PkgVersion.Subpath, createdValue.PkgVersion.QualifierList)
-
-		certifyGood := &model.CertifyGood{
-			ID:            createdValue.CertifyGoodID,
-			Subject:       pkg,
-			Justification: createdValue.Justification,
-			Origin:        createdValue.Collector,
-			Collector:     createdValue.Origin,
-		}
-		certifyGoodList = append(certifyGoodList, certifyGood)
-	}
-	return certifyGoodList, nil
-}
-
-func getArtifactCertifyGood(ctx context.Context, cursor driver.Cursor) ([]*model.CertifyGood, error) {
-	type collectedData struct {
+		PkgVersion    *dbPkgVersion   `json:"pkgVersion"`
 		Artifact      *model.Artifact `json:"artifact"`
+		SrcName       *dbSrcName      `json:"srcName"`
 		CertifyGoodID string          `json:"certifyGood_id"`
 		Justification string          `json:"justification"`
 		Collector     string          `json:"collector"`
+		KnownSince    time.Time       `json:"knownSince"`
 		Origin        string          `json:"origin"`
 	}
 
@@ -997,7 +937,7 @@ func getArtifactCertifyGood(ctx context.Context, cursor driver.Cursor) ([]*model
 			if driver.IsNoMoreDocuments(err) {
 				break
 			} else {
-				return nil, fmt.Errorf("failed to artifact certifyGood from cursor: %w", err)
+				return nil, fmt.Errorf("failed to package certifyGood from cursor: %w", err)
 			}
 		} else {
 			createdValues = append(createdValues, doc)
@@ -1006,56 +946,197 @@ func getArtifactCertifyGood(ctx context.Context, cursor driver.Cursor) ([]*model
 
 	var certifyGoodList []*model.CertifyGood
 	for _, createdValue := range createdValues {
+		var pkg *model.Package = nil
+		var src *model.Source = nil
+		if createdValue.PkgVersion != nil {
+			pkg = generateModelPackage(createdValue.PkgVersion.TypeID, createdValue.PkgVersion.PkgType, createdValue.PkgVersion.NamespaceID, createdValue.PkgVersion.Namespace, createdValue.PkgVersion.NameID,
+				createdValue.PkgVersion.Name, createdValue.PkgVersion.VersionID, createdValue.PkgVersion.Version, createdValue.PkgVersion.Subpath, createdValue.PkgVersion.QualifierList)
+		} else if createdValue.SrcName != nil {
+			src = generateModelSource(createdValue.SrcName.TypeID, createdValue.SrcName.SrcType, createdValue.SrcName.NamespaceID, createdValue.SrcName.Namespace,
+				createdValue.SrcName.NameID, createdValue.SrcName.Name, createdValue.SrcName.Commit, createdValue.SrcName.Tag)
+		}
 		certifyGood := &model.CertifyGood{
 			ID:            createdValue.CertifyGoodID,
-			Subject:       createdValue.Artifact,
 			Justification: createdValue.Justification,
 			Origin:        createdValue.Collector,
 			Collector:     createdValue.Origin,
+			KnownSince:    createdValue.KnownSince,
+		}
+		if pkg != nil {
+			certifyGood.Subject = pkg
+		} else if src != nil {
+			certifyGood.Subject = src
+		} else if createdValue.Artifact != nil {
+			certifyGood.Subject = createdValue.Artifact
+		} else {
+			return nil, fmt.Errorf("failed to get subject from cursor for certifyGood")
 		}
 		certifyGoodList = append(certifyGoodList, certifyGood)
 	}
 	return certifyGoodList, nil
 }
 
-func getSourceCertifyGood(ctx context.Context, cursor driver.Cursor) ([]*model.CertifyGood, error) {
-	type collectedData struct {
-		SrcName       *dbSrcName `json:"srcName"`
-		CertifyGoodID string     `json:"certifyGood_id"`
-		Justification string     `json:"justification"`
-		Collector     string     `json:"collector"`
-		Origin        string     `json:"origin"`
+func (c *arangoClient) buildCertifyGoodByID(ctx context.Context, id string, filter *model.CertifyGoodSpec) (*model.CertifyGood, error) {
+	if filter != nil && filter.ID != nil {
+		if *filter.ID != id {
+			return nil, fmt.Errorf("ID does not match filter")
+		}
 	}
 
-	var createdValues []collectedData
+	idSplit := strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	if idSplit[0] == certifyGoodsStr {
+		if filter != nil {
+			filter.ID = ptrfrom.String(id)
+		} else {
+			filter = &model.CertifyGoodSpec{
+				ID: ptrfrom.String(id),
+			}
+		}
+		return c.queryCertifyGoodNodeByID(ctx, filter)
+	} else {
+		return nil, fmt.Errorf("id type does not match for certifyGood query: %s", id)
+	}
+}
+
+func (c *arangoClient) queryCertifyGoodNodeByID(ctx context.Context, filter *model.CertifyGoodSpec) (*model.CertifyGood, error) {
+	values := map[string]any{}
+	arangoQueryBuilder := newForQuery(certifyGoodsStr, "certifyGood")
+	setCertifyGoodMatchValues(arangoQueryBuilder, filter, values)
+	arangoQueryBuilder.query.WriteString("\n")
+	arangoQueryBuilder.query.WriteString(`RETURN certifyGood`)
+
+	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "queryCertifyGoodNodeByID")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for certifyGood: %w, values: %v", err, values)
+	}
+	defer cursor.Close()
+
+	type dbCertifyGood struct {
+		CertifyGoodID string  `json:"_id"`
+		PackageID     *string `json:"packageID"`
+		SourceID      *string `json:"sourceID"`
+		ArtifactID    *string `json:"artifactID"`
+		Justification string  `json:"justification"`
+		Collector     string  `json:"collector"`
+		Origin        string  `json:"origin"`
+	}
+
+	var collectedValues []dbCertifyGood
 	for {
-		var doc collectedData
+		var doc dbCertifyGood
 		_, err := cursor.ReadDocument(ctx, &doc)
 		if err != nil {
 			if driver.IsNoMoreDocuments(err) {
 				break
 			} else {
-				return nil, fmt.Errorf("failed to source certifyGood from cursor: %w", err)
+				return nil, fmt.Errorf("failed to certifyGood from cursor: %w", err)
 			}
 		} else {
-			createdValues = append(createdValues, doc)
+			collectedValues = append(collectedValues, doc)
 		}
 	}
 
-	var certifyGoodList []*model.CertifyGood
-	for _, createdValue := range createdValues {
-
-		src := generateModelSource(createdValue.SrcName.TypeID, createdValue.SrcName.SrcType, createdValue.SrcName.NamespaceID, createdValue.SrcName.Namespace,
-			createdValue.SrcName.NameID, createdValue.SrcName.Name, createdValue.SrcName.Commit, createdValue.SrcName.Tag)
-
-		certifyGood := &model.CertifyGood{
-			ID:            createdValue.CertifyGoodID,
-			Subject:       src,
-			Justification: createdValue.Justification,
-			Origin:        createdValue.Collector,
-			Collector:     createdValue.Origin,
-		}
-		certifyGoodList = append(certifyGoodList, certifyGood)
+	if len(collectedValues) != 1 {
+		return nil, fmt.Errorf("number of certifyGood nodes found for ID: %s is greater than one", *filter.ID)
 	}
-	return certifyGoodList, nil
+
+	certifyGood := &model.CertifyGood{
+		ID:            collectedValues[0].CertifyGoodID,
+		Justification: collectedValues[0].Justification,
+		Origin:        collectedValues[0].Origin,
+		Collector:     collectedValues[0].Collector,
+	}
+
+	if collectedValues[0].PackageID != nil {
+		var builtPackage *model.Package
+		if filter.Subject != nil && filter.Subject.Package != nil {
+			builtPackage, err = c.buildPackageResponseFromID(ctx, *collectedValues[0].PackageID, filter.Subject.Package)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get package from ID: %s, with error: %w", *collectedValues[0].PackageID, err)
+			}
+		} else {
+			builtPackage, err = c.buildPackageResponseFromID(ctx, *collectedValues[0].PackageID, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get package from ID: %s, with error: %w", *collectedValues[0].PackageID, err)
+			}
+		}
+		certifyGood.Subject = builtPackage
+	} else if collectedValues[0].SourceID != nil {
+		var builtSource *model.Source
+		if filter.Subject != nil && filter.Subject.Source != nil {
+			builtSource, err = c.buildSourceResponseFromID(ctx, *collectedValues[0].SourceID, filter.Subject.Source)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get source from ID: %s, with error: %w", *collectedValues[0].SourceID, err)
+			}
+		} else {
+			builtSource, err = c.buildSourceResponseFromID(ctx, *collectedValues[0].SourceID, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get source from ID: %s, with error: %w", *collectedValues[0].SourceID, err)
+			}
+		}
+		certifyGood.Subject = builtSource
+	} else if collectedValues[0].ArtifactID != nil {
+		var builtArtifact *model.Artifact
+		if filter.Subject != nil && filter.Subject.Artifact != nil {
+			builtArtifact, err = c.buildArtifactResponseByID(ctx, *collectedValues[0].ArtifactID, filter.Subject.Artifact)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get artifact from ID: %s, with error: %w", *collectedValues[0].ArtifactID, err)
+			}
+		} else {
+			builtArtifact, err = c.buildArtifactResponseByID(ctx, *collectedValues[0].ArtifactID, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get artifact from ID: %s, with error: %w", *collectedValues[0].ArtifactID, err)
+			}
+		}
+		certifyGood.Subject = builtArtifact
+	} else {
+		return nil, fmt.Errorf("failed to get subject from certifyGood")
+	}
+	return certifyGood, nil
+}
+
+func (c *arangoClient) certifyGoodNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := make([]string, 0, 1)
+
+	if allowedEdges[model.EdgeCertifyGoodPackage] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(certifyGoodsStr, "certifyGood")
+		setCertifyGoodMatchValues(arangoQueryBuilder, &model.CertifyGoodSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor:  certifyGood.packageID }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "certifyGoodNeighbors - package")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeCertifyGoodArtifact] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(certifyGoodsStr, "certifyGood")
+		setCertifyGoodMatchValues(arangoQueryBuilder, &model.CertifyGoodSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor:  certifyGood.artifactID }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "certifyGoodNeighbors - artifact")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeCertifyGoodSource] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(certifyGoodsStr, "certifyGood")
+		setCertifyGoodMatchValues(arangoQueryBuilder, &model.CertifyGoodSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor:  certifyGood.sourceID }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "certifyGoodNeighbors - source")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	return out, nil
 }

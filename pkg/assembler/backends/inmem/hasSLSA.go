@@ -17,32 +17,33 @@ package inmem
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/exp/slices"
-
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-type hasSLSAList []*hasSLSAStruct
-type hasSLSAStruct struct {
-	id         uint32
-	subject    uint32
-	builtFrom  []uint32
-	builtBy    uint32
-	buildType  string
-	predicates []*model.SLSAPredicate
-	version    string
-	start      *time.Time
-	finish     *time.Time
-	origin     string
-	collector  string
-}
+type (
+	hasSLSAList   []*hasSLSAStruct
+	hasSLSAStruct struct {
+		id         uint32
+		subject    uint32
+		builtFrom  []uint32
+		builtBy    uint32
+		buildType  string
+		predicates []*model.SLSAPredicate
+		version    string
+		start      *time.Time
+		finish     *time.Time
+		origin     string
+		collector  string
+	}
+)
 
 func (n *hasSLSAStruct) ID() uint32 { return n.id }
 
@@ -159,15 +160,6 @@ func matchSLSAPreds(haves []*model.SLSAPredicate, wants []*model.SLSAPredicateSp
 // Ingest HasSlsa
 
 func (c *demoClient) IngestSLSAs(ctx context.Context, subjects []*model.ArtifactInputSpec, builtFromList [][]*model.ArtifactInputSpec, builtByList []*model.BuilderInputSpec, slsaList []*model.SLSAInputSpec) ([]*model.HasSlsa, error) {
-	if len(subjects) != len(slsaList) {
-		return nil, gqlerror.Errorf("uneven subjects and slsa attestation for ingestion")
-	}
-	if len(subjects) != len(builtFromList) {
-		return nil, gqlerror.Errorf("uneven subjects and built from artifact list for ingestion")
-	}
-	if len(subjects) != len(builtByList) {
-		return nil, gqlerror.Errorf("uneven subjects and built by for ingestion")
-	}
 	var modelHasSLSAList []*model.HasSlsa
 	for i := range subjects {
 		hasSLSA, err := c.IngestSLSA(ctx, *subjects[i], builtFromList[i], *builtByList[i], *slsaList[i])
@@ -181,18 +173,16 @@ func (c *demoClient) IngestSLSAs(ctx context.Context, subjects []*model.Artifact
 
 func (c *demoClient) IngestSLSA(ctx context.Context,
 	subject model.ArtifactInputSpec, builtFrom []*model.ArtifactInputSpec,
-	builtBy model.BuilderInputSpec, slsa model.SLSAInputSpec) (*model.HasSlsa, error) {
+	builtBy model.BuilderInputSpec, slsa model.SLSAInputSpec,
+) (*model.HasSlsa, error) {
 	return c.ingestSLSA(ctx, subject, builtFrom, builtBy, slsa, true)
 }
 
 func (c *demoClient) ingestSLSA(ctx context.Context,
 	subject model.ArtifactInputSpec, builtFrom []*model.ArtifactInputSpec,
 	builtBy model.BuilderInputSpec, slsa model.SLSAInputSpec, readOnly bool) (
-	*model.HasSlsa, error) {
-
-	if len(builtFrom) < 1 {
-		return nil, gqlerror.Errorf("IngestSLSA :: Must have at least 1 builtFrom")
-	}
+	*model.HasSlsa, error,
+) {
 	lock(&c.m, readOnly)
 	defer unlock(&c.m, readOnly)
 
@@ -319,7 +309,8 @@ func (c *demoClient) convSLSA(in *hasSLSAStruct) (*model.HasSlsa, error) {
 
 func (c *demoClient) addSLSAIfMatch(out []*model.HasSlsa,
 	filter *model.HasSLSASpec, link *hasSLSAStruct) (
-	[]*model.HasSlsa, error) {
+	[]*model.HasSlsa, error,
+) {
 	bb, err := byID[*builderStruct](link.builtBy, c)
 	if err != nil {
 		return nil, err

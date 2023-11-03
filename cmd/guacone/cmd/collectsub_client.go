@@ -17,10 +17,11 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/guacsec/guac/pkg/cli"
 	"github.com/guacsec/guac/pkg/collectsub/client"
@@ -31,9 +32,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-type csubClientOptions struct {
-	addr string
-}
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+// type csubClientOptions struct {
+// 	addr          string
+// 	tls           bool
+// 	tlsSkipVerify bool
+// }
 
 var csubClientCmd = &cobra.Command{
 	Use:   "csub-client",
@@ -44,8 +49,10 @@ func setupCsubClient(cmd *cobra.Command, args []string) (context.Context, client
 	ctx := logging.WithLogger(context.Background())
 	logger := logging.FromContext(ctx)
 
-	opts, err := validateCsubClientFlags(
+	opts, err := client.ValidateCsubClientFlags(
 		viper.GetString("csub-addr"),
+		viper.GetBool("csub-tls"),
+		viper.GetBool("csub-tls-skip-verify"),
 	)
 	if err != nil {
 		fmt.Printf("unable to validate flags: %v\n", err)
@@ -54,17 +61,11 @@ func setupCsubClient(cmd *cobra.Command, args []string) (context.Context, client
 	}
 
 	// Start csub listening server
-	csubClient, err := client.NewClient(opts.addr)
+	csubClient, err := client.NewClient(opts)
 	if err != nil {
 		logger.Fatalf("unable to create csub server: %v", err)
 	}
 	return ctx, csubClient
-}
-
-func validateCsubClientFlags(addr string) (csubClientOptions, error) {
-	return csubClientOptions{
-		addr: addr,
-	}, nil
 }
 
 /*

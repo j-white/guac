@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/guacsec/guac/pkg/assembler"
 	model "github.com/guacsec/guac/pkg/assembler/clients/generated"
 	"github.com/guacsec/guac/pkg/assembler/helpers"
 	"github.com/guacsec/guac/pkg/cli"
+	"github.com/guacsec/guac/pkg/ingestor"
 	"github.com/guacsec/guac/pkg/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -67,7 +69,7 @@ var certifyCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		assemblerFunc := getAssembler(ctx, opts.graphqlEndpoint)
+		assemblerFunc := ingestor.GetAssembler(ctx, opts.graphqlEndpoint)
 
 		preds := &assembler.IngestPredicates{}
 		var pkgInput *model.PkgInputSpec
@@ -121,6 +123,7 @@ var certifyCmd = &cobra.Command{
 				Justification: opts.justification,
 				Origin:        "GUAC Certify CLI",
 				Collector:     "GUAC",
+				KnownSince:    time.Now().UTC(),
 			}
 			preds.CertifyGood = append(preds.CertifyGood, *certifyGood)
 		} else {
@@ -139,6 +142,7 @@ var certifyCmd = &cobra.Command{
 				Justification: opts.justification,
 				Origin:        "GUAC Certify CLI",
 				Collector:     "GUAC",
+				KnownSince:    time.Now().UTC(),
 			}
 			preds.CertifyBad = append(preds.CertifyBad, *certifyBad)
 		}

@@ -137,7 +137,9 @@ func Test_pkgNamespaceStruct_Neighbors(t *testing.T) {
 				id:         tt.fields.id,
 				namespaces: tt.fields.namespaces,
 			}
-			if got := n.Neighbors(nil); !reflect.DeepEqual(got, tt.want) {
+			if got := n.Neighbors(edgeMap{
+				model.EdgePackageTypePackageNamespace: true,
+			}); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("pkgNamespaceStruct.Neighbors() = %v, want %v", got, tt.want)
 			}
 		})
@@ -173,7 +175,10 @@ func Test_pkgNameStruct_Neighbors(t *testing.T) {
 				namespace: tt.fields.namespace,
 				names:     tt.fields.names,
 			}
-			if got := n.Neighbors(nil); !reflect.DeepEqual(got, tt.want) {
+			if got := n.Neighbors(edgeMap{
+				model.EdgePackageNamespacePackageType: true,
+				model.EdgePackageNamespacePackageName: true,
+			}); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("pkgNameStruct.Neighbors() = %v, want %v", got, tt.want)
 			}
 		})
@@ -184,7 +189,7 @@ func Test_pkgVersionStruct_Neighbors(t *testing.T) {
 	type fields struct {
 		id                uint32
 		parent            uint32
-		versions          pkgVersionList
+		versions          pkgVersionMap
 		srcMapLinks       []uint32
 		isDependencyLinks []uint32
 		badLinks          []uint32
@@ -196,45 +201,75 @@ func Test_pkgVersionStruct_Neighbors(t *testing.T) {
 		fields       fields
 		want         []uint32
 	}{{
+		name: "packageNamespace",
+		fields: fields{
+			id:          uint32(23),
+			parent:      uint32(22),
+			versions:    pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
+			srcMapLinks: []uint32{343, 546},
+		},
+		allowedEdges: edgeMap{model.EdgePackageNamePackageNamespace: true},
+		want:         []uint32{22},
+	}, {
+		name: "packageVersion",
+		fields: fields{
+			id:          uint32(23),
+			parent:      uint32(22),
+			versions:    pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
+			srcMapLinks: []uint32{343, 546},
+		},
+		allowedEdges: edgeMap{model.EdgePackageNamePackageVersion: true},
+		want:         []uint32{24},
+	}, {
 		name: "srcMapLinks",
 		fields: fields{
 			id:          uint32(23),
 			parent:      uint32(22),
-			versions:    pkgVersionList{&pkgVersionNode{id: uint32(24)}},
+			versions:    pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
 			srcMapLinks: []uint32{343, 546},
 		},
 		allowedEdges: edgeMap{model.EdgePackageHasSourceAt: true},
-		want:         []uint32{22, 24, 343, 546},
+		want:         []uint32{343, 546},
 	}, {
 		name: "isDependencyLinks",
 		fields: fields{
 			id:                uint32(23),
 			parent:            uint32(22),
-			versions:          pkgVersionList{&pkgVersionNode{id: uint32(24)}},
+			versions:          pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
 			isDependencyLinks: []uint32{2324, 1234},
 		},
 		allowedEdges: edgeMap{model.EdgePackageIsDependency: true},
-		want:         []uint32{22, 24, 2324, 1234},
+		want:         []uint32{2324, 1234},
 	}, {
 		name: "badLinks",
 		fields: fields{
 			id:       uint32(23),
 			parent:   uint32(22),
-			versions: pkgVersionList{&pkgVersionNode{id: uint32(24)}},
+			versions: pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
 			badLinks: []uint32{445, 1232244},
 		},
 		allowedEdges: edgeMap{model.EdgePackageCertifyBad: true},
-		want:         []uint32{22, 24, 445, 1232244},
+		want:         []uint32{445, 1232244},
 	}, {
 		name: "goodLinks",
 		fields: fields{
 			id:        uint32(23),
 			parent:    uint32(22),
-			versions:  pkgVersionList{&pkgVersionNode{id: uint32(24)}},
+			versions:  pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
 			goodLinks: []uint32{987, 9876},
 		},
 		allowedEdges: edgeMap{model.EdgePackageCertifyGood: true},
-		want:         []uint32{22, 24, 987, 9876},
+		want:         []uint32{987, 9876},
+	}, {
+		name: "goodLinks",
+		fields: fields{
+			id:        uint32(23),
+			parent:    uint32(22),
+			versions:  pkgVersionMap{"digest-a": &pkgVersionNode{id: uint32(24)}},
+			goodLinks: []uint32{987, 9876},
+		},
+		allowedEdges: edgeMap{model.EdgePackageCertifyGood: true},
+		want:         []uint32{987, 9876},
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,6 +309,15 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 		fields       fields
 		want         []uint32
 	}{{
+		name: "packageName",
+		fields: fields{
+			id:          uint32(23),
+			parent:      uint32(22),
+			srcMapLinks: []uint32{343, 546},
+		},
+		allowedEdges: edgeMap{model.EdgePackageVersionPackageName: true},
+		want:         []uint32{22},
+	}, {
 		name: "srcMapLinks",
 		fields: fields{
 			id:          uint32(23),
@@ -281,7 +325,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			srcMapLinks: []uint32{343, 546},
 		},
 		allowedEdges: edgeMap{model.EdgePackageHasSourceAt: true},
-		want:         []uint32{22, 343, 546},
+		want:         []uint32{343, 546},
 	}, {
 		name: "isDependencyLinks",
 		fields: fields{
@@ -290,7 +334,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			isDependencyLinks: []uint32{2324, 1234},
 		},
 		allowedEdges: edgeMap{model.EdgePackageIsDependency: true},
-		want:         []uint32{22, 2324, 1234},
+		want:         []uint32{2324, 1234},
 	}, {
 		name: "occurrences",
 		fields: fields{
@@ -299,7 +343,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			occurrences: []uint32{2324, 1234},
 		},
 		allowedEdges: edgeMap{model.EdgePackageIsOccurrence: true},
-		want:         []uint32{22, 2324, 1234},
+		want:         []uint32{2324, 1234},
 	}, {
 		name: "certifyVulnLinks",
 		fields: fields{
@@ -308,7 +352,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			certifyVulnLinks: []uint32{2324, 1234},
 		},
 		allowedEdges: edgeMap{model.EdgePackageCertifyVuln: true},
-		want:         []uint32{22, 2324, 1234},
+		want:         []uint32{2324, 1234},
 	}, {
 		name: "hasSBOMs",
 		fields: fields{
@@ -317,7 +361,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			hasSBOMs: []uint32{2324, 1234},
 		},
 		allowedEdges: edgeMap{model.EdgePackageHasSbom: true},
-		want:         []uint32{22, 2324, 1234},
+		want:         []uint32{2324, 1234},
 	}, {
 		name: "vexLinks",
 		fields: fields{
@@ -326,7 +370,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			vexLinks: []uint32{2324, 1234},
 		},
 		allowedEdges: edgeMap{model.EdgePackageCertifyVexStatement: true},
-		want:         []uint32{22, 2324, 1234},
+		want:         []uint32{2324, 1234},
 	}, {
 		name: "badLinks",
 		fields: fields{
@@ -335,7 +379,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			badLinks: []uint32{445, 1232244},
 		},
 		allowedEdges: edgeMap{model.EdgePackageCertifyBad: true},
-		want:         []uint32{22, 445, 1232244},
+		want:         []uint32{445, 1232244},
 	}, {
 		name: "goodLinks",
 		fields: fields{
@@ -344,7 +388,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			goodLinks: []uint32{987, 9876},
 		},
 		allowedEdges: edgeMap{model.EdgePackageCertifyGood: true},
-		want:         []uint32{22, 987, 9876},
+		want:         []uint32{987, 9876},
 	}, {
 		name: "pkgEquals",
 		fields: fields{
@@ -353,7 +397,7 @@ func Test_pkgVersionNode_Neighbors(t *testing.T) {
 			pkgEquals: []uint32{987, 9876},
 		},
 		allowedEdges: edgeMap{model.EdgePackagePkgEqual: true},
-		want:         []uint32{22, 987, 9876},
+		want:         []uint32{987, 9876},
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -552,7 +596,8 @@ func Test_demoClient_IngestPackages(t *testing.T) {
 		pkgInputs: []*model.PkgInputSpec{p1, p2, p3, p4},
 		want:      []*model.Package{p1out, p2out, p3out, p4out},
 		wantErr:   false,
-	}}
+	},
+	}
 	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
 		return strings.Compare(".ID", p[len(p)-1].String()) == 0
 	}, cmp.Ignore())
@@ -572,4 +617,254 @@ func Test_demoClient_IngestPackages(t *testing.T) {
 			}
 		})
 	}
+}
+
+var pp5out = &model.Package{
+	Type: "pypi",
+	Namespaces: []*model.PackageNamespace{{
+		Names: []*model.PackageName{{
+			Name: "tensorflow",
+			Versions: []*model.PackageVersion{
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{},
+				},
+				{
+					Version:    "2.11.3",
+					Qualifiers: []*model.PackageQualifier{},
+				},
+			},
+		}},
+	}},
+}
+var pp6out = &model.Package{
+	Type: "pypi",
+	Namespaces: []*model.PackageNamespace{{
+		Names: []*model.PackageName{{
+			Name: "tensorflow",
+			Versions: []*model.PackageVersion{
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{},
+					Subpath:    "a",
+				},
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{},
+					Subpath:    "b",
+				},
+			},
+		}},
+	}},
+}
+var pp7out = &model.Package{
+	Type: "pypi",
+	Namespaces: []*model.PackageNamespace{{
+		Names: []*model.PackageName{{
+			Name: "tensorflow",
+			Versions: []*model.PackageVersion{
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{{Key: "1", Value: "2"}},
+				},
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{{Key: "a", Value: "b"}, {Key: "c", Value: "d"}},
+				},
+			},
+		}},
+	}},
+}
+var pp8out = &model.Package{
+	Type: "pypi",
+	Namespaces: []*model.PackageNamespace{{
+		Names: []*model.PackageName{{
+			Name: "tensorflow",
+			Versions: []*model.PackageVersion{
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{{Key: "a", Value: "b"}},
+				},
+			},
+		}},
+	}},
+}
+
+var p9out = &model.Package{
+	Type: "pypi",
+	Namespaces: []*model.PackageNamespace{{
+		Names: []*model.PackageName{{
+			Name: "tensorflow",
+			Versions: []*model.PackageVersion{
+				{
+					Version:    "",
+					Qualifiers: []*model.PackageQualifier{},
+				},
+			},
+		}},
+	}},
+}
+
+var p10out = &model.Package{
+	Type: "pypi",
+	Namespaces: []*model.PackageNamespace{{
+		Names: []*model.PackageName{{
+			Name: "tensorflow",
+			Versions: []*model.PackageVersion{
+				{
+					Version:    "2.11.1",
+					Qualifiers: []*model.PackageQualifier{},
+				},
+				{
+					Version:    "",
+					Qualifiers: []*model.PackageQualifier{},
+				},
+			},
+		}},
+	}},
+}
+
+func Test_IngestingVersions(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name      string
+		pkgInputs []*model.PkgInputSpec
+		want      []*model.Package
+	}{
+		{
+			name: "package name without version",
+			pkgInputs: []*model.PkgInputSpec{
+				{
+					Type: "pypi",
+					Name: "tensorflow",
+				},
+			},
+			want: []*model.Package{p9out},
+		},
+		{
+			name: "package names with and without version",
+			pkgInputs: []*model.PkgInputSpec{
+				{
+					Type:    "pypi",
+					Name:    "tensorflow",
+					Version: ptrfrom.String("2.11.1"),
+				},
+				{
+					Type: "pypi",
+					Name: "tensorflow",
+				},
+			},
+			want: []*model.Package{p10out},
+		},
+		{
+			name: "different versions are not considered duplicates ",
+			pkgInputs: []*model.PkgInputSpec{
+				{
+					Type:    "pypi",
+					Name:    "tensorflow",
+					Version: ptrfrom.String("2.11.1"),
+				},
+				{
+					Type:    "pypi",
+					Name:    "tensorflow",
+					Version: ptrfrom.String("2.11.3"),
+				},
+			},
+			want: []*model.Package{pp5out},
+		},
+		{
+			name: "version nodes with different subpaths are not considered duplicates ",
+			pkgInputs: []*model.PkgInputSpec{
+				{
+					Type:    "pypi",
+					Name:    "tensorflow",
+					Version: ptrfrom.String("2.11.1"),
+					Subpath: ptrfrom.String("a"),
+				},
+				{
+					Type:    "pypi",
+					Name:    "tensorflow",
+					Version: ptrfrom.String("2.11.1"),
+					Subpath: ptrfrom.String("b"),
+				},
+			},
+			want: []*model.Package{pp6out},
+		},
+		{
+			name: "version nodes with different qualifiers are not considered duplicates ",
+			pkgInputs: []*model.PkgInputSpec{
+				{
+					Type:       "pypi",
+					Name:       "tensorflow",
+					Version:    ptrfrom.String("2.11.1"),
+					Qualifiers: []*model.PackageQualifierInputSpec{{Key: "1", Value: "2"}},
+				},
+				{
+					Type:       "pypi",
+					Name:       "tensorflow",
+					Version:    ptrfrom.String("2.11.1"),
+					Qualifiers: []*model.PackageQualifierInputSpec{{Key: "a", Value: "b"}, {Key: "c", Value: "d"}},
+				},
+			},
+			want: []*model.Package{pp7out},
+		},
+		{
+			name:      "a single package is created from duplicate version nodes (just with versions)",
+			pkgInputs: []*model.PkgInputSpec{p2, p2},
+			want:      []*model.Package{p2out},
+		},
+		{
+			name:      "a single package is created from duplicate version nodes with (versions and subpaths)",
+			pkgInputs: []*model.PkgInputSpec{p3, p3},
+			want:      []*model.Package{p3out},
+		},
+		{
+			name: "a single package is created from duplicate version nodes (with versions, subpaths, and qualifiers)",
+			pkgInputs: []*model.PkgInputSpec{
+				{
+					Type:       "pypi",
+					Name:       "tensorflow",
+					Version:    ptrfrom.String("2.11.1"),
+					Qualifiers: []*model.PackageQualifierInputSpec{{Key: "a", Value: "b"}},
+				},
+				{
+					Type:       "pypi",
+					Name:       "tensorflow",
+					Version:    ptrfrom.String("2.11.1"),
+					Qualifiers: []*model.PackageQualifierInputSpec{{Key: "a", Value: "b"}},
+				},
+			},
+			want: []*model.Package{pp8out},
+		},
+	}
+
+	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
+		return strings.Compare(".ID", p[len(p)-1].String()) == 0
+	}, cmp.Ignore())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &demoClient{
+				packages: pkgTypeMap{},
+				index:    indexType{},
+			}
+			_, err := c.IngestPackages(ctx, tt.pkgInputs)
+			if err != nil {
+				t.Errorf("Unexpected demoClient.IngestPackages() error = %v, ", err)
+				return
+			}
+			packages, err := c.Packages(ctx, nil)
+			if err != nil {
+				t.Errorf("Unexpected demoClient.Packages() error = %v, ", err)
+				return
+			}
+
+			MakeCanonicalPackageSlice(packages)
+			MakeCanonicalPackageSlice(tt.want)
+
+			if diff := cmp.Diff(tt.want, packages, ignoreID); diff != "" {
+				t.Errorf("Unexpected results. (-want +got):\n%s", diff)
+			}
+		})
+	}
+
 }

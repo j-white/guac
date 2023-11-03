@@ -23,6 +23,9 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
+
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/arangodb/go-driver"
 	arangodbdriverhttp "github.com/arangodb/go-driver/http"
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
@@ -31,6 +34,8 @@ import (
 )
 
 const (
+	arangoDB        string        = "guac_db"
+	arangoGraph     string        = "guac"
 	namespaces      string        = "namespaces"
 	names           string        = namespaces + ".names"
 	versions        string        = names + ".versions"
@@ -38,6 +43,7 @@ const (
 	origin          string        = "origin"
 	collector       string        = "collector"
 	justification   string        = "justification"
+	knownSince      string        = "knownSince"
 	maxRetires      int           = 100
 	retryTimer      time.Duration = time.Microsecond
 	guacEmpty       string        = "guac-empty-@@"
@@ -72,11 +78,16 @@ const (
 	vulnHasVulnerabilityIDStr string = "vulnHasVulnerabilityID"
 	vulnerabilitiesStr        string = "vulnerabilities"
 
+	// license collection
+
+	licensesStr string = "licenses"
+
 	// isDependency collections
 
-	isDependencyDepPkgEdgesStr     string = "isDependencyDepPkgEdges"
-	isDependencySubjectPkgEdgesStr string = "isDependencySubjectPkgEdges"
-	isDependenciesStr              string = "isDependencies"
+	isDependencyDepPkgVersionEdgesStr string = "isDependencyDepPkgVersionEdges"
+	isDependencyDepPkgNameEdgesStr    string = "isDependencyDepPkgNameEdges"
+	isDependencySubjectPkgEdgesStr    string = "isDependencySubjectPkgEdges"
+	isDependenciesStr                 string = "isDependencies"
 
 	//isOccurrences collections
 
@@ -98,16 +109,64 @@ const (
 	hashEqualSubjectArtEdgesStr string = "hashEqualSubjectArtEdges"
 	hashEqualsStr               string = "hashEquals"
 
+	// hasMetadata collection
+
+	hasMetadataPkgVersionEdgesStr string = "hasMetadataPkgVersionEdges"
+	hasMetadataPkgNameEdgesStr    string = "hasMetadataPkgNameEdges"
+	hasMetadataSrcEdgesStr        string = "hasMetadataSrcEdges"
+	hasMetadataArtEdgesStr        string = "hasMetadataArtEdges"
+	hasMetadataStr                string = "hasMetadataCollection"
+
+	// pointOfContact collection
+
+	pointOfContactPkgVersionEdgesStr string = "pointOfContactPkgVersionEdges"
+	pointOfContactPkgNameEdgesStr    string = "pointOfContactPkgNameEdges"
+	pointOfContactSrcEdgesStr        string = "pointOfContactSrcEdges"
+	pointOfContactArtEdgesStr        string = "pointOfContactArtEdges"
+	pointOfContactStr                string = "pointOfContacts"
+
 	// hasSBOM collection
 
 	hasSBOMPkgEdgesStr string = "hasSBOMPkgEdges"
 	hasSBOMArtEdgesStr string = "hasSBOMArtEdges"
 	hasSBOMsStr        string = "hasSBOMs"
 
+	// hasSourceAt collection
+
+	hasSourceAtPkgVersionEdgesStr string = "hasSourceAtPkgVersionEdges"
+	hasSourceAtPkgNameEdgesStr    string = "hasSourceAtPkgNameEdges"
+	hasSourceAtEdgesStr           string = "hasSourceAtEdges"
+	hasSourceAtsStr               string = "hasSourceAts"
+
+	// certifyVex collection
+
+	certifyVexPkgEdgesStr  string = "certifyVexPkgEdges"
+	certifyVexArtEdgesStr  string = "certifyVexArtEdges"
+	certifyVexVulnEdgesStr string = "certifyVexVulnEdges"
+	certifyVEXsStr         string = "certifyVEXs"
+
 	// certifyVuln collection
-	// TODO (pxp928): update collections based on edge collections
-	certifyVulnEdgesStr string = "certifyVulnEdges"
-	certifyVulnsStr     string = "certifyVulns"
+
+	certifyVulnPkgEdgesStr string = "certifyVulnPkgEdges"
+	certifyVulnEdgesStr    string = "certifyVulnEdges"
+	certifyVulnsStr        string = "certifyVulns"
+
+	// vulnMetadata collection
+
+	vulnMetadataEdgesStr string = "vulnMetadataEdges"
+	vulnMetadataStr      string = "vulnMetadataCollection"
+
+	// vulnEquals collections
+
+	vulnEqualVulnEdgesStr        string = "vulnEqualVulnEdges"
+	vulnEqualSubjectVulnEdgesStr string = "vulnEqualSubjectVulnEdges"
+	vulnEqualsStr                string = "vulnEquals"
+
+	// pkgEquals collections
+
+	pkgEqualPkgEdgesStr        string = "pkgEqualPkgEdges"
+	pkgEqualSubjectPkgEdgesStr string = "pkgEqualSubjectPkgEdges"
+	pkgEqualsStr               string = "pkgEquals"
 
 	// certifyScorecard collection
 
@@ -129,7 +188,102 @@ const (
 	certifyGoodSrcEdgesStr        string = "certifyGoodSrcEdges"
 	certifyGoodArtEdgesStr        string = "certifyGoodArtEdges"
 	certifyGoodsStr               string = "certifyGoods"
+
+	// certifyLegal collection
+
+	certifyLegalPkgEdgesStr                string = "certifyLegalPkgEdges"
+	certifyLegalSrcEdgesStr                string = "certifyLegalSrcEdges"
+	certifyLegalDeclaredLicensesEdgesStr   string = "certifyLegalDeclaredLicensesEdges"
+	certifyLegalDiscoveredLicensesEdgesStr string = "certifyLegalDiscoveredLicensesEdges"
+	certifyLegalsStr                       string = "certifyLegals"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+var mapEdgeToArangoEdgeCollection = map[model.Edge][]string{
+	model.EdgeArtifactCertifyBad:               {certifyBadArtEdgesStr},
+	model.EdgeArtifactCertifyGood:              {certifyGoodArtEdgesStr},
+	model.EdgeArtifactCertifyVexStatement:      {certifyVexArtEdgesStr},
+	model.EdgeArtifactHashEqual:                {hashEqualSubjectArtEdgesStr},
+	model.EdgeArtifactHasMetadata:              {hasMetadataArtEdgesStr},
+	model.EdgeArtifactHasSbom:                  {hasSBOMArtEdgesStr},
+	model.EdgeArtifactHasSlsa:                  {hasSLSASubjectArtEdgesStr},
+	model.EdgeArtifactIsOccurrence:             {isOccurrenceArtEdgesStr},
+	model.EdgeArtifactPointOfContact:           {pointOfContactArtEdgesStr},
+	model.EdgeBuilderHasSlsa:                   {hasSLSABuiltByEdgesStr},
+	model.EdgeLicenseCertifyLegal:              {certifyLegalDeclaredLicensesEdgesStr, certifyLegalDiscoveredLicensesEdgesStr},
+	model.EdgePackageCertifyBad:                {certifyBadPkgVersionEdgesStr, certifyBadPkgNameEdgesStr},
+	model.EdgePackageCertifyGood:               {certifyGoodPkgVersionEdgesStr, certifyGoodPkgNameEdgesStr},
+	model.EdgePackageCertifyLegal:              {certifyLegalPkgEdgesStr},
+	model.EdgePackageCertifyVexStatement:       {certifyVexPkgEdgesStr},
+	model.EdgePackageCertifyVuln:               {certifyVulnPkgEdgesStr},
+	model.EdgePackageHasMetadata:               {hasMetadataPkgNameEdgesStr, hasMetadataPkgVersionEdgesStr},
+	model.EdgePackageHasSbom:                   {hasSBOMPkgEdgesStr},
+	model.EdgePackageHasSourceAt:               {hasMetadataPkgVersionEdgesStr, hasSourceAtPkgNameEdgesStr},
+	model.EdgePackageIsDependency:              {isDependencySubjectPkgEdgesStr},
+	model.EdgePackageIsOccurrence:              {isOccurrenceSubjectPkgEdgesStr},
+	model.EdgePackageNamePackageNamespace:      {},
+	model.EdgePackageNamePackageVersion:        {pkgHasVersionStr},
+	model.EdgePackageNamespacePackageName:      {pkgHasNameStr},
+	model.EdgePackageNamespacePackageType:      {},
+	model.EdgePackageTypePackageNamespace:      {pkgHasNamespaceStr},
+	model.EdgePackageVersionPackageName:        {},
+	model.EdgePackagePkgEqual:                  {pkgEqualSubjectPkgEdgesStr},
+	model.EdgePackagePointOfContact:            {pointOfContactPkgVersionEdgesStr, pointOfContactPkgNameEdgesStr},
+	model.EdgeSourceCertifyBad:                 {certifyBadSrcEdgesStr},
+	model.EdgeSourceCertifyGood:                {certifyGoodSrcEdgesStr},
+	model.EdgeSourceCertifyLegal:               {certifyLegalSrcEdgesStr},
+	model.EdgeSourceCertifyScorecard:           {scorecardSrcEdgesStr},
+	model.EdgeSourceHasMetadata:                {hasMetadataSrcEdgesStr},
+	model.EdgeSourceHasSourceAt:                {hasSourceAtEdgesStr},
+	model.EdgeSourceIsOccurrence:               {isOccurrenceSubjectSrcEdgesStr},
+	model.EdgeSourceNameSourceNamespace:        {},
+	model.EdgeSourceNamespaceSourceName:        {srcHasNameStr},
+	model.EdgeSourceNamespaceSourceType:        {},
+	model.EdgeSourceTypeSourceNamespace:        {srcHasNamespaceStr},
+	model.EdgeSourcePointOfContact:             {pointOfContactSrcEdgesStr},
+	model.EdgeVulnerabilityCertifyVexStatement: {certifyVexVulnEdgesStr},
+	model.EdgeVulnerabilityCertifyVuln:         {certifyVulnEdgesStr},
+	model.EdgeVulnerabilityVulnEqual:           {vulnEqualVulnEdgesStr},
+	model.EdgeVulnerabilityVulnMetadata:        {vulnMetadataEdgesStr},
+	model.EdgeCertifyBadArtifact:               {certifyBadArtEdgesStr},
+	model.EdgeCertifyBadPackage:                {certifyBadPkgVersionEdgesStr, certifyBadPkgNameEdgesStr},
+	model.EdgeCertifyBadSource:                 {certifyBadSrcEdgesStr},
+	model.EdgeCertifyGoodArtifact:              {certifyGoodArtEdgesStr},
+	model.EdgeCertifyGoodPackage:               {certifyGoodPkgVersionEdgesStr, certifyGoodPkgNameEdgesStr},
+	model.EdgeCertifyGoodSource:                {certifyGoodSrcEdgesStr},
+	model.EdgeCertifyLegalLicense:              {certifyLegalDeclaredLicensesEdgesStr, certifyLegalDiscoveredLicensesEdgesStr},
+	model.EdgeCertifyLegalPackage:              {certifyLegalsStr},
+	model.EdgeCertifyScorecardSource:           {scorecardSrcEdgesStr},
+	model.EdgeCertifyVexStatementArtifact:      {certifyVexArtEdgesStr},
+	model.EdgeCertifyVexStatementPackage:       {certifyVexPkgEdgesStr},
+	model.EdgeCertifyVexStatementVulnerability: {certifyVexVulnEdgesStr},
+	model.EdgeCertifyVulnPackage:               {certifyVulnPkgEdgesStr},
+	model.EdgeCertifyVulnVulnerability:         {certifyVulnsStr},
+	model.EdgeHashEqualArtifact:                {hashEqualArtEdgesStr},
+	model.EdgeHasMetadataArtifact:              {hasMetadataArtEdgesStr},
+	model.EdgeHasMetadataPackage:               {hasMetadataPkgVersionEdgesStr, hasMetadataPkgNameEdgesStr},
+	model.EdgeHasMetadataSource:                {hasMetadataSrcEdgesStr},
+	model.EdgeHasSbomArtifact:                  {hasSBOMArtEdgesStr},
+	model.EdgeHasSbomPackage:                   {hasSBOMPkgEdgesStr},
+	model.EdgeHasSlsaBuiltBy:                   {hasSLSABuiltByEdgesStr},
+	model.EdgeHasSlsaMaterials:                 {hasSLSABuiltFromEdgesStr},
+	model.EdgeHasSlsaSubject:                   {hasSLSASubjectArtEdgesStr},
+	model.EdgeHasSourceAtPackage:               {hasSourceAtPkgVersionEdgesStr, hasSourceAtPkgNameEdgesStr},
+	model.EdgeHasSourceAtSource:                {hasSourceAtEdgesStr},
+	model.EdgeIsDependencyPackage:              {isDependencyDepPkgVersionEdgesStr, isDependencyDepPkgNameEdgesStr},
+	model.EdgeIsOccurrenceArtifact:             {isOccurrenceArtEdgesStr},
+	model.EdgeIsOccurrencePackage:              {isOccurrenceSubjectPkgEdgesStr},
+	model.EdgeIsOccurrenceSource:               {isOccurrenceSubjectSrcEdgesStr},
+	model.EdgePkgEqualPackage:                  {pkgEqualPkgEdgesStr},
+	model.EdgePointOfContactArtifact:           {pointOfContactArtEdgesStr},
+	model.EdgePointOfContactPackage:            {pointOfContactPkgVersionEdgesStr, pointOfContactPkgNameEdgesStr},
+	model.EdgePointOfContactSource:             {pointOfContactSrcEdgesStr},
+	model.EdgeVulnEqualVulnerability:           {vulnEqualVulnEdgesStr},
+	model.EdgeVulnerabilityIDVulnerabilityType: {},
+	model.EdgeVulnerabilityTypeVulnerabilityID: {vulnHasVulnerabilityIDStr},
+	model.EdgeVulnMetadataVulnerability:        {vulnMetadataEdgesStr},
+}
 
 type ArangoConfig struct {
 	User     string
@@ -146,6 +300,10 @@ type arangoClient struct {
 	client driver.Client
 	db     driver.Database
 	graph  driver.Graph
+}
+
+func init() {
+	backends.Register("arango", getBackend)
 }
 
 func arangoDBConnect(address, user, password string) (driver.Client, error) {
@@ -167,7 +325,35 @@ func arangoDBConnect(address, user, password string) (driver.Client, error) {
 	return client, nil
 }
 
-func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backend, error) {
+func deleteDatabase(ctx context.Context, args backends.BackendArgs) error {
+	config, ok := args.(*ArangoConfig)
+	if !ok {
+		return fmt.Errorf("failed to assert arango config from backend args")
+	}
+	arangodbClient, err := arangoDBConnect(config.DBAddr, config.User, config.Pass)
+	if err != nil {
+		return fmt.Errorf("failed to connect to arango DB %s database with error: %w", config.DBAddr, err)
+	}
+	var db driver.Database
+	// check if database exists
+	dbExists, err := arangodbClient.DatabaseExists(ctx, arangoDB)
+	if err != nil {
+		return fmt.Errorf("failed to check %s database with error: %w", config.DBAddr, err)
+	}
+	if dbExists {
+		db, err = arangodbClient.Database(ctx, arangoDB)
+		if err != nil {
+			return fmt.Errorf("failed to connect %s database with error: %w", config.DBAddr, err)
+		}
+		err = db.Remove(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to delete %s database with error: %w", config.DBAddr, err)
+		}
+	}
+	return nil
+}
+
+func getBackend(ctx context.Context, args backends.BackendArgs) (backends.Backend, error) {
 	config, ok := args.(*ArangoConfig)
 	if !ok {
 		return nil, fmt.Errorf("failed to assert arango config from backend args")
@@ -178,18 +364,18 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 	}
 	var db driver.Database
 	// check if database exists
-	dbExists, err := arangodbClient.DatabaseExists(ctx, "guac_db")
+	dbExists, err := arangodbClient.DatabaseExists(ctx, arangoDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check %s database with error: %w", config.DBAddr, err)
 	}
 	if dbExists {
-		db, err = arangodbClient.Database(ctx, "guac_db")
+		db, err = arangodbClient.Database(ctx, arangoDB)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect %s database with error: %w", config.DBAddr, err)
 		}
 	} else {
 		// Create database
-		db, err = arangodbClient.CreateDatabase(ctx, "guac_db", nil)
+		db, err = arangodbClient.CreateDatabase(ctx, arangoDB, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create %s database with error: %w", config.DBAddr, err)
 		}
@@ -199,12 +385,12 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 
 	// check if graph exists
 
-	graphExists, err := db.GraphExists(ctx, "guac")
+	graphExists, err := db.GraphExists(ctx, arangoGraph)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if graph exists with error: %w", err)
 	}
 	if graphExists {
-		graph, err = db.Graph(ctx, "guac")
+		graph, err = db.Graph(ctx, arangoGraph)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get graph with error: %w", err)
 		}
@@ -244,15 +430,20 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 		vulnHasVulnerabilityID.To = []string{vulnerabilitiesStr}
 
 		// setup isDependency collections
-		var isDependencyDepPkgEdges driver.EdgeDefinition
-		isDependencyDepPkgEdges.Collection = isDependencyDepPkgEdgesStr
-		isDependencyDepPkgEdges.From = []string{isDependenciesStr}
-		isDependencyDepPkgEdges.To = []string{pkgNamesStr}
-
 		var isDependencySubjectPkgEdges driver.EdgeDefinition
 		isDependencySubjectPkgEdges.Collection = isDependencySubjectPkgEdgesStr
 		isDependencySubjectPkgEdges.From = []string{pkgVersionsStr}
 		isDependencySubjectPkgEdges.To = []string{isDependenciesStr}
+
+		var isDependencyDepPkgVersionEdges driver.EdgeDefinition
+		isDependencyDepPkgVersionEdges.Collection = isDependencyDepPkgVersionEdgesStr
+		isDependencyDepPkgVersionEdges.From = []string{isDependenciesStr}
+		isDependencyDepPkgVersionEdges.To = []string{pkgVersionsStr}
+
+		var isDependencyDepPkgNameEdges driver.EdgeDefinition
+		isDependencyDepPkgNameEdges.Collection = isDependencyDepPkgNameEdgesStr
+		isDependencyDepPkgNameEdges.From = []string{isDependenciesStr}
+		isDependencyDepPkgNameEdges.To = []string{pkgNamesStr}
 
 		// setup isOccurrence collections
 		var isOccurrenceArtEdges driver.EdgeDefinition
@@ -263,12 +454,12 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 		var isOccurrenceSubjectPkgEdges driver.EdgeDefinition
 		isOccurrenceSubjectPkgEdges.Collection = isOccurrenceSubjectPkgEdgesStr
 		isOccurrenceSubjectPkgEdges.From = []string{pkgVersionsStr}
-		isOccurrenceSubjectPkgEdges.To = []string{isDependenciesStr}
+		isOccurrenceSubjectPkgEdges.To = []string{isOccurrencesStr}
 
 		var isOccurrenceSubjectSrcEdges driver.EdgeDefinition
 		isOccurrenceSubjectSrcEdges.Collection = isOccurrenceSubjectSrcEdgesStr
 		isOccurrenceSubjectSrcEdges.From = []string{srcNamesStr}
-		isOccurrenceSubjectSrcEdges.To = []string{isDependenciesStr}
+		isOccurrenceSubjectSrcEdges.To = []string{isOccurrencesStr}
 
 		// setup hasSLSA collections
 		var hasSLSASubjectArtEdges driver.EdgeDefinition
@@ -297,10 +488,52 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 		hashEqualSubjectArtEdges.From = []string{artifactsStr}
 		hashEqualSubjectArtEdges.To = []string{hashEqualsStr}
 
+		// setup hasMetadata collections
+		var hasMetadataPkgVersionEdges driver.EdgeDefinition
+		hasMetadataPkgVersionEdges.Collection = hasMetadataPkgVersionEdgesStr
+		hasMetadataPkgVersionEdges.From = []string{pkgVersionsStr}
+		hasMetadataPkgVersionEdges.To = []string{hasMetadataStr}
+
+		var hasMetadataPkgNameEdges driver.EdgeDefinition
+		hasMetadataPkgNameEdges.Collection = hasMetadataPkgNameEdgesStr
+		hasMetadataPkgNameEdges.From = []string{pkgNamesStr}
+		hasMetadataPkgNameEdges.To = []string{hasMetadataStr}
+
+		var hasMetadataArtEdges driver.EdgeDefinition
+		hasMetadataArtEdges.Collection = hasMetadataArtEdgesStr
+		hasMetadataArtEdges.From = []string{artifactsStr}
+		hasMetadataArtEdges.To = []string{hasMetadataStr}
+
+		var hasMetadataSrcEdges driver.EdgeDefinition
+		hasMetadataSrcEdges.Collection = hasMetadataSrcEdgesStr
+		hasMetadataSrcEdges.From = []string{srcNamesStr}
+		hasMetadataSrcEdges.To = []string{hasMetadataStr}
+
+		// setup pointOfContact collections
+		var pointOfContactPkgVersionEdges driver.EdgeDefinition
+		pointOfContactPkgVersionEdges.Collection = pointOfContactPkgVersionEdgesStr
+		pointOfContactPkgVersionEdges.From = []string{pkgVersionsStr}
+		pointOfContactPkgVersionEdges.To = []string{pointOfContactStr}
+
+		var pointOfContactPkgNameEdges driver.EdgeDefinition
+		pointOfContactPkgNameEdges.Collection = pointOfContactPkgNameEdgesStr
+		pointOfContactPkgNameEdges.From = []string{pkgNamesStr}
+		pointOfContactPkgNameEdges.To = []string{pointOfContactStr}
+
+		var pointOfContactArtEdges driver.EdgeDefinition
+		pointOfContactArtEdges.Collection = pointOfContactArtEdgesStr
+		pointOfContactArtEdges.From = []string{artifactsStr}
+		pointOfContactArtEdges.To = []string{pointOfContactStr}
+
+		var pointOfContactSrcEdges driver.EdgeDefinition
+		pointOfContactSrcEdges.Collection = pointOfContactSrcEdgesStr
+		pointOfContactSrcEdges.From = []string{srcNamesStr}
+		pointOfContactSrcEdges.To = []string{pointOfContactStr}
+
 		// setup hasSBOM collections
 		var hasSBOMPkgEdges driver.EdgeDefinition
 		hasSBOMPkgEdges.Collection = hasSBOMPkgEdgesStr
-		hasSBOMPkgEdges.From = []string{artifactsStr}
+		hasSBOMPkgEdges.From = []string{pkgVersionsStr}
 		hasSBOMPkgEdges.To = []string{hasSBOMsStr}
 
 		var hasSBOMArtEdges driver.EdgeDefinition
@@ -308,11 +541,76 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 		hasSBOMArtEdges.From = []string{artifactsStr}
 		hasSBOMArtEdges.To = []string{hasSBOMsStr}
 
+		// setup hasSourceAt collections
+		var hasSourceAtPkgVersionEdges driver.EdgeDefinition
+		hasSourceAtPkgVersionEdges.Collection = hasSourceAtPkgVersionEdgesStr
+		hasSourceAtPkgVersionEdges.From = []string{pkgVersionsStr}
+		hasSourceAtPkgVersionEdges.To = []string{hasSourceAtsStr}
+
+		var hasSourceAtPkgNameEdges driver.EdgeDefinition
+		hasSourceAtPkgNameEdges.Collection = hasSourceAtPkgNameEdgesStr
+		hasSourceAtPkgNameEdges.From = []string{pkgNamesStr}
+		hasSourceAtPkgNameEdges.To = []string{hasSourceAtsStr}
+
+		var hasSourceAtEdges driver.EdgeDefinition
+		hasSourceAtEdges.Collection = hasSourceAtEdgesStr
+		hasSourceAtEdges.From = []string{hasSourceAtsStr}
+		hasSourceAtEdges.To = []string{srcNamesStr}
+
+		// setup certifyVex collections
+		var certifyVexPkgEdges driver.EdgeDefinition
+		certifyVexPkgEdges.Collection = certifyVexPkgEdgesStr
+		certifyVexPkgEdges.From = []string{pkgVersionsStr}
+		certifyVexPkgEdges.To = []string{certifyVEXsStr}
+
+		var certifyVexArtEdges driver.EdgeDefinition
+		certifyVexArtEdges.Collection = certifyVexArtEdgesStr
+		certifyVexArtEdges.From = []string{artifactsStr}
+		certifyVexArtEdges.To = []string{certifyVEXsStr}
+
+		var certifyVexVulnEdges driver.EdgeDefinition
+		certifyVexVulnEdges.Collection = certifyVexVulnEdgesStr
+		certifyVexVulnEdges.From = []string{certifyVEXsStr}
+		certifyVexVulnEdges.To = []string{vulnerabilitiesStr}
+
 		// setup certifyVuln collections
+		var certifyVulnPkgEdges driver.EdgeDefinition
+		certifyVulnPkgEdges.Collection = certifyVulnPkgEdgesStr
+		certifyVulnPkgEdges.From = []string{pkgVersionsStr}
+		certifyVulnPkgEdges.To = []string{certifyVulnsStr}
+
 		var certifyVulnEdges driver.EdgeDefinition
 		certifyVulnEdges.Collection = certifyVulnEdgesStr
-		certifyVulnEdges.From = []string{pkgVersionsStr, certifyVulnsStr}
-		certifyVulnEdges.To = []string{certifyVulnsStr, vulnerabilitiesStr}
+		certifyVulnEdges.From = []string{certifyVulnsStr}
+		certifyVulnEdges.To = []string{vulnerabilitiesStr}
+
+		// setup vulnMetadata collections
+		var vulnMetadataEdges driver.EdgeDefinition
+		vulnMetadataEdges.Collection = vulnMetadataEdgesStr
+		vulnMetadataEdges.From = []string{vulnerabilitiesStr}
+		vulnMetadataEdges.To = []string{vulnMetadataStr}
+
+		// setup vulnEqual collections
+		var vulnEqualVulnEdges driver.EdgeDefinition
+		vulnEqualVulnEdges.Collection = vulnEqualVulnEdgesStr
+		vulnEqualVulnEdges.From = []string{vulnEqualsStr}
+		vulnEqualVulnEdges.To = []string{vulnerabilitiesStr}
+
+		var vulnEqualSubjectVulnEdges driver.EdgeDefinition
+		vulnEqualSubjectVulnEdges.Collection = vulnEqualSubjectVulnEdgesStr
+		vulnEqualSubjectVulnEdges.From = []string{vulnerabilitiesStr}
+		vulnEqualSubjectVulnEdges.To = []string{vulnEqualsStr}
+
+		// setup pkgEqual collections
+		var pkgEqualPkgEdges driver.EdgeDefinition
+		pkgEqualPkgEdges.Collection = pkgEqualPkgEdgesStr
+		pkgEqualPkgEdges.From = []string{pkgEqualsStr}
+		pkgEqualPkgEdges.To = []string{pkgVersionsStr}
+
+		var pkgEqualSubjectPkgEdges driver.EdgeDefinition
+		pkgEqualSubjectPkgEdges.Collection = pkgEqualSubjectPkgEdgesStr
+		pkgEqualSubjectPkgEdges.From = []string{pkgVersionsStr}
+		pkgEqualSubjectPkgEdges.To = []string{pkgEqualsStr}
 
 		// setup certifyScorecard collections
 		var certifyScorecardSrcEdges driver.EdgeDefinition
@@ -362,17 +660,43 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 		certifyGoodSrcEdges.From = []string{srcNamesStr}
 		certifyGoodSrcEdges.To = []string{certifyGoodsStr}
 
+		// setup certifyLegal collections
+		var certifyLegalPkgEdges driver.EdgeDefinition
+		certifyLegalPkgEdges.Collection = certifyLegalPkgEdgesStr
+		certifyLegalPkgEdges.From = []string{pkgVersionsStr}
+		certifyLegalPkgEdges.To = []string{certifyLegalsStr}
+
+		var certifyLegalSrcEdges driver.EdgeDefinition
+		certifyLegalSrcEdges.Collection = certifyLegalSrcEdgesStr
+		certifyLegalSrcEdges.From = []string{srcNamesStr}
+		certifyLegalSrcEdges.To = []string{certifyLegalsStr}
+
+		var certifyLegalDeclaredLicensesEdges driver.EdgeDefinition
+		certifyLegalDeclaredLicensesEdges.Collection = certifyLegalDeclaredLicensesEdgesStr
+		certifyLegalDeclaredLicensesEdges.From = []string{certifyLegalsStr}
+		certifyLegalDeclaredLicensesEdges.To = []string{licensesStr}
+
+		var certifyLegalDiscoveredLicensesEdges driver.EdgeDefinition
+		certifyLegalDiscoveredLicensesEdges.Collection = certifyLegalDiscoveredLicensesEdgesStr
+		certifyLegalDiscoveredLicensesEdges.From = []string{certifyLegalsStr}
+		certifyLegalDiscoveredLicensesEdges.To = []string{licensesStr}
+
 		// A graph can contain additional vertex collections, defined in the set of orphan collections
 		var options driver.CreateGraphOptions
 		options.EdgeDefinitions = []driver.EdgeDefinition{pkgHasNamespace, pkgHasName,
-			pkgHasVersion, srcHasNamespace, srcHasName, vulnHasVulnerabilityID, isDependencyDepPkgEdges, isDependencySubjectPkgEdges,
+			pkgHasVersion, srcHasNamespace, srcHasName, vulnHasVulnerabilityID, isDependencyDepPkgVersionEdges, isDependencyDepPkgNameEdges, isDependencySubjectPkgEdges,
 			isOccurrenceArtEdges, isOccurrenceSubjectPkgEdges, isOccurrenceSubjectSrcEdges, hasSLSASubjectArtEdges,
 			hasSLSABuiltByEdges, hasSLSABuiltFromEdges, hashEqualArtEdges, hashEqualSubjectArtEdges, hasSBOMPkgEdges,
-			hasSBOMArtEdges, certifyVulnEdges, certifyScorecardSrcEdges, certifyBadPkgVersionEdges, certifyBadPkgNameEdges,
-			certifyBadArtEdges, certifyBadSrcEdges, certifyGoodPkgVersionEdges, certifyGoodPkgNameEdges, certifyGoodArtEdges, certifyGoodSrcEdges}
+			hasSBOMArtEdges, certifyVulnPkgEdges, certifyVulnEdges, certifyScorecardSrcEdges, certifyBadPkgVersionEdges, certifyBadPkgNameEdges,
+			certifyBadArtEdges, certifyBadSrcEdges, certifyGoodPkgVersionEdges, certifyGoodPkgNameEdges, certifyGoodArtEdges, certifyGoodSrcEdges,
+			certifyVexPkgEdges, certifyVexArtEdges, certifyVexVulnEdges, vulnMetadataEdges, vulnEqualVulnEdges, vulnEqualSubjectVulnEdges,
+			pkgEqualPkgEdges, pkgEqualSubjectPkgEdges, hasMetadataPkgVersionEdges, hasMetadataPkgNameEdges,
+			hasMetadataArtEdges, hasMetadataSrcEdges, pointOfContactPkgVersionEdges, pointOfContactPkgNameEdges,
+			pointOfContactArtEdges, pointOfContactSrcEdges, hasSourceAtEdges, hasSourceAtPkgVersionEdges, hasSourceAtPkgNameEdges,
+			certifyLegalPkgEdges, certifyLegalSrcEdges, certifyLegalDeclaredLicensesEdges, certifyLegalDiscoveredLicensesEdges}
 
 		// create a graph
-		graph, err = db.CreateGraphV2(ctx, "guac", &options)
+		graph, err = db.CreateGraphV2(ctx, arangoGraph, &options)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create graph: %w", err)
 		}
@@ -400,8 +724,8 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 			return nil, fmt.Errorf("failed to generate index for vulnerabilities: %w", err)
 		}
 
-		if err := createIndexPerCollection(ctx, db, hashEqualsStr, []string{"artifactID", "equalArtifactID"}, true, "byArtIDEqualArtID"); err != nil {
-			return nil, fmt.Errorf("failed to generate index for hashEquals: %w", err)
+		if err := createIndexPerCollection(ctx, db, licensesStr, []string{"name", "inline", "listversion"}, true, "byNameInlineListVer"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for licenses: %w", err)
 		}
 
 		if err := createIndexPerCollection(ctx, db, pkgTypesStr, []string{"type"}, true, "byPkgType"); err != nil {
@@ -440,16 +764,144 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 			return nil, fmt.Errorf("failed to generate index for srcNames: %w", err)
 		}
 
+		// index for isDependency
 		if err := createIndexPerCollection(ctx, db, isDependenciesStr, []string{"packageID", "depPackageID", "versionRange", "origin"}, false, "byPkgIDDepPkgIDversionRangeOrigin"); err != nil {
 			return nil, fmt.Errorf("failed to generate index for isDependencies: %w", err)
 		}
 
-		if err := createIndexPerCollection(ctx, db, isOccurrencesStr, []string{"packageID", "artifactID", "origin"}, true, "byPkgIDArtIDOrigin"); err != nil {
+		// index for isOccurrence
+		if err := createIndexPerCollection(ctx, db, isOccurrencesStr, []string{"packageID", "artifactID", "justification", "origin"}, true, "byPkgIDArtIDOriginJust"); err != nil {
 			return nil, fmt.Errorf("failed to generate index for isOccurrences: %w", err)
 		}
 
-		if err := createIndexPerCollection(ctx, db, hasSBOMsStr, []string{"digest"}, true, "byDigest"); err != nil {
-			return nil, fmt.Errorf("failed to generate index for hasSBOMs: %w", err)
+		// index for certifyBad - Artifact
+		if err := createIndexPerCollection(ctx, db, certifyBadsStr, []string{"artifactID", "justification", "knownSince"}, false, "certifyBadArtifactID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyBad: %w", err)
+		}
+
+		// index for certifyBad - Package
+		if err := createIndexPerCollection(ctx, db, certifyBadsStr, []string{"packageID", "justification", "knownSince"}, false, "certifyBadPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyBad: %w", err)
+		}
+
+		// index for certifyBad - Source
+		if err := createIndexPerCollection(ctx, db, certifyBadsStr, []string{"sourceID", "justification", "knownSince"}, false, "certifyBadSourceID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyBad: %w", err)
+		}
+
+		// index for certifyGood - Artifact
+		if err := createIndexPerCollection(ctx, db, certifyGoodsStr, []string{"artifactID", "justification", "knownSince"}, false, "certifyGoodArtifactID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyGood: %w", err)
+		}
+
+		// index for certifyGood - Package
+		if err := createIndexPerCollection(ctx, db, certifyGoodsStr, []string{"packageID", "justification", "knownSince"}, false, "certifyGoodPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyGood: %w", err)
+		}
+
+		// index for certifyGood - Source
+		if err := createIndexPerCollection(ctx, db, certifyGoodsStr, []string{"sourceID", "justification", "knownSince"}, false, "certifyGoodSourceID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyGood: %w", err)
+		}
+
+		// index for certifyLegal - Package
+		if err := createIndexPerCollection(ctx, db, certifyLegalsStr, []string{"packageID", "declaredLicense", "declaredLicenses", "discoveredLicense", "discoveredLicenses", "attribution", "justification", "timeScanned", "origin"}, false, "certifyLegalPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyLegal: %w", err)
+		}
+
+		// index for certifyLegal - Source
+		if err := createIndexPerCollection(ctx, db, certifyLegalsStr, []string{"sourceID", "declaredLicense", "declaredLicenses", "discoveredLicense", "discoveredLicenses", "attribution", "justification", "timeScanned", "origin"}, false, "certifyLegalSourceID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for isOccurrences: %w", err)
+		}
+
+		// index for certifyScorecard
+		if err := createIndexPerCollection(ctx, db, scorecardStr, []string{"sourceID", "checks", "aggregateScore", "timeScanned", "origin"}, true, "certifyScorecard"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyScorecard: %w", err)
+		}
+
+		// index for certifyVex - Package
+		if err := createIndexPerCollection(ctx, db, certifyVEXsStr, []string{"packageID", "vulnerabilityID", "status", "vexJustification", "statement", "statusNotes", "knownSince", "origin"}, false, "certifyVexPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyVex: %w", err)
+		}
+
+		// index for certifyVex - Artifact
+		if err := createIndexPerCollection(ctx, db, certifyVEXsStr, []string{"artifactID", "vulnerabilityID", "status", "vexJustification", "statement", "statusNotes", "knownSince", "origin"}, false, "certifyVexArtifactID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for isOccurrences: %w", err)
+		}
+
+		// index for certifyVuln
+		if err := createIndexPerCollection(ctx, db, certifyVulnsStr, []string{"packageID", "vulnerabilityID", "ScannerVersion", "dbUri", "dbVersion", "scannerUri", "scannerVersion", "timeScanned", "origin"}, true, "certifyVuln"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for certifyVuln: %w", err)
+		}
+
+		// index for hashEquals
+		if err := createIndexPerCollection(ctx, db, hashEqualsStr, []string{"artifactID", "equalArtifactID", "justification", "origin"}, true, "hashEquals"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hashEquals: %w", err)
+		}
+
+		// index for hashMetadata - Artifact
+		if err := createIndexPerCollection(ctx, db, hasMetadataStr, []string{"artifactID", "key", "value", "timestamp", "justification", "origin"}, false, "hashMetadataArtifactID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hashMetadata: %w", err)
+		}
+
+		// index for hashMetadata - Package
+		if err := createIndexPerCollection(ctx, db, hasMetadataStr, []string{"packageID", "key", "value", "timestamp", "justification", "origin"}, false, "hashMetadataPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hashMetadata: %w", err)
+		}
+
+		// index for hashMetadata - Source
+		if err := createIndexPerCollection(ctx, db, hasMetadataStr, []string{"sourceID", "key", "value", "timestamp", "justification", "origin"}, false, "hashMetadataSourceID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hashMetadata: %w", err)
+		}
+
+		// index for hasSbom - Artifact
+		if err := createIndexPerCollection(ctx, db, hasSBOMsStr, []string{"artifactID", "uri", "algorithm", "digest", "knownSince", "downloadLocation", "origin"}, false, "hasSbomArtifactID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hasSbom: %w", err)
+		}
+
+		// index for hasSbom - Package
+		if err := createIndexPerCollection(ctx, db, hasSBOMsStr, []string{"packageID", "uri", "algorithm", "digest", "knownSince", "downloadLocation", "origin"}, false, "hasSbomPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hasSbom: %w", err)
+		}
+
+		// index for hasSlsa
+		if err := createIndexPerCollection(ctx, db, hasSLSAsStr, []string{"subjectID", "builtByID", "buildType", "builtFrom", "slsaPredicate", "slsaVersion", "startedOn", "finishedOn", "origin"}, true, "hasSlsa"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hasSlsa: %w", err)
+		}
+
+		// index for hasSourceAt
+		if err := createIndexPerCollection(ctx, db, hasSourceAtsStr, []string{"packageID", "sourceID", "justification", "knownSince", "origin"}, true, "hasSourceAt"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for hasSourceAt: %w", err)
+		}
+
+		// index for pkgEqual
+		if err := createIndexPerCollection(ctx, db, pkgEqualsStr, []string{"packageID", "equalPackageID", "justification", "origin"}, true, "pkgEqual"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for pkgEqual: %w", err)
+		}
+
+		// index for pointOfContact - Artifact
+		if err := createIndexPerCollection(ctx, db, pointOfContactStr, []string{"artifactID", "email", "info", "since", "justification", "origin"}, false, "pointOfContactArtifactID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for pointOfContact: %w", err)
+		}
+
+		// index for pointOfContact - Package
+		if err := createIndexPerCollection(ctx, db, pointOfContactStr, []string{"packageID", "email", "info", "since", "justification", "origin"}, false, "pointOfContactPackageID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for pointOfContact: %w", err)
+		}
+
+		// index for pointOfContact - Source
+		if err := createIndexPerCollection(ctx, db, pointOfContactStr, []string{"sourceID", "email", "info", "since", "justification", "origin"}, false, "pointOfContactSourceID"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for pointOfContact: %w", err)
+		}
+
+		// index for vulnEqual
+		if err := createIndexPerCollection(ctx, db, vulnEqualsStr, []string{"vulnerabilityID", "equalVulnerabilityID", "justification", "origin"}, true, "vulnEqual"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for vulnEqual: %w", err)
+		}
+
+		// index for vulnMetadata
+		if err := createIndexPerCollection(ctx, db, vulnMetadataStr, []string{"vulnerabilityID", "scoreType", "scoreValue", "timestamp", "origin"}, true, "vulnMetadata"); err != nil {
+			return nil, fmt.Errorf("failed to generate index for vulnMetadata: %w", err)
 		}
 
 		// GUAC key indices for package
@@ -504,13 +956,16 @@ func GetBackend(ctx context.Context, args backends.BackendArgs) (backends.Backen
 			CommitInterval:        ptrfrom.Int64(10 * 60 * 1000),
 			ConsolidationInterval: ptrfrom.Int64(10 * 60 * 1000),
 			Links: driver.ArangoSearchLinks{
+				// Only index the version string since guac files creates a lot of noise in the index
+				// from the name of the file being in the subpath
+				// TODO : would be a good addition to have an excludes from search field instead so files can be filtered
 				pkgVersionsStr: driver.ArangoSearchElementProperties{
 					Analyzers:          []string{"identity", "text_en", "customgram"},
 					IncludeAllFields:   ptrfrom.Bool(false),
 					TrackListPositions: ptrfrom.Bool(false),
 					StoreValues:        driver.ArangoSearchStoreValuesNone,
 					Fields: map[string]driver.ArangoSearchElementProperties{
-						"guacKey": {},
+						"version": {},
 					},
 					InBackground: ptrfrom.Bool(true),
 				},
@@ -636,6 +1091,14 @@ func (aqb *arangoQueryBuilder) filter(counterName string, fieldName string, cond
 	return newArangoQueryFilter(aqb)
 }
 
+func (aqb *arangoQueryBuilder) filterLength(counterName string, fieldName string, condition string, value int) *arangoQueryFilter {
+	aqb.query.WriteString(" ")
+
+	aqb.query.WriteString(fmt.Sprintf("FILTER LENGTH(%s.%s) %s %d", counterName, fieldName, condition, value))
+
+	return newArangoQueryFilter(aqb)
+}
+
 func (aqb *arangoQueryBuilder) string() string {
 	return aqb.query.String()
 }
@@ -709,58 +1172,6 @@ func getPreloadString(prefix, name string) string {
 		return prefix + "." + name
 	}
 	return name
-}
-
-// Retrieval read-only queries for evidence trees
-
-func (c *arangoClient) CertifyVEXStatement(ctx context.Context, certifyVEXStatementSpec *model.CertifyVEXStatementSpec) ([]*model.CertifyVEXStatement, error) {
-	panic(fmt.Errorf("not implemented: CertifyVEXStatement - CertifyVEXStatement"))
-}
-func (c *arangoClient) CertifyVuln(ctx context.Context, certifyVulnSpec *model.CertifyVulnSpec) ([]*model.CertifyVuln, error) {
-	panic(fmt.Errorf("not implemented: CertifyVuln - CertifyVuln"))
-}
-
-func (c *arangoClient) HasSourceAt(ctx context.Context, hasSourceAtSpec *model.HasSourceAtSpec) ([]*model.HasSourceAt, error) {
-	panic(fmt.Errorf("not implemented: HasSourceAt - HasSourceAt"))
-}
-
-func (c *arangoClient) VulnEqual(ctx context.Context, vulnEqualSpec *model.VulnEqualSpec) ([]*model.VulnEqual, error) {
-	panic(fmt.Errorf("not implemented: VulnEqual"))
-}
-func (c *arangoClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
-	panic(fmt.Errorf("not implemented: PkgEqual - PkgEqual"))
-}
-
-// Mutations for evidence trees (read-write queries, assume software trees ingested)
-
-func (c *arangoClient) IngestHasSourceAt(ctx context.Context, pkg model.PkgInputSpec, pkgMatchType model.MatchFlags, source model.SourceInputSpec, hasSourceAt model.HasSourceAtInputSpec) (*model.HasSourceAt, error) {
-	panic(fmt.Errorf("not implemented: IngestHasSourceAt - IngestHasSourceAt"))
-}
-func (c *arangoClient) IngestVulnEqual(ctx context.Context, vulnerability model.VulnerabilityInputSpec, otherVulnerability model.VulnerabilityInputSpec, vulnEqual model.VulnEqualInputSpec) (*model.VulnEqual, error) {
-	panic(fmt.Errorf("not implemented: IngestVulnEqual"))
-}
-func (c *arangoClient) IngestPkgEqual(ctx context.Context, pkg model.PkgInputSpec, depPkg model.PkgInputSpec, pkgEqual model.PkgEqualInputSpec) (*model.PkgEqual, error) {
-	panic(fmt.Errorf("not implemented: IngestPkgEqual - IngestPkgEqual"))
-}
-func (c *arangoClient) IngestVEXStatement(ctx context.Context, subject model.PackageOrArtifactInput, vulnerability model.VulnerabilityInputSpec, vexStatement model.VexStatementInputSpec) (*model.CertifyVEXStatement, error) {
-	panic(fmt.Errorf("not implemented: IngestVEXStatement - IngestVEXStatement"))
-}
-func (c *arangoClient) IngestCertifyVuln(ctx context.Context, pkg model.PkgInputSpec, vulnerability model.VulnerabilityInputSpec, certifyVuln model.ScanMetadataInput) (*model.CertifyVuln, error) {
-	panic(fmt.Errorf("not implemented: IngestCertifyVuln"))
-}
-
-// Topological queries: queries where node connectivity matters more than node type
-func (c *arangoClient) Neighbors(ctx context.Context, node string, usingOnly []model.Edge) ([]model.Node, error) {
-	panic(fmt.Errorf("not implemented: Neighbors - Neighbors"))
-}
-func (c *arangoClient) Node(ctx context.Context, node string) (model.Node, error) {
-	panic(fmt.Errorf("not implemented: Node - Node"))
-}
-func (c *arangoClient) Nodes(ctx context.Context, nodes []string) ([]model.Node, error) {
-	panic(fmt.Errorf("not implemented: Nodes - Nodes"))
-}
-func (c *arangoClient) Path(ctx context.Context, subject string, target string, maxPathLength int, usingOnly []model.Edge) ([]model.Node, error) {
-	panic(fmt.Errorf("not implemented: Path - Path"))
 }
 
 func ptrfromArangoSearchNGramStreamType(s driver.ArangoSearchNGramStreamType) *driver.ArangoSearchNGramStreamType {

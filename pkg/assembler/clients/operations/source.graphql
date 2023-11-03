@@ -19,7 +19,9 @@
 
 mutation IngestSource($source: SourceInputSpec!) {
   ingestSource(source: $source) {
-    ...AllSourceTree
+    sourceTypeID
+    sourceNamespaceID
+    sourceNameID
   }
 }
 
@@ -27,7 +29,9 @@ mutation IngestSource($source: SourceInputSpec!) {
 
 mutation IngestSources($sources: [SourceInputSpec!]!) {
   ingestSources(sources: $sources) {
-    ...AllSourceTree
+    sourceTypeID
+    sourceNamespaceID
+    sourceNameID
   }
 }
 

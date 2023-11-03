@@ -17,11 +17,11 @@ package arangodb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/arangodb/go-driver"
+	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -34,7 +34,6 @@ func (c *arangoClient) Builders(ctx context.Context, builderSpec *model.BuilderS
 		"uri": build.uri,
 	  }`)
 
-	fmt.Println(arangoQueryBuilder.string())
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "Builders")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query for builder: %w", err)
@@ -53,7 +52,7 @@ func setBuilderMatchValues(builderSpec *model.BuilderSpec, queryValues map[strin
 		}
 		if builderSpec.URI != nil {
 			arangoQueryBuilder.filter("build", "uri", "==", "@uri")
-			queryValues["uri"] = builderSpec.URI
+			queryValues["uri"] = *builderSpec.URI
 		}
 	}
 	return arangoQueryBuilder
@@ -61,7 +60,7 @@ func setBuilderMatchValues(builderSpec *model.BuilderSpec, queryValues map[strin
 
 func getBuilderQueryValues(builder *model.BuilderInputSpec) map[string]any {
 	values := map[string]any{}
-	values["uri"] = strings.ToLower(builder.URI)
+	values["uri"] = builder.URI
 	return values
 }
 
@@ -159,4 +158,53 @@ func getBuilders(ctx context.Context, cursor driver.Cursor) ([]*model.Builder, e
 		}
 	}
 	return createdBuilders, nil
+}
+
+func (c *arangoClient) buildBuilderResponseByID(ctx context.Context, id string, filter *model.BuilderSpec) (*model.Builder, error) {
+	if filter != nil && filter.ID != nil {
+		if *filter.ID != id {
+			return nil, fmt.Errorf("ID does not match filter")
+		}
+	}
+	idSplit := strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	if idSplit[0] == buildersStr {
+		if filter != nil {
+			filter.ID = ptrfrom.String(id)
+		} else {
+			filter = &model.BuilderSpec{
+				ID: ptrfrom.String(id),
+			}
+		}
+		foundBuilders, err := c.Builders(ctx, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get builder node by ID with error: %w", err)
+		}
+		if len(foundBuilders) != 1 {
+			return nil, fmt.Errorf("number of builder nodes found for ID: %s is greater than one", id)
+		}
+		return foundBuilders[0], nil
+	} else {
+		return nil, fmt.Errorf("id type does not match for builder query: %s", id)
+	}
+}
+
+func (c *arangoClient) builderNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := []string{}
+	if allowedEdges[model.EdgeBuilderHasSlsa] {
+		values := map[string]any{}
+		arangoQueryBuilder := setBuilderMatchValues(&model.BuilderSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.forInBound(hasSLSABuiltByEdgesStr, "hasSLSA", "build")
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor: hasSLSA._id }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "builderNeighbors")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	return out, nil
 }

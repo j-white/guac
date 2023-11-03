@@ -68,22 +68,22 @@ type PkgIds struct {
 	VersionId   string
 }
 
-func createQueryToMatchPackageName[M any](pkg *model.PkgNameSpec) *gremlinQueryBuilder[M] {
-	query := createGraphQuery(Package)
-	if pkg.ID != nil {
-		query.id = *pkg.ID
-	}
-	if pkg.Type != nil {
-		query.has[typeStr] = *pkg.Type
-	}
-	if pkg.Namespace != nil {
-		query.has[namespace] = *pkg.Namespace
-	}
-	if pkg.Name != nil {
-		query.has[name] = *pkg.Name
-	}
-	return &gremlinQueryBuilder[M]{query: query}
-}
+//func createQueryToMatchPackageName[M any](pkg *model.PkgNameSpec) *gremlinQueryBuilder[M] {
+//	query := createGraphQuery(Package)
+//	if pkg.ID != nil {
+//		query.id = *pkg.ID
+//	}
+//	if pkg.Type != nil {
+//		query.has[typeStr] = *pkg.Type
+//	}
+//	if pkg.Namespace != nil {
+//		query.has[namespace] = *pkg.Namespace
+//	}
+//	if pkg.Name != nil {
+//		query.has[name] = *pkg.Name
+//	}
+//	return &gremlinQueryBuilder[M]{query: query}
+//}
 
 func createQueryToMatchPackage[M any](pkg *model.PkgSpec) *gremlinQueryBuilder[M] {
 	query := createGraphQuery(Package)

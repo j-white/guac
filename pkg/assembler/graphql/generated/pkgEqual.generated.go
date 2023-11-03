@@ -444,10 +444,6 @@ func (ec *executionContext) _PkgEqual(ctx context.Context, sel ast.SelectionSet,
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNPkgEqual2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqual(ctx context.Context, sel ast.SelectionSet, v model.PkgEqual) graphql.Marshaler {
-	return ec._PkgEqual(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNPkgEqual2ᚕᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqualᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PkgEqual) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -505,6 +501,28 @@ func (ec *executionContext) marshalNPkgEqual2ᚖgithubᚗcomᚋguacsecᚋguacᚋ
 func (ec *executionContext) unmarshalNPkgEqualInputSpec2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqualInputSpec(ctx context.Context, v interface{}) (model.PkgEqualInputSpec, error) {
 	res, err := ec.unmarshalInputPkgEqualInputSpec(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNPkgEqualInputSpec2ᚕᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqualInputSpecᚄ(ctx context.Context, v interface{}) ([]*model.PkgEqualInputSpec, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]*model.PkgEqualInputSpec, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNPkgEqualInputSpec2ᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqualInputSpec(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNPkgEqualInputSpec2ᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqualInputSpec(ctx context.Context, v interface{}) (*model.PkgEqualInputSpec, error) {
+	res, err := ec.unmarshalInputPkgEqualInputSpec(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNPkgEqualSpec2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPkgEqualSpec(ctx context.Context, v interface{}) (model.PkgEqualSpec, error) {

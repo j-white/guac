@@ -28,7 +28,7 @@
           }
         ]
       },
-      "dependentPackage": {
+      "dependencyPackage": {
         "type": "golang",
         "namespaces": [
           {
@@ -36,7 +36,13 @@
             "names": [
               {
                 "name": "logrus",
-                "versions": []
+                "versions": [
+                  {
+                    "version": "v1.4.2",
+                    "qualifiers": [],
+                    "subpath": ""
+                  }
+                ]
               }
             ]
           }

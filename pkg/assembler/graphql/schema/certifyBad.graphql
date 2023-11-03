@@ -75,6 +75,7 @@ type CertifyBad {
   justification: String!
   origin: String!
   collector: String!
+  knownSince: Time!
 }
 
 """
@@ -87,6 +88,9 @@ name and one of version, qualifiers, or subpath.
 
 If a source is specified in the subject filter, then it must specify a name,
 and optionally a tag and a commit.
+
+If KnownSince is specified, the returned value will be after or equal to the specified time.
+Any nodes time that is before KnownSince is excluded.
 """
 input CertifyBadSpec {
   id: ID
@@ -94,6 +98,7 @@ input CertifyBadSpec {
   justification: String
   origin: String
   collector: String
+  knownSince: Time
 }
 
 """
@@ -104,6 +109,7 @@ input CertifyBadInputSpec {
   justification: String!
   origin: String!
   collector: String!
+  knownSince: Time!
 }
 
 """
@@ -126,8 +132,16 @@ extend type Query {
 }
 
 extend type Mutation {
-  "Adds a certification that a package, source or artifact is considered bad."
-  ingestCertifyBad(subject: PackageSourceOrArtifactInput!, pkgMatchType: MatchFlags!, certifyBad: CertifyBadInputSpec!): CertifyBad!
-  "Adds bulk certifications that a package, source or artifact is considered bad."
-  ingestCertifyBads(subjects: PackageSourceOrArtifactInputs!, pkgMatchType: MatchFlags!, certifyBads: [CertifyBadInputSpec!]!): [CertifyBad!]!
+  "Adds a certification that a package, source or artifact is considered bad. The returned ID can be empty string."
+  ingestCertifyBad(
+    subject: PackageSourceOrArtifactInput!
+    pkgMatchType: MatchFlags!
+    certifyBad: CertifyBadInputSpec!
+  ): ID!
+  "Adds bulk certifications that a package, source or artifact is considered bad. The returned array of IDs can be a an array of empty string."
+  ingestCertifyBads(
+    subjects: PackageSourceOrArtifactInputs!
+    pkgMatchType: MatchFlags!
+    certifyBads: [CertifyBadInputSpec!]!
+  ): [ID!]!
 }

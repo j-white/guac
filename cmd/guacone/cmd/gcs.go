@@ -19,14 +19,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/guacsec/guac/pkg/cli"
+	"github.com/guacsec/guac/pkg/collectsub/client"
 	csub_client "github.com/guacsec/guac/pkg/collectsub/client"
 	"github.com/guacsec/guac/pkg/handler/collector"
 	"github.com/guacsec/guac/pkg/handler/collector/gcs"
 	"github.com/guacsec/guac/pkg/handler/processor"
+	"github.com/guacsec/guac/pkg/ingestor"
 	"github.com/guacsec/guac/pkg/logging"
 	"github.com/guacsec/guac/pkg/version"
 	"github.com/spf13/cobra"
@@ -35,9 +36,9 @@ import (
 )
 
 type gcsOptions struct {
-	graphqlEndpoint string
-	csubAddr        string
-	bucket          string
+	graphqlEndpoint   string
+	csubClientOptions client.CsubClientOptions
+	bucket            string
 }
 
 const gcsCredentialsPathFlag = "gcp-credentials-path"
@@ -51,7 +52,13 @@ var gcsCmd = &cobra.Command{
 		ctx := logging.WithLogger(context.Background())
 		logger := logging.FromContext(ctx)
 
-		opts, err := validateGCSFlags(viper.GetString("gql-addr"), viper.GetString("csub-addr"), viper.GetString(gcsCredentialsPathFlag), args)
+		opts, err := validateGCSFlags(
+			viper.GetString("gql-addr"),
+			viper.GetString("csub-addr"),
+			viper.GetBool("csub-tls"),
+			viper.GetBool("csub-tls-skip-verify"),
+			viper.GetString(gcsCredentialsPathFlag),
+			args)
 		if err != nil {
 			fmt.Printf("unable to validate flags: %v\n", err)
 			_ = cmd.Help()
@@ -85,7 +92,7 @@ var gcsCmd = &cobra.Command{
 		}
 
 		// initialize collectsub client
-		csubClient, err := csub_client.NewClient(opts.csubAddr)
+		csubClient, err := csub_client.NewClient(opts.csubClientOptions)
 		if err != nil {
 			logger.Infof("collectsub client initialization failed, this ingestion will not pull in any additional data through the collectsub service: %v", err)
 			csubClient = nil
@@ -93,46 +100,17 @@ var gcsCmd = &cobra.Command{
 			defer csubClient.Close()
 		}
 
-		// TODO: this code could be extracted to a function and reused by the
-		// other collectors (files and oci)
-		// Get pipeline of components
-		processorFunc := getProcessor(ctx)
-		ingestorFunc := getIngestor(ctx)
-		collectSubEmitFunc := getCollectSubEmit(ctx, csubClient)
-		assemblerFunc := getAssembler(ctx, opts.graphqlEndpoint)
-
 		totalNum := 0
 		gotErr := false
-		// Set emit function to go through the entire pipeline
+
 		emit := func(d *processor.Document) error {
 			totalNum += 1
-			start := time.Now()
+			err := ingestor.Ingest(ctx, d, opts.graphqlEndpoint, csubClient)
 
-			docTree, err := processorFunc(d)
 			if err != nil {
 				gotErr = true
-				return fmt.Errorf("unable to process doc: %v, format: %v, document: %v", err, d.Format, d.Type)
+				return fmt.Errorf("unable to ingest document: %w", err)
 			}
-
-			predicates, idstrings, err := ingestorFunc(docTree)
-			if err != nil {
-				gotErr = true
-				return fmt.Errorf("unable to ingest doc tree: %v", err)
-			}
-
-			err = collectSubEmitFunc(idstrings)
-			if err != nil {
-				logger.Infof("unable to create entries in collectsub server, but continuing: %v", err)
-			}
-
-			err = assemblerFunc(predicates)
-			if err != nil {
-				gotErr = true
-				return fmt.Errorf("unable to assemble graphs: %v", err)
-			}
-			t := time.Now()
-			elapsed := t.Sub(start)
-			logger.Infof("[%v] completed doc %+v", elapsed, d.SourceInformation)
 			return nil
 		}
 
@@ -157,10 +135,15 @@ var gcsCmd = &cobra.Command{
 	},
 }
 
-func validateGCSFlags(gqlEndpoint, csubAddr, credentialsPath string, args []string) (gcsOptions, error) {
+func validateGCSFlags(gqlEndpoint string, csubAddr string, csubTls bool, csubTlsSkipVerify bool, credentialsPath string, args []string) (gcsOptions, error) {
 	var opts gcsOptions
 	opts.graphqlEndpoint = gqlEndpoint
-	opts.csubAddr = csubAddr
+
+	csubOpts, err := client.ValidateCsubClientFlags(csubAddr, csubTls, csubTlsSkipVerify)
+	if err != nil {
+		return opts, fmt.Errorf("unable to validate csub client flags: %w", err)
+	}
+	opts.csubClientOptions = csubOpts
 
 	if len(args) < 1 {
 		return opts, fmt.Errorf("expected positional argument: bucket")

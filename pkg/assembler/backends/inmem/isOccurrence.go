@@ -22,7 +22,6 @@ import (
 
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	"github.com/guacsec/guac/pkg/assembler/backends/helper"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -99,29 +98,6 @@ func (n *isOccurrenceStruct) BuildModelNode(c *demoClient) (model.Node, error) {
 // Ingest IngestOccurrences
 
 func (c *demoClient) IngestOccurrences(ctx context.Context, subjects model.PackageOrSourceInputs, artifacts []*model.ArtifactInputSpec, occurrences []*model.IsOccurrenceInputSpec) ([]*model.IsOccurrence, error) {
-	valuesDefined := 0
-	if len(subjects.Packages) > 0 {
-		if len(subjects.Packages) != len(artifacts) {
-			return nil, gqlerror.Errorf("uneven packages and artifacts for ingestion")
-		}
-		if len(subjects.Packages) != len(occurrences) {
-			return nil, gqlerror.Errorf("uneven packages and occurrence for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if len(subjects.Sources) > 0 {
-		if len(subjects.Sources) != len(artifacts) {
-			return nil, gqlerror.Errorf("uneven Sources and artifacts for ingestion")
-		}
-		if len(subjects.Sources) != len(occurrences) {
-			return nil, gqlerror.Errorf("uneven Sources and occurrence for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if valuesDefined != 1 {
-		return nil, gqlerror.Errorf("must specify at most packages or sources for %v", "IngestOccurrences")
-	}
-
 	var modelIsOccurrences []*model.IsOccurrence
 
 	for i := range occurrences {
@@ -153,9 +129,6 @@ func (c *demoClient) IngestOccurrence(ctx context.Context, subject model.Package
 
 func (c *demoClient) ingestOccurrence(ctx context.Context, subject model.PackageOrSourceInput, artifact model.ArtifactInputSpec, occurrence model.IsOccurrenceInputSpec, readOnly bool) (*model.IsOccurrence, error) {
 	funcName := "IngestOccurrence"
-	if err := helper.ValidatePackageOrSourceInput(&subject, "IngestOccurrence"); err != nil {
-		return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
-	}
 
 	lock(&c.m, readOnly)
 	defer unlock(&c.m, readOnly)
@@ -288,11 +261,6 @@ func (c *demoClient) artifactMatch(aID uint32, artifactSpec *model.ArtifactSpec)
 
 func (c *demoClient) IsOccurrence(ctx context.Context, filter *model.IsOccurrenceSpec) ([]*model.IsOccurrence, error) {
 	funcName := "IsOccurrence"
-	if filter != nil {
-		if err := helper.ValidatePackageOrSourceQueryFilter(filter.Subject); err != nil {
-			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
-		}
-	}
 
 	c.m.RLock()
 	defer c.m.RUnlock()
@@ -329,13 +297,13 @@ func (c *demoClient) IsOccurrence(ctx context.Context, filter *model.IsOccurrenc
 		}
 	}
 	if !foundOne && filter != nil && filter.Subject != nil && filter.Subject.Package != nil {
-		exactPackage, err := c.exactPackageVersion(filter.Subject.Package)
+		pkgs, err := c.findPackageVersion(filter.Subject.Package)
 		if err != nil {
 			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
 		}
-		if exactPackage != nil {
-			search = append(search, exactPackage.occurrences...)
-			foundOne = true
+		foundOne = len(pkgs) > 0
+		for _, pkg := range pkgs {
+			search = append(search, pkg.occurrences...)
 		}
 	}
 	if !foundOne && filter != nil && filter.Subject != nil && filter.Subject.Source != nil {
@@ -415,4 +383,56 @@ func (c *demoClient) addOccIfMatch(out []*model.IsOccurrence,
 		return nil, err
 	}
 	return append(out, o), nil
+}
+
+func (c *demoClient) matchOccurrences(filters []*model.IsOccurrenceSpec, occLinkIDs []uint32 /*, pkgs []uint32, artifacts []uint32*/) bool {
+	var occLinks []*isOccurrenceStruct
+	if len(filters) > 0 {
+		for _, occLinkID := range occLinkIDs {
+			link, err := byID[*isOccurrenceStruct](occLinkID, c)
+			if err != nil {
+				return false
+			}
+			occLinks = append(occLinks, link)
+		}
+
+		for _, filter := range filters {
+			if filter == nil {
+				continue
+			}
+			if filter.ID != nil {
+				// Check by ID if present
+				if !c.isIDPresent(*filter.ID, occLinkIDs) {
+					return false
+				}
+			} else {
+				// Otherwise match spec information
+				match := false
+				for _, link := range occLinks {
+					if !noMatch(filter.Justification, link.justification) &&
+						!noMatch(filter.Origin, link.origin) &&
+						!noMatch(filter.Collector, link.collector) &&
+						c.matchArtifacts([]*model.ArtifactSpec{filter.Artifact}, []uint32{link.artifact}) {
+
+						if filter.Subject != nil {
+							if filter.Subject.Package != nil && !c.matchPackages([]*model.PkgSpec{filter.Subject.Package}, []uint32{link.pkg}) {
+								continue
+							} else if filter.Subject.Source != nil {
+								src, err := c.exactSource(filter.Subject.Source)
+								if err != nil || src == nil {
+									continue
+								}
+							}
+						}
+						match = true
+						break
+					}
+				}
+				if !match {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }

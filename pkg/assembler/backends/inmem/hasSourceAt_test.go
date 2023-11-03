@@ -17,15 +17,15 @@ package inmem_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
-	"github.com/guacsec/guac/pkg/assembler/backends/inmem"
+	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
-	"golang.org/x/exp/slices"
 )
 
 func TestHasSourceAt(t *testing.T) {
@@ -501,7 +501,7 @@ func TestHasSourceAt(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}
@@ -517,6 +517,258 @@ func TestHasSourceAt(t *testing.T) {
 			}
 			for _, o := range test.Calls {
 				_, err := b.IngestHasSourceAt(ctx, *o.Pkg, *o.Match, *o.Src, *o.HSA)
+				if (err != nil) != test.ExpIngestErr {
+					t.Fatalf("did not get expected ingest error, want: %v, got: %v", test.ExpIngestErr, err)
+				}
+				if err != nil {
+					return
+				}
+			}
+			got, err := b.HasSourceAt(ctx, test.Query)
+			if (err != nil) != test.ExpQueryErr {
+				t.Fatalf("did not get expected query error, want: %v, got: %v", test.ExpQueryErr, err)
+			}
+			if err != nil {
+				return
+			}
+			if diff := cmp.Diff(test.ExpHSA, got, ignoreID); diff != "" {
+				t.Errorf("Unexpected results. (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestIngestHasSourceAts(t *testing.T) {
+	testTime := time.Unix(1e9+5, 0)
+	type call struct {
+		Pkgs  []*model.PkgInputSpec
+		Srcs  []*model.SourceInputSpec
+		Match *model.MatchFlags
+		HSAs  []*model.HasSourceAtInputSpec
+	}
+	tests := []struct {
+		Name         string
+		InPkg        []*model.PkgInputSpec
+		InSrc        []*model.SourceInputSpec
+		Calls        []call
+		Query        *model.HasSourceAtSpec
+		ExpHSA       []*model.HasSourceAt
+		ExpIngestErr bool
+		ExpQueryErr  bool
+	}{
+		{
+			Name:  "HappyPath",
+			InPkg: []*model.PkgInputSpec{p1},
+			InSrc: []*model.SourceInputSpec{s1},
+			Calls: []call{
+				{
+					Pkgs: []*model.PkgInputSpec{p1},
+					Srcs: []*model.SourceInputSpec{s1},
+					Match: &model.MatchFlags{
+						Pkg: model.PkgMatchTypeSpecificVersion,
+					},
+					HSAs: []*model.HasSourceAtInputSpec{
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.HasSourceAtSpec{
+				Justification: ptrfrom.String("test justification"),
+			},
+			ExpHSA: []*model.HasSourceAt{
+				{
+					Package:       p1out,
+					Source:        s1out,
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "HappyPath All Versions",
+			InPkg: []*model.PkgInputSpec{p1},
+			InSrc: []*model.SourceInputSpec{s1},
+			Calls: []call{
+				{
+					Pkgs: []*model.PkgInputSpec{p1},
+					Srcs: []*model.SourceInputSpec{s1},
+					Match: &model.MatchFlags{
+						Pkg: model.PkgMatchTypeAllVersions,
+					},
+					HSAs: []*model.HasSourceAtInputSpec{
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.HasSourceAtSpec{
+				Justification: ptrfrom.String("test justification"),
+			},
+			ExpHSA: []*model.HasSourceAt{
+				{
+					Package:       p1outName,
+					Source:        s1out,
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Ingest Same Twice",
+			InPkg: []*model.PkgInputSpec{p1},
+			InSrc: []*model.SourceInputSpec{s1},
+			Calls: []call{
+				{
+					Pkgs: []*model.PkgInputSpec{p1, p1},
+					Srcs: []*model.SourceInputSpec{s1, s1},
+					Match: &model.MatchFlags{
+						Pkg: model.PkgMatchTypeSpecificVersion,
+					},
+					HSAs: []*model.HasSourceAtInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.HasSourceAtSpec{
+				Justification: ptrfrom.String("test justification"),
+			},
+			ExpHSA: []*model.HasSourceAt{
+				{
+					Package:       p1out,
+					Source:        s1out,
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Query on Package",
+			InPkg: []*model.PkgInputSpec{p1, p2},
+			InSrc: []*model.SourceInputSpec{s1},
+			Calls: []call{
+				{
+					Pkgs: []*model.PkgInputSpec{p1, p2},
+					Srcs: []*model.SourceInputSpec{s1, s1},
+					Match: &model.MatchFlags{
+						Pkg: model.PkgMatchTypeSpecificVersion,
+					},
+					HSAs: []*model.HasSourceAtInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.HasSourceAtSpec{
+				Package: &model.PkgSpec{
+					Version: ptrfrom.String("2.11.1"),
+				},
+			},
+			ExpHSA: []*model.HasSourceAt{
+				{
+					Package:       p2out,
+					Source:        s1out,
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Query on Source",
+			InPkg: []*model.PkgInputSpec{p1},
+			InSrc: []*model.SourceInputSpec{s1, s2},
+			Calls: []call{
+				{
+					Pkgs: []*model.PkgInputSpec{p1, p1},
+					Srcs: []*model.SourceInputSpec{s1, s2},
+					Match: &model.MatchFlags{
+						Pkg: model.PkgMatchTypeSpecificVersion,
+					},
+					HSAs: []*model.HasSourceAtInputSpec{
+						{
+							Justification: "test justification",
+						},
+						{
+							Justification: "test justification",
+						},
+					},
+				},
+			},
+			Query: &model.HasSourceAtSpec{
+				Source: &model.SourceSpec{
+					Name: ptrfrom.String("myrepo"),
+				},
+			},
+			ExpHSA: []*model.HasSourceAt{
+				{
+					Package:       p1out,
+					Source:        s1out,
+					Justification: "test justification",
+				},
+			},
+		},
+		{
+			Name:  "Query on KnownSince",
+			InPkg: []*model.PkgInputSpec{p1},
+			InSrc: []*model.SourceInputSpec{s1},
+			Calls: []call{
+				{
+					Pkgs: []*model.PkgInputSpec{p1, p1},
+					Srcs: []*model.SourceInputSpec{s1, s1},
+					Match: &model.MatchFlags{
+						Pkg: model.PkgMatchTypeSpecificVersion,
+					},
+					HSAs: []*model.HasSourceAtInputSpec{
+						{
+							KnownSince: time.Unix(1e9, 0),
+						},
+						{
+							KnownSince: testTime,
+						},
+					},
+				},
+			},
+			Query: &model.HasSourceAtSpec{
+				KnownSince: &testTime,
+			},
+			ExpHSA: []*model.HasSourceAt{
+				{
+					Package:    p1out,
+					Source:     s1out,
+					KnownSince: testTime,
+				},
+			},
+		},
+	}
+	ignoreID := cmp.FilterPath(func(p cmp.Path) bool {
+		return strings.Compare(".ID", p[len(p)-1].String()) == 0
+	}, cmp.Ignore())
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			b, err := backends.Get("inmem", nil, nil)
+			if err != nil {
+				t.Fatalf("Could not instantiate testing backend: %v", err)
+			}
+			for _, p := range test.InPkg {
+				if _, err := b.IngestPackage(ctx, *p); err != nil {
+					t.Fatalf("Could not ingest package: %v", err)
+				}
+			}
+			for _, s := range test.InSrc {
+				if _, err := b.IngestSource(ctx, *s); err != nil {
+					t.Fatalf("Could not ingest source: %v", err)
+				}
+			}
+			for _, o := range test.Calls {
+				_, err := b.IngestHasSourceAts(ctx, o.Pkgs, o.Match, o.Srcs, o.HSAs)
 				if (err != nil) != test.ExpIngestErr {
 					t.Fatalf("did not get expected ingest error, want: %v, got: %v", test.ExpIngestErr, err)
 				}
@@ -569,9 +821,9 @@ func TestHasSourceAtNeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"4": []string{"1", "8"}, // Package Version
-				"7": []string{"5", "8"}, // Source Name
-				"8": []string{"1", "5"}, // HSA
+				"4": {"1", "8"}, // Package Version
+				"7": {"5", "8"}, // Source Name
+				"8": {"1", "5"}, // HSA
 			},
 		},
 		{
@@ -599,18 +851,18 @@ func TestHasSourceAtNeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"3": []string{"1", "1", "9"}, // Package Name
-				"4": []string{"1", "8"},      // Package Version
-				"7": []string{"5", "8", "9"}, // Source Name
-				"8": []string{"1", "5"},      // HSA -> Version
-				"9": []string{"1", "5"},      // HSA -> Name
+				"3": {"1", "1", "9"}, // Package Name
+				"4": {"1", "8"},      // Package Version
+				"7": {"5", "8", "9"}, // Source Name
+				"8": {"1", "5"},      // HSA -> Version
+				"9": {"1", "5"},      // HSA -> Name
 			},
 		},
 	}
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}

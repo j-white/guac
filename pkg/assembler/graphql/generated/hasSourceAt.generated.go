@@ -578,10 +578,6 @@ func (ec *executionContext) _HasSourceAt(ctx context.Context, sel ast.SelectionS
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNHasSourceAt2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAt(ctx context.Context, sel ast.SelectionSet, v model.HasSourceAt) graphql.Marshaler {
-	return ec._HasSourceAt(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNHasSourceAt2ᚕᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAtᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.HasSourceAt) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -639,6 +635,28 @@ func (ec *executionContext) marshalNHasSourceAt2ᚖgithubᚗcomᚋguacsecᚋguac
 func (ec *executionContext) unmarshalNHasSourceAtInputSpec2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAtInputSpec(ctx context.Context, v interface{}) (model.HasSourceAtInputSpec, error) {
 	res, err := ec.unmarshalInputHasSourceAtInputSpec(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNHasSourceAtInputSpec2ᚕᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAtInputSpecᚄ(ctx context.Context, v interface{}) ([]*model.HasSourceAtInputSpec, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]*model.HasSourceAtInputSpec, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNHasSourceAtInputSpec2ᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAtInputSpec(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNHasSourceAtInputSpec2ᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAtInputSpec(ctx context.Context, v interface{}) (*model.HasSourceAtInputSpec, error) {
+	res, err := ec.unmarshalInputHasSourceAtInputSpec(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNHasSourceAtSpec2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐHasSourceAtSpec(ctx context.Context, v interface{}) (model.HasSourceAtSpec, error) {

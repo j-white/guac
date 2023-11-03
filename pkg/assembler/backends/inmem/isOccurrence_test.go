@@ -17,17 +17,18 @@ package inmem_test
 
 import (
 	"context"
-	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/exp/slices"
-
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
-	"github.com/guacsec/guac/pkg/assembler/backends/inmem"
+	"github.com/guacsec/guac/pkg/assembler/backends"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	jsoniter "github.com/json-iterator/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func convNode(n model.Node) hasID {
 	// All nodes have a json "id"
@@ -55,6 +56,7 @@ var a1 = &model.ArtifactInputSpec{
 	Algorithm: "sha256",
 	Digest:    "6bbb0da1891646e58eb3e6a63af3a6fc3c8eb5a0d44824cba581d2e14a0450cf",
 }
+
 var a1out = &model.Artifact{
 	Algorithm: "sha256",
 	Digest:    "6bbb0da1891646e58eb3e6a63af3a6fc3c8eb5a0d44824cba581d2e14a0450cf",
@@ -64,6 +66,7 @@ var a2 = &model.ArtifactInputSpec{
 	Algorithm: "sha1",
 	Digest:    "7A8F47318E4676DACB0142AFA0B83029CD7BEFD9",
 }
+
 var a2out = &model.Artifact{
 	Algorithm: "sha1",
 	Digest:    "7a8f47318e4676dacb0142afa0b83029cd7befd9",
@@ -73,6 +76,7 @@ var a3 = &model.ArtifactInputSpec{
 	Algorithm: "sha512",
 	Digest:    "374AB8F711235830769AA5F0B31CE9B72C5670074B34CB302CDAFE3B606233EE92EE01E298E5701F15CC7087714CD9ABD7DDB838A6E1206B3642DE16D9FC9DD7",
 }
+
 var a3out = &model.Artifact{
 	Algorithm: "sha512",
 	Digest:    "374ab8f711235830769aa5f0b31ce9b72c5670074b34cb302cdafe3b606233ee92ee01e298e5701f15cc7087714cd9abd7ddb838a6e1206b3642de16d9fc9dd7",
@@ -87,6 +91,7 @@ var p1 = &model.PkgInputSpec{
 	Type: "pypi",
 	Name: "tensorflow",
 }
+
 var p1out = &model.Package{
 	Type: "pypi",
 	Namespaces: []*model.PackageNamespace{{
@@ -99,6 +104,7 @@ var p1out = &model.Package{
 		}},
 	}},
 }
+
 var p1outName = &model.Package{
 	Type: "pypi",
 	Namespaces: []*model.PackageNamespace{{
@@ -114,6 +120,7 @@ var p2 = &model.PkgInputSpec{
 	Name:    "tensorflow",
 	Version: ptrfrom.String("2.11.1"),
 }
+
 var p2out = &model.Package{
 	Type: "pypi",
 	Namespaces: []*model.PackageNamespace{{
@@ -126,6 +133,7 @@ var p2out = &model.Package{
 		}},
 	}},
 }
+
 var p2outName = &model.Package{
 	Type: "pypi",
 	Namespaces: []*model.PackageNamespace{{
@@ -142,6 +150,7 @@ var p3 = &model.PkgInputSpec{
 	Version: ptrfrom.String("2.11.1"),
 	Subpath: ptrfrom.String("saved_model_cli.py"),
 }
+
 var p3out = &model.Package{
 	Type: "pypi",
 	Namespaces: []*model.PackageNamespace{{
@@ -162,6 +171,21 @@ var p4 = &model.PkgInputSpec{
 	Name:      "openssl",
 	Version:   ptrfrom.String("3.0.3"),
 }
+
+var p4out = &model.Package{
+	Type: "conan",
+	Namespaces: []*model.PackageNamespace{{
+		Namespace: "openssl.org",
+		Names: []*model.PackageName{{
+			Name: "openssl",
+			Versions: []*model.PackageVersion{{
+				Version:    "3.0.3",
+				Qualifiers: []*model.PackageQualifier{},
+			}},
+		}},
+	}},
+}
+
 var p4outName = &model.Package{
 	Type: "conan",
 	Namespaces: []*model.PackageNamespace{{
@@ -178,6 +202,7 @@ var s1 = &model.SourceInputSpec{
 	Namespace: "github.com/jeff",
 	Name:      "myrepo",
 }
+
 var s1out = &model.Source{
 	Type: "git",
 	Namespaces: []*model.SourceNamespace{{
@@ -195,6 +220,7 @@ var s2 = &model.SourceInputSpec{
 	Namespace: "github.com/bob",
 	Name:      "bobsrepo",
 }
+
 var s2out = &model.Source{
 	Type: "git",
 	Namespaces: []*model.SourceNamespace{{
@@ -229,7 +255,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -243,7 +269,7 @@ func TestOccurrence(t *testing.T) {
 				Justification: ptrfrom.String("test justification"),
 			},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a1out,
 					Justification: "test justification",
@@ -255,7 +281,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -264,7 +290,7 @@ func TestOccurrence(t *testing.T) {
 						Justification: "test justification",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -278,7 +304,7 @@ func TestOccurrence(t *testing.T) {
 				Justification: ptrfrom.String("test justification"),
 			},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a1out,
 					Justification: "test justification",
@@ -290,7 +316,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -299,7 +325,7 @@ func TestOccurrence(t *testing.T) {
 						Justification: "justification one",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -313,7 +339,7 @@ func TestOccurrence(t *testing.T) {
 				Justification: ptrfrom.String("justification one"),
 			},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a1out,
 					Justification: "justification one",
@@ -325,7 +351,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1, a2},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -334,7 +360,7 @@ func TestOccurrence(t *testing.T) {
 						Justification: "justification",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -350,7 +376,7 @@ func TestOccurrence(t *testing.T) {
 				},
 			},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a1out,
 					Justification: "justification",
@@ -362,7 +388,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1, p2},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -371,7 +397,7 @@ func TestOccurrence(t *testing.T) {
 						Justification: "justification",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p2,
 					},
@@ -389,7 +415,7 @@ func TestOccurrence(t *testing.T) {
 				},
 			},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a1out,
 					Justification: "justification",
@@ -402,7 +428,7 @@ func TestOccurrence(t *testing.T) {
 			InSrc: []*model.SourceInputSpec{s1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -411,7 +437,7 @@ func TestOccurrence(t *testing.T) {
 						Justification: "justification",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Source: s1,
 					},
@@ -427,7 +453,7 @@ func TestOccurrence(t *testing.T) {
 				},
 			},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       s1out,
 					Artifact:      a1out,
 					Justification: "justification",
@@ -439,7 +465,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -459,7 +485,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1, a2},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -468,7 +494,7 @@ func TestOccurrence(t *testing.T) {
 						Justification: "test justification",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -480,12 +506,12 @@ func TestOccurrence(t *testing.T) {
 			},
 			Query: &model.IsOccurrenceSpec{},
 			ExpOcc: []*model.IsOccurrence{
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a1out,
 					Justification: "test justification",
 				},
-				&model.IsOccurrence{
+				{
 					Subject:       p1out,
 					Artifact:      a2out,
 					Justification: "test justification",
@@ -497,7 +523,7 @@ func TestOccurrence(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -510,34 +536,11 @@ func TestOccurrence(t *testing.T) {
 			ExpIngestErr: true,
 		},
 		{
-			Name:  "Query error",
-			InPkg: []*model.PkgInputSpec{p1},
-			InArt: []*model.ArtifactInputSpec{a1},
-			Calls: []call{
-				call{
-					PkgSrc: model.PackageOrSourceInput{
-						Package: p1,
-					},
-					Artifact: a1,
-					Occurrence: &model.IsOccurrenceInputSpec{
-						Justification: "justification",
-					},
-				},
-			},
-			Query: &model.IsOccurrenceSpec{
-				Subject: &model.PackageOrSourceSpec{
-					Package: &model.PkgSpec{},
-					Source:  &model.SourceSpec{},
-				},
-			},
-			ExpQueryErr: true,
-		},
-		{
 			Name:  "Query bad ID",
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -559,7 +562,7 @@ func TestOccurrence(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}
@@ -621,7 +624,7 @@ func TestIngestOccurrences(t *testing.T) {
 		InPkg: []*model.PkgInputSpec{p1, p2},
 		InArt: []*model.ArtifactInputSpec{a1, a2},
 		Calls: []call{
-			call{
+			{
 				PkgSrcs: model.PackageOrSourceInputs{
 					Packages: []*model.PkgInputSpec{p1, p2},
 				},
@@ -634,11 +637,11 @@ func TestIngestOccurrences(t *testing.T) {
 			},
 		},
 		ExpOcc: []*model.IsOccurrence{
-			&model.IsOccurrence{
+			{
 				Subject:       p1out,
 				Artifact:      a1out,
 				Justification: "test justification",
-			}, &model.IsOccurrence{
+			}, {
 				Subject:       p2out,
 				Artifact:      a2out,
 				Justification: "test justification",
@@ -649,7 +652,7 @@ func TestIngestOccurrences(t *testing.T) {
 		InSrc: []*model.SourceInputSpec{s1},
 		InArt: []*model.ArtifactInputSpec{a1},
 		Calls: []call{
-			call{
+			{
 				PkgSrcs: model.PackageOrSourceInputs{
 					Sources: []*model.SourceInputSpec{s1},
 				},
@@ -673,7 +676,7 @@ func TestIngestOccurrences(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}
@@ -727,7 +730,7 @@ func TestOccurrenceNeighbors(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -738,12 +741,12 @@ func TestOccurrenceNeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"1": []string{"1"},
-				"2": []string{"1", "1"},
-				"3": []string{"1", "1"},
-				"4": []string{"1", "6"}, // pkg version
-				"5": []string{"6"},      // artifact
-				"6": []string{"1", "5"}, // isOccurence
+				"1": {"1"},
+				"2": {"1", "1"},
+				"3": {"1", "1"},
+				"4": {"1", "6"}, // pkg version
+				"5": {"6"},      // artifact
+				"6": {"1", "5"}, // isOccurence
 			},
 		},
 		{
@@ -751,7 +754,7 @@ func TestOccurrenceNeighbors(t *testing.T) {
 			InPkg: []*model.PkgInputSpec{p1},
 			InArt: []*model.ArtifactInputSpec{a1, a2},
 			Calls: []call{
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -760,7 +763,7 @@ func TestOccurrenceNeighbors(t *testing.T) {
 						Justification: "test justification",
 					},
 				},
-				call{
+				{
 					PkgSrc: model.PackageOrSourceInput{
 						Package: p1,
 					},
@@ -771,18 +774,18 @@ func TestOccurrenceNeighbors(t *testing.T) {
 				},
 			},
 			ExpNeighbors: map[string][]string{
-				"4": []string{"1", "7", "8"}, // pkg version
-				"5": []string{"7"},           // artifact1
-				"6": []string{"8"},           // artifact2
-				"7": []string{"1", "5"},      // isOccurence 1
-				"8": []string{"1", "6"},      // isOccurence 2
+				"4": {"1", "7", "8"}, // pkg version
+				"5": {"7"},           // artifact1
+				"6": {"8"},           // artifact2
+				"7": {"1", "5"},      // isOccurence 1
+				"8": {"1", "6"},      // isOccurence 2
 			},
 		},
 	}
 	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			b, err := inmem.GetBackend(nil)
+			b, err := backends.Get("inmem", nil, nil)
 			if err != nil {
 				t.Fatalf("Could not instantiate testing backend: %v", err)
 			}

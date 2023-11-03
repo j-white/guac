@@ -18,10 +18,10 @@ package inmem
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	"github.com/guacsec/guac/pkg/assembler/backends/helper"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -35,6 +35,7 @@ type goodLink struct {
 	justification string
 	origin        string
 	collector     string
+	knownSince    time.Time
 }
 
 func (n *goodLink) ID() uint32 { return n.id }
@@ -60,29 +61,6 @@ func (n *goodLink) BuildModelNode(c *demoClient) (model.Node, error) {
 // Ingest CertifyGood
 
 func (c *demoClient) IngestCertifyGoods(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, certifyGoods []*model.CertifyGoodInputSpec) ([]*model.CertifyGood, error) {
-	valuesDefined := 0
-	if len(subjects.Packages) > 0 {
-		if len(subjects.Packages) != len(certifyGoods) {
-			return nil, gqlerror.Errorf("uneven packages and certifyGoods for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if len(subjects.Artifacts) > 0 {
-		if len(subjects.Artifacts) != len(certifyGoods) {
-			return nil, gqlerror.Errorf("uneven artifacts and certifyGoods for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if len(subjects.Sources) > 0 {
-		if len(subjects.Sources) != len(certifyGoods) {
-			return nil, gqlerror.Errorf("uneven sources and certifyGoods for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if valuesDefined != 1 {
-		return nil, gqlerror.Errorf("must specify at most packages, artifacts or sources for %v", "IngestCertifyGoods")
-	}
-
 	var modelCertifyGoods []*model.CertifyGood
 
 	for i := range certifyGoods {
@@ -117,9 +95,6 @@ func (c *demoClient) IngestCertifyGood(ctx context.Context, subject model.Packag
 }
 func (c *demoClient) ingestCertifyGood(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, certifyGood model.CertifyGoodInputSpec, readOnly bool) (*model.CertifyGood, error) {
 	funcName := "IngestCertifyGood"
-	if err := helper.ValidatePackageSourceOrArtifactInput(&subject, "good subject"); err != nil {
-		return nil, err
-	}
 
 	lock(&c.m, readOnly)
 	defer unlock(&c.m, readOnly)
@@ -185,7 +160,8 @@ func (c *demoClient) ingestCertifyGood(ctx context.Context, subject model.Packag
 			subjectMatch = true
 		}
 		if subjectMatch && certifyGood.Justification == v.justification &&
-			certifyGood.Origin == v.origin && certifyGood.Collector == v.collector {
+			certifyGood.Origin == v.origin && certifyGood.Collector == v.collector &&
+			certifyGood.KnownSince.Equal(v.knownSince) {
 
 			collectedCertifyGoodLink = *v
 			duplicate = true
@@ -208,6 +184,7 @@ func (c *demoClient) ingestCertifyGood(ctx context.Context, subject model.Packag
 			justification: certifyGood.Justification,
 			origin:        certifyGood.Origin,
 			collector:     certifyGood.Collector,
+			knownSince:    certifyGood.KnownSince.UTC(),
 		}
 		c.index[collectedCertifyGoodLink.id] = &collectedCertifyGoodLink
 		c.certifyGoods = append(c.certifyGoods, &collectedCertifyGoodLink)
@@ -235,11 +212,6 @@ func (c *demoClient) ingestCertifyGood(ctx context.Context, subject model.Packag
 // Query CertifyGood
 func (c *demoClient) CertifyGood(ctx context.Context, filter *model.CertifyGoodSpec) ([]*model.CertifyGood, error) {
 	funcName := "CertifyGood"
-	if filter != nil {
-		if err := helper.ValidatePackageSourceOrArtifactQueryFilter(filter.Subject); err != nil {
-			return nil, err
-		}
-	}
 
 	c.m.RLock()
 	defer c.m.RUnlock()
@@ -315,14 +287,14 @@ func (c *demoClient) addCGIfMatch(out []*model.CertifyGood,
 	filter *model.CertifyGoodSpec, link *goodLink) (
 	[]*model.CertifyGood, error) {
 
-	if filter != nil && noMatch(filter.Justification, link.justification) {
-		return out, nil
-	}
-	if filter != nil && noMatch(filter.Collector, link.collector) {
-		return out, nil
-	}
-	if filter != nil && noMatch(filter.Origin, link.origin) {
-		return out, nil
+	if filter != nil {
+		if noMatch(filter.Justification, link.justification) ||
+			noMatch(filter.Collector, link.collector) ||
+			noMatch(filter.Collector, link.collector) ||
+			noMatch(filter.Origin, link.origin) ||
+			filter.KnownSince != nil && filter.KnownSince.After(link.knownSince) {
+			return out, nil
+		}
 	}
 
 	foundCertifyGood, err := c.buildCertifyGood(link, filter, false)
@@ -412,6 +384,7 @@ func (c *demoClient) buildCertifyGood(link *goodLink, filter *model.CertifyGoodS
 		Justification: link.justification,
 		Origin:        link.origin,
 		Collector:     link.collector,
+		KnownSince:    link.knownSince.UTC(),
 	}
 	return &certifyGood, nil
 }

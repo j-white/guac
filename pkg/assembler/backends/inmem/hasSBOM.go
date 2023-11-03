@@ -17,38 +17,55 @@ package inmem
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vektah/gqlparser/v2/gqlerror"
+	"golang.org/x/exp/slices"
 
-	"github.com/guacsec/guac/pkg/assembler/backends/helper"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
 type hasSBOMList []*hasSBOMStruct
 type hasSBOMStruct struct {
-	id               uint32
-	pkg              uint32
-	artifact         uint32
-	uri              string
-	algorithm        string
-	digest           string
-	downloadLocation string
-	origin           string
-	collector        string
+	id                   uint32
+	pkg                  uint32
+	artifact             uint32
+	uri                  string
+	algorithm            string
+	digest               string
+	downloadLocation     string
+	origin               string
+	collector            string
+	knownSince           time.Time
+	includedSoftware     []uint32
+	includedDependencies []uint32
+	includedOccurrences  []uint32
 }
 
 func (n *hasSBOMStruct) ID() uint32 { return n.id }
 
 func (n *hasSBOMStruct) Neighbors(allowedEdges edgeMap) []uint32 {
+	out := []uint32{}
 	if n.pkg != 0 && allowedEdges[model.EdgeHasSbomPackage] {
-		return []uint32{n.pkg}
+		out = append(out, n.pkg)
 	}
-	if allowedEdges[model.EdgeHasSbomArtifact] {
-		return []uint32{n.artifact}
+	if n.artifact != 0 && allowedEdges[model.EdgeHasSbomArtifact] {
+		out = append(out, n.artifact)
 	}
-	return []uint32{}
+	if allowedEdges[model.EdgeHasSbomIncludedSoftware] {
+		out = append(out, n.includedSoftware...)
+	}
+	if allowedEdges[model.EdgeHasSbomIncludedDependencies] {
+		out = append(out, n.includedDependencies...)
+	}
+	if allowedEdges[model.EdgeHasSbomIncludedOccurrences] {
+		out = append(out, n.includedOccurrences...)
+	}
+	return sortAndRemoveDups(out)
 }
 
 func (n *hasSBOMStruct) BuildModelNode(c *demoClient) (model.Node, error) {
@@ -57,24 +74,7 @@ func (n *hasSBOMStruct) BuildModelNode(c *demoClient) (model.Node, error) {
 
 // Ingest HasSBOM
 
-func (c *demoClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageOrArtifactInputs, hasSBOMs []*model.HasSBOMInputSpec) ([]*model.HasSbom, error) {
-	valuesDefined := 0
-	if len(subjects.Packages) > 0 {
-		if len(subjects.Packages) != len(hasSBOMs) {
-			return nil, gqlerror.Errorf("uneven packages and hasSBOMs for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if len(subjects.Artifacts) > 0 {
-		if len(subjects.Artifacts) != len(hasSBOMs) {
-			return nil, gqlerror.Errorf("uneven artifact and hasSBOMs for ingestion")
-		}
-		valuesDefined = valuesDefined + 1
-	}
-	if valuesDefined != 1 {
-		return nil, gqlerror.Errorf("must specify at most packages or artifacts for %v", "IngestHasSBOMs")
-	}
-
+func (c *demoClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageOrArtifactInputs, hasSBOMs []*model.HasSBOMInputSpec, includes []*model.HasSBOMIncludesInputSpec) ([]*model.HasSbom, error) {
 	var modelHasSboms []*model.HasSbom
 
 	for i := range hasSBOMs {
@@ -82,13 +82,13 @@ func (c *demoClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageO
 		var err error
 		if len(subjects.Packages) > 0 {
 			subject := model.PackageOrArtifactInput{Package: subjects.Packages[i]}
-			hasSBOM, err = c.IngestHasSbom(ctx, subject, *hasSBOMs[i])
+			hasSBOM, err = c.IngestHasSbom(ctx, subject, *hasSBOMs[i], *includes[i])
 			if err != nil {
 				return nil, gqlerror.Errorf("IngestHasSbom failed with err: %v", err)
 			}
 		} else {
 			subject := model.PackageOrArtifactInput{Artifact: subjects.Artifacts[i]}
-			hasSBOM, err = c.IngestHasSbom(ctx, subject, *hasSBOMs[i])
+			hasSBOM, err = c.IngestHasSbom(ctx, subject, *hasSBOMs[i], *includes[i])
 			if err != nil {
 				return nil, gqlerror.Errorf("IngestHasSbom failed with err: %v", err)
 			}
@@ -98,15 +98,52 @@ func (c *demoClient) IngestHasSBOMs(ctx context.Context, subjects model.PackageO
 	return modelHasSboms, nil
 }
 
-func (c *demoClient) IngestHasSbom(ctx context.Context, subject model.PackageOrArtifactInput, input model.HasSBOMInputSpec) (*model.HasSbom, error) {
-	return c.ingestHasSbom(ctx, subject, input, true)
+func (c *demoClient) IngestHasSbom(ctx context.Context, subject model.PackageOrArtifactInput, input model.HasSBOMInputSpec, includes model.HasSBOMIncludesInputSpec) (*model.HasSbom, error) {
+	funcName := "IngestHasSbom"
+
+	var softwareIDs []uint32
+	var dependencyIDs []uint32
+	var occurrenceIDs []uint32
+	var err error
+
+	if includes.Software != nil {
+		if softwareIDs, err = parseIDs(includes.Software); err != nil {
+			return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
+		}
+		for _, id := range softwareIDs {
+			if err := c.validateSoftwareId(funcName, id); err != nil {
+				return nil, err
+			}
+		}
+		softwareIDs = sortAndRemoveDups(softwareIDs)
+	}
+	if includes.Dependencies != nil {
+		if dependencyIDs, err = parseIDs(includes.Dependencies); err != nil {
+			return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
+		}
+		for _, id := range dependencyIDs {
+			if _, err := byID[*isDependencyLink](id, c); err != nil {
+				return nil, gqlerror.Errorf("%v :: dependency id %d is not an ingested isDependency", funcName, id)
+			}
+		}
+		dependencyIDs = sortAndRemoveDups(dependencyIDs)
+	}
+	if includes.Occurrences != nil {
+		if occurrenceIDs, err = parseIDs(includes.Occurrences); err != nil {
+			return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
+		}
+		for _, id := range occurrenceIDs {
+			if isOccurrence, err := byID[*isOccurrenceStruct](id, c); isOccurrence == nil || err != nil {
+				return nil, gqlerror.Errorf("%v :: occurrence id %d is not an ingested isOccurrence", funcName, id)
+			}
+		}
+		occurrenceIDs = sortAndRemoveDups(occurrenceIDs)
+	}
+	return c.ingestHasSbom(ctx, subject, input, softwareIDs, dependencyIDs, occurrenceIDs, true)
 }
 
-func (c *demoClient) ingestHasSbom(ctx context.Context, subject model.PackageOrArtifactInput, input model.HasSBOMInputSpec, readOnly bool) (*model.HasSbom, error) {
+func (c *demoClient) ingestHasSbom(ctx context.Context, subject model.PackageOrArtifactInput, input model.HasSBOMInputSpec, includedSoftware, includedDependencies, includedOccurrences []uint32, readOnly bool) (*model.HasSbom, error) {
 	funcName := "IngestHasSbom"
-	if err := helper.ValidatePackageOrArtifactInput(&subject, "IngestHasSbom"); err != nil {
-		return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
-	}
 	lock(&c.m, readOnly)
 	defer unlock(&c.m, readOnly)
 
@@ -152,28 +189,36 @@ func (c *demoClient) ingestHasSbom(ctx context.Context, subject model.PackageOrA
 			h.digest == digest &&
 			h.downloadLocation == input.DownloadLocation &&
 			h.origin == input.Origin &&
-			h.collector == input.Collector {
+			h.collector == input.Collector &&
+			input.KnownSince.Equal(h.knownSince) &&
+			slices.Equal(h.includedSoftware, includedSoftware) &&
+			slices.Equal(h.includedDependencies, includedDependencies) &&
+			slices.Equal(h.includedOccurrences, includedOccurrences) {
 			return c.convHasSBOM(h)
 		}
 	}
 
 	if readOnly {
 		c.m.RUnlock()
-		b, err := c.ingestHasSbom(ctx, subject, input, false)
+		b, err := c.ingestHasSbom(ctx, subject, input, includedSoftware, includedDependencies, includedOccurrences, false)
 		c.m.RLock() // relock so that defer unlock does not panic
 		return b, err
 	}
 
 	h := &hasSBOMStruct{
-		id:               c.getNextID(),
-		pkg:              packageID,
-		artifact:         artID,
-		uri:              input.URI,
-		algorithm:        algorithm,
-		digest:           digest,
-		downloadLocation: input.DownloadLocation,
-		origin:           input.Origin,
-		collector:        input.Collector,
+		id:                   c.getNextID(),
+		pkg:                  packageID,
+		artifact:             artID,
+		uri:                  input.URI,
+		algorithm:            algorithm,
+		digest:               digest,
+		downloadLocation:     input.DownloadLocation,
+		origin:               input.Origin,
+		collector:            input.Collector,
+		knownSince:           input.KnownSince.UTC(),
+		includedSoftware:     includedSoftware,
+		includedDependencies: includedDependencies,
+		includedOccurrences:  includedOccurrences,
 	}
 	c.index[h.id] = h
 	c.hasSBOMs = append(c.hasSBOMs, h)
@@ -194,6 +239,7 @@ func (c *demoClient) convHasSBOM(in *hasSBOMStruct) (*model.HasSbom, error) {
 		DownloadLocation: in.downloadLocation,
 		Origin:           in.origin,
 		Collector:        in.collector,
+		KnownSince:       in.knownSince.UTC(),
 	}
 	if in.pkg != 0 {
 		p, err := c.buildPackageResponse(in.pkg, nil)
@@ -208,6 +254,57 @@ func (c *demoClient) convHasSBOM(in *hasSBOMStruct) (*model.HasSbom, error) {
 		}
 		out.Subject = c.convArtifact(art)
 	}
+	if len(in.includedSoftware) > 0 {
+		out.IncludedSoftware = make([]model.PackageOrArtifact, 0, len(in.includedSoftware))
+		for _, id := range in.includedSoftware {
+			switch node := c.index[id].(type) {
+			case *pkgVersionNode:
+				if pkg, err := c.buildPackageResponse(id, nil); err != nil {
+					return nil, err
+				} else {
+					out.IncludedSoftware = append(out.IncludedSoftware, pkg)
+				}
+			case *artStruct:
+				if art, err := c.buildArtifactResponse(id, nil); err != nil {
+					return nil, err
+				} else {
+					out.IncludedSoftware = append(out.IncludedSoftware, art)
+				}
+			default:
+				return nil, fmt.Errorf("expected Package or Artifact, found %s", reflect.TypeOf(node))
+			}
+		}
+	}
+	if len(in.includedDependencies) > 0 {
+		out.IncludedDependencies = make([]*model.IsDependency, 0, len(in.includedDependencies))
+		for _, id := range in.includedDependencies {
+			switch node := c.index[id].(type) {
+			case *isDependencyLink:
+				if isDep, err := c.buildIsDependency(node, nil, true); err != nil {
+					return nil, err
+				} else {
+					out.IncludedDependencies = append(out.IncludedDependencies, isDep)
+				}
+			default:
+				return nil, fmt.Errorf("expected IsDependency, found %s", reflect.TypeOf(node))
+			}
+		}
+	}
+	if len(in.includedOccurrences) > 0 {
+		out.IncludedOccurrences = make([]*model.IsOccurrence, 0, len(in.includedOccurrences))
+		for _, id := range in.includedOccurrences {
+			switch node := c.index[id].(type) {
+			case *isOccurrenceStruct:
+				if isOcc, err := c.convOccurrence(node); err != nil {
+					return nil, err
+				} else {
+					out.IncludedOccurrences = append(out.IncludedOccurrences, isOcc)
+				}
+			default:
+				return nil, fmt.Errorf("expected IsOccurrence, found %s", reflect.TypeOf(node))
+			}
+		}
+	}
 	return out, nil
 }
 
@@ -215,12 +312,6 @@ func (c *demoClient) convHasSBOM(in *hasSBOMStruct) (*model.HasSbom, error) {
 
 func (c *demoClient) HasSBOM(ctx context.Context, filter *model.HasSBOMSpec) ([]*model.HasSbom, error) {
 	funcName := "HasSBOM"
-	if filter != nil {
-		if err := helper.ValidatePackageOrArtifactQueryFilter(filter.Subject); err != nil {
-			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
-		}
-	}
-
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -246,13 +337,13 @@ func (c *demoClient) HasSBOM(ctx context.Context, filter *model.HasSBOMSpec) ([]
 	var search []uint32
 	foundOne := false
 	if filter != nil && filter.Subject != nil && filter.Subject.Package != nil {
-		exactPackage, err := c.exactPackageVersion(filter.Subject.Package)
+		pkgs, err := c.findPackageVersion(filter.Subject.Package)
 		if err != nil {
 			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
 		}
-		if exactPackage != nil {
-			search = exactPackage.hasSBOMs
-			foundOne = true
+		foundOne = len(pkgs) > 0
+		for _, pkg := range pkgs {
+			search = append(search, pkg.hasSBOMs...)
 		}
 	}
 	if !foundOne && filter != nil && filter.Subject != nil && filter.Subject.Artifact != nil {
@@ -287,6 +378,7 @@ func (c *demoClient) HasSBOM(ctx context.Context, filter *model.HasSBOMSpec) ([]
 			}
 		}
 	}
+
 	return out, nil
 }
 
@@ -300,9 +392,24 @@ func (c *demoClient) addHasSBOMIfMatch(out []*model.HasSbom,
 			noMatch(toLower(filter.Digest), link.digest) ||
 			noMatch(filter.DownloadLocation, link.downloadLocation) ||
 			noMatch(filter.Origin, link.origin) ||
-			noMatch(filter.Collector, link.collector) {
+			noMatch(filter.Collector, link.collector) ||
+			(filter.KnownSince != nil && filter.KnownSince.After(link.knownSince)) {
 			return out, nil
 		}
+		// collect packages and artifacts from included software
+		pkgs, artifacts, err := c.getPackageVersionAndArtifacts(link.includedSoftware)
+		if err != nil {
+			return out, err
+		}
+
+		pkgFilters, artFilters := getPackageAndArtifactFilters(filter.IncludedSoftware)
+
+		if !c.matchPackages(pkgFilters, pkgs) || !c.matchArtifacts(artFilters, artifacts) ||
+			!c.matchDependencies(filter.IncludedDependencies, link.includedDependencies) ||
+			!c.matchOccurrences(filter.IncludedOccurrences, link.includedOccurrences) {
+			return out, nil
+		}
+
 		if filter.Subject != nil {
 			if filter.Subject.Package != nil {
 				if link.pkg == 0 {
@@ -330,4 +437,29 @@ func (c *demoClient) addHasSBOMIfMatch(out []*model.HasSbom,
 		return nil, err
 	}
 	return append(out, sb), nil
+}
+
+func getPackageAndArtifactFilters(filters []*model.PackageOrArtifactSpec) (pkgs []*model.PkgSpec, arts []*model.ArtifactSpec) {
+	for _, pkgOrArtSpec := range filters {
+		if pkgOrArtSpec.Package != nil {
+			pkgs = append(pkgs, pkgOrArtSpec.Package)
+		} else if pkgOrArtSpec.Artifact != nil {
+			arts = append(arts, pkgOrArtSpec.Artifact)
+		}
+	}
+	return
+}
+
+func (c *demoClient) validateSoftwareId(funcName string, id uint32) error {
+	node, ok := c.index[id]
+	if !ok {
+		return gqlerror.Errorf("%v :: software id %d is invalid", funcName, id)
+	}
+	if _, ok = node.(*pkgVersionNode); !ok {
+		_, ok = node.(*artStruct)
+	}
+	if !ok {
+		return gqlerror.Errorf("%v :: software id %d is neither an ingested Package nor an ingested Artifact", funcName, id)
+	}
+	return nil
 }

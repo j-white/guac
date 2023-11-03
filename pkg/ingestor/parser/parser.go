@@ -17,10 +17,11 @@ package parser
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
-	uuid "github.com/gofrs/uuid"
+	"github.com/gofrs/uuid"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/guacsec/guac/pkg/assembler"
 	"github.com/guacsec/guac/pkg/emitter"
 	"github.com/guacsec/guac/pkg/handler/processor"
@@ -29,12 +30,15 @@ import (
 	"github.com/guacsec/guac/pkg/ingestor/parser/cyclonedx"
 	"github.com/guacsec/guac/pkg/ingestor/parser/deps_dev"
 	"github.com/guacsec/guac/pkg/ingestor/parser/dsse"
+	"github.com/guacsec/guac/pkg/ingestor/parser/open_vex"
 	"github.com/guacsec/guac/pkg/ingestor/parser/scorecard"
 	"github.com/guacsec/guac/pkg/ingestor/parser/slsa"
 	"github.com/guacsec/guac/pkg/ingestor/parser/spdx"
 	"github.com/guacsec/guac/pkg/ingestor/parser/vuln"
 	"github.com/guacsec/guac/pkg/logging"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func init() {
 	_ = RegisterDocumentParser(dsse.NewDSSEParser, processor.DocumentDSSE)
@@ -45,6 +49,7 @@ func init() {
 	_ = RegisterDocumentParser(scorecard.NewScorecardParser, processor.DocumentScorecard)
 	_ = RegisterDocumentParser(deps_dev.NewDepsDevParser, processor.DocumentDepsDev)
 	_ = RegisterDocumentParser(csaf.NewCsafParser, processor.DocumentCsaf)
+	_ = RegisterDocumentParser(open_vex.NewOpenVEXParser, processor.DocumentOpenVEX)
 }
 
 var (

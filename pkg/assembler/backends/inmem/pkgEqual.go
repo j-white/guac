@@ -17,22 +17,23 @@ package inmem
 
 import (
 	"context"
+	"slices"
 	"strconv"
 
-	"github.com/vektah/gqlparser/v2/gqlerror"
-	"golang.org/x/exp/slices"
-
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-type pkgEqualList []*pkgEqualStruct
-type pkgEqualStruct struct {
-	id            uint32
-	pkgs          []uint32
-	justification string
-	origin        string
-	collector     string
-}
+type (
+	pkgEqualList   []*pkgEqualStruct
+	pkgEqualStruct struct {
+		id            uint32
+		pkgs          []uint32
+		justification string
+		origin        string
+		collector     string
+	}
+)
 
 func (n *pkgEqualStruct) ID() uint32 { return n.id }
 
@@ -47,72 +48,19 @@ func (n *pkgEqualStruct) BuildModelNode(c *demoClient) (model.Node, error) {
 	return c.convPkgEqual(n)
 }
 
-// func registerAllPkgEqual(client *demoClient) error {
-
-// 	// pkg:conan/openssl.org/openssl@3.0.3?user=bincrafters&channel=stable
-// 	//	("conan", "openssl.org", "openssl", "3.0.3", "", "user=bincrafters", "channel=stable")
-
-// 	selectedType := "conan"
-// 	selectedNameSpace := "openssl.org"
-// 	selectedName := "openssl"
-// 	selectedVersion := "3.0.3"
-// 	selectedSubPath := ""
-// 	qualifierA := "bincrafters"
-// 	qualifierB := "stable"
-// 	selectedQualifiers := []*model.PackageQualifierSpec{{Key: "user", Value: &qualifierA}, {Key: "channel", Value: &qualifierB}}
-// 	selectedPkgSpec := &model.PkgSpec{Type: &selectedType, Namespace: &selectedNameSpace, Name: &selectedName, Version: &selectedVersion, Subpath: &selectedSubPath, Qualifiers: selectedQualifiers}
-// 	selectedPackage1, err := client.Packages(context.TODO(), selectedPkgSpec)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// pkg:conan/openssl@3.0.3
-// 	//	("conan", "", "openssl", "3.0.3", "")
-// 	selectedType = "conan"
-// 	selectedNameSpace = ""
-// 	selectedName = "openssl"
-// 	selectedVersion = "3.0.3"
-// 	selectedSubPath = ""
-// 	selectedPkgSpec = &model.PkgSpec{Type: &selectedType, Namespace: &selectedNameSpace, Name: &selectedName, Version: &selectedVersion, Subpath: &selectedSubPath}
-// 	selectedPackage2, err := client.Packages(context.TODO(), selectedPkgSpec)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	client.registerPkgEqual([]*model.Package{selectedPackage1[0], selectedPackage2[0]}, "these two opnessl packages are the same", "inmem backend", "inmem backend")
-
-// 	// pkg:pypi/django@1.11.1
-// 	// client.registerPackage("pypi", "", "django", "1.11.1", "")
-
-// 	selectedType = "pypi"
-// 	selectedNameSpace = ""
-// 	selectedName = "django"
-// 	selectedVersion = "1.11.1"
-// 	selectedSubPath = ""
-// 	selectedPkgSpec = &model.PkgSpec{Type: &selectedType, Namespace: &selectedNameSpace, Name: &selectedName, Version: &selectedVersion, Subpath: &selectedSubPath}
-// 	selectedPackage3, err := client.Packages(context.TODO(), selectedPkgSpec)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// pkg:pypi/django@1.11.1#subpath
-// 	// client.registerPackage("pypi", "", "django", "1.11.1", "subpath")
-
-// 	selectedType = "pypi"
-// 	selectedNameSpace = ""
-// 	selectedName = "django"
-// 	selectedVersion = "1.11.1"
-// 	selectedSubPath = "subpath"
-// 	selectedPkgSpec = &model.PkgSpec{Type: &selectedType, Namespace: &selectedNameSpace, Name: &selectedName, Version: &selectedVersion, Subpath: &selectedSubPath}
-// 	selectedPackage4, err := client.Packages(context.TODO(), selectedPkgSpec)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	client.registerPkgEqual([]*model.Package{selectedPackage3[0], selectedPackage4[0]}, "these two pypi packages are the same", "inmem backend", "inmem backend")
-
-// 	return nil
-// }
-
 // Ingest PkgEqual
+
+func (c *demoClient) IngestPkgEquals(ctx context.Context, pkgs []*model.PkgInputSpec, otherPackages []*model.PkgInputSpec, pkgEquals []*model.PkgEqualInputSpec) ([]string, error) {
+	var modelPkgEqualsIDs []string
+	for i := range pkgEquals {
+		pkgEqual, err := c.IngestPkgEqual(ctx, *pkgs[i], *otherPackages[i], *pkgEquals[i])
+		if err != nil {
+			return nil, gqlerror.Errorf("IngestPkgEqual failed with err: %v", err)
+		}
+		modelPkgEqualsIDs = append(modelPkgEqualsIDs, pkgEqual.ID)
+	}
+	return modelPkgEqualsIDs, nil
+}
 
 func (c *demoClient) convPkgEqual(in *pkgEqualStruct) (*model.PkgEqual, error) {
 	out := &model.PkgEqual{
@@ -196,9 +144,6 @@ func (c *demoClient) ingestPkgEqual(ctx context.Context, pkg model.PkgInputSpec,
 
 func (c *demoClient) PkgEqual(ctx context.Context, filter *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
 	funcName := "PkgEqual"
-	if filter != nil && len(filter.Packages) > 2 {
-		return nil, gqlerror.Errorf("%v :: too many packages in query, max 2, got: %v", funcName, len(filter.Packages))
-	}
 	c.m.RLock()
 	defer c.m.RUnlock()
 	if filter.ID != nil {
@@ -221,23 +166,18 @@ func (c *demoClient) PkgEqual(ctx context.Context, filter *model.PkgEqualSpec) (
 	}
 
 	var search []uint32
-	foundOne := false
 	for _, p := range filter.Packages {
-		if !foundOne {
-			exactPackage, err := c.exactPackageVersion(p)
-			if err != nil {
-				return nil, gqlerror.Errorf("%v :: %v", funcName, err)
-			}
-			if exactPackage != nil {
-				search = append(search, exactPackage.pkgEquals...)
-				foundOne = true
-				break
-			}
+		pkgs, err := c.findPackageVersion(p)
+		if err != nil {
+			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
+		}
+		for _, pkg := range pkgs {
+			search = append(search, pkg.pkgEquals...)
 		}
 	}
 
 	var out []*model.PkgEqual
-	if foundOne {
+	if len(search) > 0 {
 		for _, id := range search {
 			link, err := byID[*pkgEqualStruct](id, c)
 			if err != nil {
@@ -262,8 +202,8 @@ func (c *demoClient) PkgEqual(ctx context.Context, filter *model.PkgEqualSpec) (
 
 func (c *demoClient) addCPIfMatch(out []*model.PkgEqual,
 	filter *model.PkgEqualSpec, link *pkgEqualStruct) (
-	[]*model.PkgEqual, error) {
-
+	[]*model.PkgEqual, error,
+) {
 	if noMatch(filter.Justification, link.justification) ||
 		noMatch(filter.Origin, link.origin) ||
 		noMatch(filter.Collector, link.collector) {

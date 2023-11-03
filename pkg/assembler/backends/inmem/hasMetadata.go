@@ -22,7 +22,6 @@ import (
 
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	"github.com/guacsec/guac/pkg/assembler/backends/helper"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -62,15 +61,43 @@ func (n *hasMetadataLink) BuildModelNode(c *demoClient) (model.Node, error) {
 }
 
 // Ingest HasMetadata
+
+func (c *demoClient) IngestBulkHasMetadata(ctx context.Context, subjects model.PackageSourceOrArtifactInputs, pkgMatchType *model.MatchFlags, hasMetadataList []*model.HasMetadataInputSpec) ([]string, error) {
+	var modelHasMetadataIDs []string
+
+	for i := range hasMetadataList {
+		var hasMetadata *model.HasMetadata
+		var err error
+		if len(subjects.Packages) > 0 {
+			subject := model.PackageSourceOrArtifactInput{Package: subjects.Packages[i]}
+			hasMetadata, err = c.IngestHasMetadata(ctx, subject, pkgMatchType, *hasMetadataList[i])
+			if err != nil {
+				return nil, gqlerror.Errorf("IngestHasMetadata failed with err: %v", err)
+			}
+		} else if len(subjects.Sources) > 0 {
+			subject := model.PackageSourceOrArtifactInput{Source: subjects.Sources[i]}
+			hasMetadata, err = c.IngestHasMetadata(ctx, subject, pkgMatchType, *hasMetadataList[i])
+			if err != nil {
+				return nil, gqlerror.Errorf("IngestHasMetadata failed with err: %v", err)
+			}
+		} else {
+			subject := model.PackageSourceOrArtifactInput{Artifact: subjects.Artifacts[i]}
+			hasMetadata, err = c.IngestHasMetadata(ctx, subject, pkgMatchType, *hasMetadataList[i])
+			if err != nil {
+				return nil, gqlerror.Errorf("IngestHasMetadata failed with err: %v", err)
+			}
+		}
+		modelHasMetadataIDs = append(modelHasMetadataIDs, hasMetadata.ID)
+	}
+	return modelHasMetadataIDs, nil
+}
+
 func (c *demoClient) IngestHasMetadata(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, hasMetadata model.HasMetadataInputSpec) (*model.HasMetadata, error) {
 	return c.ingestHasMetadata(ctx, subject, pkgMatchType, hasMetadata, true)
 }
 
 func (c *demoClient) ingestHasMetadata(ctx context.Context, subject model.PackageSourceOrArtifactInput, pkgMatchType *model.MatchFlags, hasMetadata model.HasMetadataInputSpec, readOnly bool) (*model.HasMetadata, error) {
 	funcName := "IngestHasMetadata"
-	if err := helper.ValidatePackageSourceOrArtifactInput(&subject, "HasMetadata subject"); err != nil {
-		return nil, err
-	}
 
 	lock(&c.m, readOnly)
 	defer unlock(&c.m, readOnly)
@@ -191,11 +218,6 @@ func (c *demoClient) ingestHasMetadata(ctx context.Context, subject model.Packag
 // Query HasMetadata
 func (c *demoClient) HasMetadata(ctx context.Context, filter *model.HasMetadataSpec) ([]*model.HasMetadata, error) {
 	funcName := "HasMetadata"
-	if filter != nil {
-		if err := helper.ValidatePackageSourceOrArtifactQueryFilter(filter.Subject); err != nil {
-			return nil, err
-		}
-	}
 
 	c.m.RLock()
 	defer c.m.RUnlock()

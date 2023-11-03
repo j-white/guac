@@ -107,6 +107,7 @@ type CertifyBad struct {
 	Justification string                  `json:"justification"`
 	Origin        string                  `json:"origin"`
 	Collector     string                  `json:"collector"`
+	KnownSince    time.Time               `json:"knownSince"`
 }
 
 func (CertifyBad) IsNode() {}
@@ -114,9 +115,10 @@ func (CertifyBad) IsNode() {}
 // CertifyBadInputSpec represents the mutation input to ingest a CertifyBad
 // evidence.
 type CertifyBadInputSpec struct {
-	Justification string `json:"justification"`
-	Origin        string `json:"origin"`
-	Collector     string `json:"collector"`
+	Justification string    `json:"justification"`
+	Origin        string    `json:"origin"`
+	Collector     string    `json:"collector"`
+	KnownSince    time.Time `json:"knownSince"`
 }
 
 // CertifyBadSpec allows filtering the list of CertifyBad evidence to return in a
@@ -128,12 +130,16 @@ type CertifyBadInputSpec struct {
 //
 // If a source is specified in the subject filter, then it must specify a name,
 // and optionally a tag and a commit.
+//
+// If KnownSince is specified, the returned value will be after or equal to the specified time.
+// Any nodes time that is before KnownSince is excluded.
 type CertifyBadSpec struct {
 	ID            *string                      `json:"id,omitempty"`
 	Subject       *PackageSourceOrArtifactSpec `json:"subject,omitempty"`
 	Justification *string                      `json:"justification,omitempty"`
 	Origin        *string                      `json:"origin,omitempty"`
 	Collector     *string                      `json:"collector,omitempty"`
+	KnownSince    *time.Time                   `json:"knownSince,omitempty"`
 }
 
 // CertifyGood is an attestation that a package, source, or artifact is considered
@@ -153,15 +159,17 @@ type CertifyGood struct {
 	Justification string                  `json:"justification"`
 	Origin        string                  `json:"origin"`
 	Collector     string                  `json:"collector"`
+	KnownSince    time.Time               `json:"knownSince"`
 }
 
 func (CertifyGood) IsNode() {}
 
 // CertifyGoodInputSpec represents the mutation input to ingest a CertifyGood evidence.
 type CertifyGoodInputSpec struct {
-	Justification string `json:"justification"`
-	Origin        string `json:"origin"`
-	Collector     string `json:"collector"`
+	Justification string    `json:"justification"`
+	Origin        string    `json:"origin"`
+	Collector     string    `json:"collector"`
+	KnownSince    time.Time `json:"knownSince"`
 }
 
 // CertifyBadSpec allows filtering the list of CertifyBad evidence to return in a
@@ -173,12 +181,87 @@ type CertifyGoodInputSpec struct {
 //
 // If a source is specified in the subject filter, then it must specify a name,
 // and optionally a tag and a commit.
+//
+// If KnownSince is specified, the returned value will be after or equal to the specified time.
+// Any nodes time that is before KnownSince is excluded.
 type CertifyGoodSpec struct {
 	ID            *string                      `json:"id,omitempty"`
 	Subject       *PackageSourceOrArtifactSpec `json:"subject,omitempty"`
 	Justification *string                      `json:"justification,omitempty"`
 	Origin        *string                      `json:"origin,omitempty"`
 	Collector     *string                      `json:"collector,omitempty"`
+	KnownSince    *time.Time                   `json:"knownSince,omitempty"`
+}
+
+// CertifyLegal is an attestation to attach legal information to a package or source.
+//
+// The certification information is either copied from an attestation found in an
+// SBOM or created by a collector/scanner.
+//
+// Discovered license is also known as Concluded. More information:
+// https://docs.clearlydefined.io/curation-guidelines#the-difference-between-declared-and-discovered-licenses
+//
+// Attribution is also known as Copyright Text. It is what could be displayed to
+// comply with notice
+// requirements. https://www.nexb.com/oss-attribution-best-practices/
+//
+// License expressions follow this format:
+// https://spdx.github.io/spdx-spec/v2.3/SPDX-license-expressions/
+type CertifyLegal struct {
+	ID string `json:"id"`
+	// The package version or source that is attested
+	Subject PackageOrSource `json:"subject"`
+	// The license expression as delcared
+	DeclaredLicense string `json:"declaredLicense"`
+	// A list of license objects found in the declared license expression
+	DeclaredLicenses []*License `json:"declaredLicenses"`
+	// The license expression as discovered by scan
+	DiscoveredLicense string `json:"discoveredLicense"`
+	// A list of license objects found in the discovered license expression
+	DiscoveredLicenses []*License `json:"discoveredLicenses"`
+	// Attribution text of the subject
+	Attribution string `json:"attribution"`
+	// Extra justification for the certification
+	Justification string `json:"justification"`
+	// Time of scan (in RFC 3339 format)
+	TimeScanned time.Time `json:"timeScanned"`
+	// Document from which this attestation is generated from
+	Origin string `json:"origin"`
+	// GUAC collector for the document
+	Collector string `json:"collector"`
+}
+
+func (CertifyLegal) IsNode() {}
+
+// CertifyLegalInputSpec represents the input for certifying legal information in
+// mutations.
+type CertifyLegalInputSpec struct {
+	DeclaredLicense   string    `json:"declaredLicense"`
+	DiscoveredLicense string    `json:"discoveredLicense"`
+	Attribution       string    `json:"attribution"`
+	Justification     string    `json:"justification"`
+	TimeScanned       time.Time `json:"timeScanned"`
+	Origin            string    `json:"origin"`
+	Collector         string    `json:"collector"`
+}
+
+// CertifyLegalSpec allows filtering the list of legal certifications to
+// return in a query.
+//
+// Specifying just the package allows to query for all certifications associated
+// with the package.
+type CertifyLegalSpec struct {
+	ID                 *string              `json:"id,omitempty"`
+	Subject            *PackageOrSourceSpec `json:"subject,omitempty"`
+	DeclaredLicense    *string              `json:"declaredLicense,omitempty"`
+	DeclaredLicenses   []*LicenseSpec       `json:"declaredLicenses,omitempty"`
+	DiscoveredLicense  *string              `json:"discoveredLicense,omitempty"`
+	DiscoveredLicenses []*LicenseSpec       `json:"discoveredLicenses,omitempty"`
+	Attribution        *string              `json:"attribution,omitempty"`
+	Justification      *string              `json:"justification,omitempty"`
+	TimeScanned        *time.Time           `json:"timeScanned,omitempty"`
+	Origin             *string              `json:"origin,omitempty"`
+	Collector          *string              `json:"collector,omitempty"`
 }
 
 // CertifyScorecard is an attestation to attach a Scorecard analysis to a
@@ -364,32 +447,54 @@ type HasSbom struct {
 	Origin string `json:"origin"`
 	// GUAC collector for the document
 	Collector string `json:"collector"`
+	// Timestamp for SBOM creation
+	KnownSince time.Time `json:"knownSince"`
+	// Included packages and artifacts
+	IncludedSoftware []PackageOrArtifact `json:"includedSoftware"`
+	// Included dependencies
+	IncludedDependencies []*IsDependency `json:"includedDependencies"`
+	// Included occurrences
+	IncludedOccurrences []*IsOccurrence `json:"includedOccurrences"`
 }
 
 func (HasSbom) IsNode() {}
 
-// HasSBOMInputSpec is the same as HasSBOM but for mutation input.
+type HasSBOMIncludesInputSpec struct {
+	Software     []string `json:"software"`
+	Dependencies []string `json:"dependencies"`
+	Occurrences  []string `json:"occurrences"`
+}
+
+// HasSBOMInputSpec is similar to HasSBOM but for mutation input.
 type HasSBOMInputSpec struct {
-	URI              string `json:"uri"`
-	Algorithm        string `json:"algorithm"`
-	Digest           string `json:"digest"`
-	DownloadLocation string `json:"downloadLocation"`
-	Origin           string `json:"origin"`
-	Collector        string `json:"collector"`
+	URI              string    `json:"uri"`
+	Algorithm        string    `json:"algorithm"`
+	Digest           string    `json:"digest"`
+	DownloadLocation string    `json:"downloadLocation"`
+	Origin           string    `json:"origin"`
+	Collector        string    `json:"collector"`
+	KnownSince       time.Time `json:"knownSince"`
 }
 
 // HasSBOMSpec allows filtering the list of HasSBOM to return.
 //
 // Only the package or artifact can be added, not both.
+//
+// If KnownSince is specified, the returned value will be after or equal to the specified time.
+// Any nodes time that is before KnownSince is excluded.
 type HasSBOMSpec struct {
-	ID               *string                `json:"id,omitempty"`
-	Subject          *PackageOrArtifactSpec `json:"subject,omitempty"`
-	URI              *string                `json:"uri,omitempty"`
-	Algorithm        *string                `json:"algorithm,omitempty"`
-	Digest           *string                `json:"digest,omitempty"`
-	DownloadLocation *string                `json:"downloadLocation,omitempty"`
-	Origin           *string                `json:"origin,omitempty"`
-	Collector        *string                `json:"collector,omitempty"`
+	ID                   *string                  `json:"id,omitempty"`
+	Subject              *PackageOrArtifactSpec   `json:"subject,omitempty"`
+	URI                  *string                  `json:"uri,omitempty"`
+	Algorithm            *string                  `json:"algorithm,omitempty"`
+	Digest               *string                  `json:"digest,omitempty"`
+	DownloadLocation     *string                  `json:"downloadLocation,omitempty"`
+	Origin               *string                  `json:"origin,omitempty"`
+	Collector            *string                  `json:"collector,omitempty"`
+	KnownSince           *time.Time               `json:"knownSince,omitempty"`
+	IncludedSoftware     []*PackageOrArtifactSpec `json:"includedSoftware"`
+	IncludedDependencies []*IsDependencySpec      `json:"includedDependencies"`
+	IncludedOccurrences  []*IsOccurrenceSpec      `json:"includedOccurrences"`
 }
 
 // HasSLSA records that a subject node has a SLSA attestation.
@@ -496,9 +601,9 @@ type IsDependency struct {
 	ID string `json:"id"`
 	// Package that has the dependency
 	Package *Package `json:"package"`
-	// Package for the dependency; MUST BE PackageName, not PackageVersion
-	DependentPackage *Package `json:"dependentPackage"`
-	// Version range for the dependency link
+	// Package for the dependency; MUST be PackageName or PackageVersion
+	DependencyPackage *Package `json:"dependencyPackage"`
+	// Version range for the dependency link, required if depedentPackage points to PackageName
 	VersionRange string `json:"versionRange"`
 	// Type of dependency
 	DependencyType DependencyType `json:"dependencyType"`
@@ -514,6 +619,7 @@ func (IsDependency) IsNode() {}
 
 // IsDependencyInputSpec is the input to record a new dependency.
 type IsDependencyInputSpec struct {
+	// versionRange should be specified for depedentPackages that point to PackageName
 	VersionRange   string         `json:"versionRange"`
 	DependencyType DependencyType `json:"dependencyType"`
 	Justification  string         `json:"justification"`
@@ -526,16 +632,16 @@ type IsDependencyInputSpec struct {
 // To obtain the list of dependency packages, caller must fill in the package
 // field.
 //
-// Dependent packages must be defined at PackageName, not PackageVersion.
+// Dependency packages must be defined at PackageName, not PackageVersion.
 type IsDependencySpec struct {
-	ID               *string         `json:"id,omitempty"`
-	Package          *PkgSpec        `json:"package,omitempty"`
-	DependentPackage *PkgNameSpec    `json:"dependentPackage,omitempty"`
-	VersionRange     *string         `json:"versionRange,omitempty"`
-	DependencyType   *DependencyType `json:"dependencyType,omitempty"`
-	Justification    *string         `json:"justification,omitempty"`
-	Origin           *string         `json:"origin,omitempty"`
-	Collector        *string         `json:"collector,omitempty"`
+	ID                *string         `json:"id,omitempty"`
+	Package           *PkgSpec        `json:"package,omitempty"`
+	DependencyPackage *PkgSpec        `json:"dependencyPackage,omitempty"`
+	VersionRange      *string         `json:"versionRange,omitempty"`
+	DependencyType    *DependencyType `json:"dependencyType,omitempty"`
+	Justification     *string         `json:"justification,omitempty"`
+	Origin            *string         `json:"origin,omitempty"`
+	Collector         *string         `json:"collector,omitempty"`
 }
 
 // IsOccurrence is an attestation to link an artifact to a package or source.
@@ -575,6 +681,56 @@ type IsOccurrenceSpec struct {
 	Collector     *string              `json:"collector,omitempty"`
 }
 
+// License represents a particular license. If the license is found on the SPDX
+// license list (https://spdx.org/licenses/) then the fields should be:
+//
+// Name: SPDX license identifier
+// Inline: empty
+// ListVersion: SPDX license list version
+//
+// example:
+//
+// Name: AGPL-3.0-or-later
+// Inline: ""
+// ListVersion: 3.21 2023-06-18
+//
+// If the license is not on the SPDX license list, then a new guid should be
+// created and the license text placed inline:
+//
+// Name: LicenseRef-<guid>
+// Inline: Full license text
+// ListVersion: empty
+//
+// example:
+//
+// Name: LicenseRef-1a2b3c
+// Inline: Permission to use, copy, modify, and/or distribute ...
+// ListVersion: ""
+type License struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Inline      *string `json:"inline,omitempty"`
+	ListVersion *string `json:"listVersion,omitempty"`
+}
+
+func (License) IsNode() {}
+
+// LicenseInputSpec specifies an license for mutations. One of inline or
+// listVersion should be empty or missing.
+type LicenseInputSpec struct {
+	Name        string  `json:"name"`
+	Inline      *string `json:"inline,omitempty"`
+	ListVersion *string `json:"listVersion,omitempty"`
+}
+
+// LicenseSpec allows filtering the list of licenses to return in a query.
+type LicenseSpec struct {
+	ID          *string `json:"id,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Inline      *string `json:"inline,omitempty"`
+	ListVersion *string `json:"listVersion,omitempty"`
+}
+
 // MatchFlags is used to input the PkgMatchType enum.
 type MatchFlags struct {
 	Pkg PkgMatchType `json:"pkg"`
@@ -607,6 +763,14 @@ func (Package) IsPackageOrArtifact() {}
 func (Package) IsPackageOrSource() {}
 
 func (Package) IsNode() {}
+
+// The IDs of the ingested package
+type PackageIDs struct {
+	PackageTypeID      string `json:"packageTypeID"`
+	PackageNamespaceID string `json:"packageNamespaceID"`
+	PackageNameID      string `json:"packageNameID"`
+	PackageVersionID   string `json:"packageVersionID"`
+}
 
 // PackageName is a name for packages.
 //
@@ -818,19 +982,6 @@ type PkgInputSpec struct {
 	Version    *string                      `json:"version,omitempty"`
 	Qualifiers []*PackageQualifierInputSpec `json:"qualifiers,omitempty"`
 	Subpath    *string                      `json:"subpath,omitempty"`
-}
-
-// PkgNameSpec is used to query for dependent packages.
-//
-// This is different from PkgSpec as the IsDependency attestation should only be
-// allowed to be made to the packageName node and not the packageVersion node.
-// Versions will be handled by the version_range in the IsDependency attestation
-// node.
-type PkgNameSpec struct {
-	ID        *string `json:"id,omitempty"`
-	Type      *string `json:"type,omitempty"`
-	Namespace *string `json:"namespace,omitempty"`
-	Name      *string `json:"name,omitempty"`
 }
 
 // PkgSpec allows filtering the list of sources to return in a query.
@@ -1127,6 +1278,13 @@ func (Source) IsPackageOrSource() {}
 
 func (Source) IsNode() {}
 
+// The IDs of the ingested pacsourcekage
+type SourceIDs struct {
+	SourceTypeID      string `json:"sourceTypeID"`
+	SourceNamespaceID string `json:"sourceNamespaceID"`
+	SourceNameID      string `json:"sourceNameID"`
+}
+
 // SourceInputSpec specifies a source for mutations.
 //
 // This is different than SourceSpec because we want to encode that all fields
@@ -1281,15 +1439,130 @@ type VulnerabilityInputSpec struct {
 	VulnerabilityID string `json:"vulnerabilityID"`
 }
 
+// VulnerabilityMetadata is an attestation that a vulnerability has a related score
+// associated with it.
+//
+// The intent of this evidence tree predicate is to allow extensibility of vulnerability
+// score (one-to-one mapping) with a specific vulnerability ID.
+//
+// A vulnerability ID can have a one-to-many relationship with the VulnerabilityMetadata
+// node as a vulnerability ID can have multiple scores (in various frameworks).
+//
+// Examples:
+//
+// scoreType: EPSSv1
+// scoreValue: 0.960760000
+//
+// scoreType: CVSSv2
+// scoreValue: 5.0
+//
+// scoreType: CVSSv3
+// scoreValue: 7.5
+//
+// The timestamp is used to determine when the score was evaluated for the specific vulnerability.
+type VulnerabilityMetadata struct {
+	ID            string                 `json:"id"`
+	Vulnerability *Vulnerability         `json:"vulnerability"`
+	ScoreType     VulnerabilityScoreType `json:"scoreType"`
+	ScoreValue    float64                `json:"scoreValue"`
+	Timestamp     time.Time              `json:"timestamp"`
+	Origin        string                 `json:"origin"`
+	Collector     string                 `json:"collector"`
+}
+
+func (VulnerabilityMetadata) IsNode() {}
+
+// VulnerabilityMetadataInputSpec represents the mutation input to ingest a vulnerability metadata.
+type VulnerabilityMetadataInputSpec struct {
+	ScoreType  VulnerabilityScoreType `json:"scoreType"`
+	ScoreValue float64                `json:"scoreValue"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Origin     string                 `json:"origin"`
+	Collector  string                 `json:"collector"`
+}
+
+// VulnerabilityMetadataSpec allows filtering the list of VulnerabilityMetadata evidence
+// to return in a query.
+//
+// Comparator field is an enum that be set to filter the score and return a
+// range that matches. If the comparator is not specified, it will default to equal operation.
+//
+// Timestamp specified indicates filtering timestamps after the specified time
+type VulnerabilityMetadataSpec struct {
+	ID            *string                 `json:"id,omitempty"`
+	Vulnerability *VulnerabilitySpec      `json:"vulnerability,omitempty"`
+	ScoreType     *VulnerabilityScoreType `json:"scoreType,omitempty"`
+	ScoreValue    *float64                `json:"scoreValue,omitempty"`
+	Comparator    *Comparator             `json:"comparator,omitempty"`
+	Timestamp     *time.Time              `json:"timestamp,omitempty"`
+	Origin        *string                 `json:"origin,omitempty"`
+	Collector     *string                 `json:"collector,omitempty"`
+}
+
 // VulnerabilitySpec allows filtering the list of vulnerabilities to return in a query.
 //
 // Use null to match on all values at that level.
 // For example, to get all vulnerabilities in GUAC backend, use a VulnSpec
 // where every field is null.
+//
+// Setting the noVuln boolean true will ignore the other inputs for type and vulnerabilityID.
+// Setting noVuln to true means retrieving only nodes where the type of the vulnerability is "novuln"
+// and the it has an empty string for vulnerabilityID. Setting it to false filters out all results that are "novuln".
+// Setting one of the other fields and omitting the noVuln means retrieving vulnerabilities for the corresponding
+// type and vulnerabilityID. Omission of noVuln field will return all vulnerabilities and novuln.
 type VulnerabilitySpec struct {
 	ID              *string `json:"id,omitempty"`
 	Type            *string `json:"type,omitempty"`
 	VulnerabilityID *string `json:"vulnerabilityID,omitempty"`
+	NoVuln          *bool   `json:"noVuln,omitempty"`
+}
+
+// The Comparator is used by the vulnerability score filter on ranges
+type Comparator string
+
+const (
+	ComparatorGreater      Comparator = "GREATER"
+	ComparatorEqual        Comparator = "EQUAL"
+	ComparatorLess         Comparator = "LESS"
+	ComparatorGreaterEqual Comparator = "GREATER_EQUAL"
+	ComparatorLessEqual    Comparator = "LESS_EQUAL"
+)
+
+var AllComparator = []Comparator{
+	ComparatorGreater,
+	ComparatorEqual,
+	ComparatorLess,
+	ComparatorGreaterEqual,
+	ComparatorLessEqual,
+}
+
+func (e Comparator) IsValid() bool {
+	switch e {
+	case ComparatorGreater, ComparatorEqual, ComparatorLess, ComparatorGreaterEqual, ComparatorLessEqual:
+		return true
+	}
+	return false
+}
+
+func (e Comparator) String() string {
+	return string(e)
+}
+
+func (e *Comparator) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = Comparator(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid Comparator", str)
+	}
+	return nil
+}
+
+func (e Comparator) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 // DependencyType determines the type of the dependency.
@@ -1356,48 +1629,73 @@ const (
 	EdgeArtifactCertifyGood              Edge = "ARTIFACT_CERTIFY_GOOD"
 	EdgeArtifactCertifyVexStatement      Edge = "ARTIFACT_CERTIFY_VEX_STATEMENT"
 	EdgeArtifactHashEqual                Edge = "ARTIFACT_HASH_EQUAL"
+	EdgeArtifactHasMetadata              Edge = "ARTIFACT_HAS_METADATA"
 	EdgeArtifactHasSbom                  Edge = "ARTIFACT_HAS_SBOM"
 	EdgeArtifactHasSlsa                  Edge = "ARTIFACT_HAS_SLSA"
 	EdgeArtifactIsOccurrence             Edge = "ARTIFACT_IS_OCCURRENCE"
-	EdgeArtifactHasMetadata              Edge = "ARTIFACT_HAS_METADATA"
 	EdgeArtifactPointOfContact           Edge = "ARTIFACT_POINT_OF_CONTACT"
 	EdgeBuilderHasSlsa                   Edge = "BUILDER_HAS_SLSA"
-	EdgeVulnerabilityCertifyVexStatement Edge = "VULNERABILITY_CERTIFY_VEX_STATEMENT"
-	EdgeVulnerabilityCertifyVuln         Edge = "VULNERABILITY_CERTIFY_VULN"
-	EdgeVulnerabilityVulnEqual           Edge = "VULNERABILITY_VULN_EQUAL"
+	EdgeLicenseCertifyLegal              Edge = "LICENSE_CERTIFY_LEGAL"
 	EdgePackageCertifyBad                Edge = "PACKAGE_CERTIFY_BAD"
 	EdgePackageCertifyGood               Edge = "PACKAGE_CERTIFY_GOOD"
+	EdgePackageCertifyLegal              Edge = "PACKAGE_CERTIFY_LEGAL"
 	EdgePackageCertifyVexStatement       Edge = "PACKAGE_CERTIFY_VEX_STATEMENT"
 	EdgePackageCertifyVuln               Edge = "PACKAGE_CERTIFY_VULN"
+	EdgePackageHasMetadata               Edge = "PACKAGE_HAS_METADATA"
 	EdgePackageHasSbom                   Edge = "PACKAGE_HAS_SBOM"
 	EdgePackageHasSourceAt               Edge = "PACKAGE_HAS_SOURCE_AT"
 	EdgePackageIsDependency              Edge = "PACKAGE_IS_DEPENDENCY"
 	EdgePackageIsOccurrence              Edge = "PACKAGE_IS_OCCURRENCE"
+	EdgePackageNamePackageNamespace      Edge = "PACKAGE_NAME_PACKAGE_NAMESPACE"
+	EdgePackageNamePackageVersion        Edge = "PACKAGE_NAME_PACKAGE_VERSION"
+	EdgePackageNamespacePackageName      Edge = "PACKAGE_NAMESPACE_PACKAGE_NAME"
+	EdgePackageNamespacePackageType      Edge = "PACKAGE_NAMESPACE_PACKAGE_TYPE"
 	EdgePackagePkgEqual                  Edge = "PACKAGE_PKG_EQUAL"
-	EdgePackageHasMetadata               Edge = "PACKAGE_HAS_METADATA"
 	EdgePackagePointOfContact            Edge = "PACKAGE_POINT_OF_CONTACT"
+	EdgePackageTypePackageNamespace      Edge = "PACKAGE_TYPE_PACKAGE_NAMESPACE"
+	EdgePackageVersionPackageName        Edge = "PACKAGE_VERSION_PACKAGE_NAME"
 	EdgeSourceCertifyBad                 Edge = "SOURCE_CERTIFY_BAD"
 	EdgeSourceCertifyGood                Edge = "SOURCE_CERTIFY_GOOD"
+	EdgeSourceCertifyLegal               Edge = "SOURCE_CERTIFY_LEGAL"
 	EdgeSourceCertifyScorecard           Edge = "SOURCE_CERTIFY_SCORECARD"
+	EdgeSourceHasMetadata                Edge = "SOURCE_HAS_METADATA"
 	EdgeSourceHasSourceAt                Edge = "SOURCE_HAS_SOURCE_AT"
 	EdgeSourceIsOccurrence               Edge = "SOURCE_IS_OCCURRENCE"
-	EdgeSourceHasMetadata                Edge = "SOURCE_HAS_METADATA"
+	EdgeSourceNameSourceNamespace        Edge = "SOURCE_NAME_SOURCE_NAMESPACE"
+	EdgeSourceNamespaceSourceName        Edge = "SOURCE_NAMESPACE_SOURCE_NAME"
+	EdgeSourceNamespaceSourceType        Edge = "SOURCE_NAMESPACE_SOURCE_TYPE"
 	EdgeSourcePointOfContact             Edge = "SOURCE_POINT_OF_CONTACT"
+	EdgeSourceTypeSourceNamespace        Edge = "SOURCE_TYPE_SOURCE_NAMESPACE"
+	EdgeVulnerabilityCertifyVexStatement Edge = "VULNERABILITY_CERTIFY_VEX_STATEMENT"
+	EdgeVulnerabilityCertifyVuln         Edge = "VULNERABILITY_CERTIFY_VULN"
+	EdgeVulnerabilityIDVulnerabilityType Edge = "VULNERABILITY_ID_VULNERABILITY_TYPE"
+	EdgeVulnerabilityTypeVulnerabilityID Edge = "VULNERABILITY_TYPE_VULNERABILITY_ID"
+	EdgeVulnerabilityVulnEqual           Edge = "VULNERABILITY_VULN_EQUAL"
+	EdgeVulnerabilityVulnMetadata        Edge = "VULNERABILITY_VULN_METADATA"
 	EdgeCertifyBadArtifact               Edge = "CERTIFY_BAD_ARTIFACT"
 	EdgeCertifyBadPackage                Edge = "CERTIFY_BAD_PACKAGE"
 	EdgeCertifyBadSource                 Edge = "CERTIFY_BAD_SOURCE"
 	EdgeCertifyGoodArtifact              Edge = "CERTIFY_GOOD_ARTIFACT"
 	EdgeCertifyGoodPackage               Edge = "CERTIFY_GOOD_PACKAGE"
 	EdgeCertifyGoodSource                Edge = "CERTIFY_GOOD_SOURCE"
+	EdgeCertifyLegalLicense              Edge = "CERTIFY_LEGAL_LICENSE"
+	EdgeCertifyLegalPackage              Edge = "CERTIFY_LEGAL_PACKAGE"
+	EdgeCertifyLegalSource               Edge = "CERTIFY_LEGAL_SOURCE"
 	EdgeCertifyScorecardSource           Edge = "CERTIFY_SCORECARD_SOURCE"
 	EdgeCertifyVexStatementArtifact      Edge = "CERTIFY_VEX_STATEMENT_ARTIFACT"
-	EdgeCertifyVexStatementVulnerability Edge = "CERTIFY_VEX_STATEMENT_VULNERABILITY"
 	EdgeCertifyVexStatementPackage       Edge = "CERTIFY_VEX_STATEMENT_PACKAGE"
-	EdgeCertifyVulnVulnerability         Edge = "CERTIFY_VULN_VULNERABILITY"
+	EdgeCertifyVexStatementVulnerability Edge = "CERTIFY_VEX_STATEMENT_VULNERABILITY"
 	EdgeCertifyVulnPackage               Edge = "CERTIFY_VULN_PACKAGE"
+	EdgeCertifyVulnVulnerability         Edge = "CERTIFY_VULN_VULNERABILITY"
 	EdgeHashEqualArtifact                Edge = "HASH_EQUAL_ARTIFACT"
+	EdgeHasMetadataArtifact              Edge = "HAS_METADATA_ARTIFACT"
+	EdgeHasMetadataPackage               Edge = "HAS_METADATA_PACKAGE"
+	EdgeHasMetadataSource                Edge = "HAS_METADATA_SOURCE"
 	EdgeHasSbomArtifact                  Edge = "HAS_SBOM_ARTIFACT"
 	EdgeHasSbomPackage                   Edge = "HAS_SBOM_PACKAGE"
+	EdgeHasSbomIncludedSoftware          Edge = "HAS_SBOM_INCLUDED_SOFTWARE"
+	EdgeHasSbomIncludedDependencies      Edge = "HAS_SBOM_INCLUDED_DEPENDENCIES"
+	EdgeHasSbomIncludedOccurrences       Edge = "HAS_SBOM_INCLUDED_OCCURRENCES"
 	EdgeHasSlsaBuiltBy                   Edge = "HAS_SLSA_BUILT_BY"
 	EdgeHasSlsaMaterials                 Edge = "HAS_SLSA_MATERIALS"
 	EdgeHasSlsaSubject                   Edge = "HAS_SLSA_SUBJECT"
@@ -1407,14 +1705,12 @@ const (
 	EdgeIsOccurrenceArtifact             Edge = "IS_OCCURRENCE_ARTIFACT"
 	EdgeIsOccurrencePackage              Edge = "IS_OCCURRENCE_PACKAGE"
 	EdgeIsOccurrenceSource               Edge = "IS_OCCURRENCE_SOURCE"
-	EdgeVulnEqualVulnerability           Edge = "VULN_EQUAL_VULNERABILITY"
 	EdgePkgEqualPackage                  Edge = "PKG_EQUAL_PACKAGE"
-	EdgeHasMetadataPackage               Edge = "HAS_METADATA_PACKAGE"
-	EdgeHasMetadataArtifact              Edge = "HAS_METADATA_ARTIFACT"
-	EdgeHasMetadataSource                Edge = "HAS_METADATA_SOURCE"
-	EdgePointOfContactPackage            Edge = "POINT_OF_CONTACT_PACKAGE"
 	EdgePointOfContactArtifact           Edge = "POINT_OF_CONTACT_ARTIFACT"
+	EdgePointOfContactPackage            Edge = "POINT_OF_CONTACT_PACKAGE"
 	EdgePointOfContactSource             Edge = "POINT_OF_CONTACT_SOURCE"
+	EdgeVulnEqualVulnerability           Edge = "VULN_EQUAL_VULNERABILITY"
+	EdgeVulnMetadataVulnerability        Edge = "VULN_METADATA_VULNERABILITY"
 )
 
 var AllEdge = []Edge{
@@ -1422,48 +1718,73 @@ var AllEdge = []Edge{
 	EdgeArtifactCertifyGood,
 	EdgeArtifactCertifyVexStatement,
 	EdgeArtifactHashEqual,
+	EdgeArtifactHasMetadata,
 	EdgeArtifactHasSbom,
 	EdgeArtifactHasSlsa,
 	EdgeArtifactIsOccurrence,
-	EdgeArtifactHasMetadata,
 	EdgeArtifactPointOfContact,
 	EdgeBuilderHasSlsa,
-	EdgeVulnerabilityCertifyVexStatement,
-	EdgeVulnerabilityCertifyVuln,
-	EdgeVulnerabilityVulnEqual,
+	EdgeLicenseCertifyLegal,
 	EdgePackageCertifyBad,
 	EdgePackageCertifyGood,
+	EdgePackageCertifyLegal,
 	EdgePackageCertifyVexStatement,
 	EdgePackageCertifyVuln,
+	EdgePackageHasMetadata,
 	EdgePackageHasSbom,
 	EdgePackageHasSourceAt,
 	EdgePackageIsDependency,
 	EdgePackageIsOccurrence,
+	EdgePackageNamePackageNamespace,
+	EdgePackageNamePackageVersion,
+	EdgePackageNamespacePackageName,
+	EdgePackageNamespacePackageType,
 	EdgePackagePkgEqual,
-	EdgePackageHasMetadata,
 	EdgePackagePointOfContact,
+	EdgePackageTypePackageNamespace,
+	EdgePackageVersionPackageName,
 	EdgeSourceCertifyBad,
 	EdgeSourceCertifyGood,
+	EdgeSourceCertifyLegal,
 	EdgeSourceCertifyScorecard,
+	EdgeSourceHasMetadata,
 	EdgeSourceHasSourceAt,
 	EdgeSourceIsOccurrence,
-	EdgeSourceHasMetadata,
+	EdgeSourceNameSourceNamespace,
+	EdgeSourceNamespaceSourceName,
+	EdgeSourceNamespaceSourceType,
 	EdgeSourcePointOfContact,
+	EdgeSourceTypeSourceNamespace,
+	EdgeVulnerabilityCertifyVexStatement,
+	EdgeVulnerabilityCertifyVuln,
+	EdgeVulnerabilityIDVulnerabilityType,
+	EdgeVulnerabilityTypeVulnerabilityID,
+	EdgeVulnerabilityVulnEqual,
+	EdgeVulnerabilityVulnMetadata,
 	EdgeCertifyBadArtifact,
 	EdgeCertifyBadPackage,
 	EdgeCertifyBadSource,
 	EdgeCertifyGoodArtifact,
 	EdgeCertifyGoodPackage,
 	EdgeCertifyGoodSource,
+	EdgeCertifyLegalLicense,
+	EdgeCertifyLegalPackage,
+	EdgeCertifyLegalSource,
 	EdgeCertifyScorecardSource,
 	EdgeCertifyVexStatementArtifact,
-	EdgeCertifyVexStatementVulnerability,
 	EdgeCertifyVexStatementPackage,
-	EdgeCertifyVulnVulnerability,
+	EdgeCertifyVexStatementVulnerability,
 	EdgeCertifyVulnPackage,
+	EdgeCertifyVulnVulnerability,
 	EdgeHashEqualArtifact,
+	EdgeHasMetadataArtifact,
+	EdgeHasMetadataPackage,
+	EdgeHasMetadataSource,
 	EdgeHasSbomArtifact,
 	EdgeHasSbomPackage,
+	EdgeHasSbomIncludedSoftware,
+	EdgeHasSbomIncludedDependencies,
+	EdgeHasSbomIncludedOccurrences,
 	EdgeHasSlsaBuiltBy,
 	EdgeHasSlsaMaterials,
 	EdgeHasSlsaSubject,
@@ -1473,19 +1794,17 @@ var AllEdge = []Edge{
 	EdgeIsOccurrenceArtifact,
 	EdgeIsOccurrencePackage,
 	EdgeIsOccurrenceSource,
-	EdgeVulnEqualVulnerability,
 	EdgePkgEqualPackage,
-	EdgeHasMetadataPackage,
-	EdgeHasMetadataArtifact,
-	EdgeHasMetadataSource,
-	EdgePointOfContactPackage,
 	EdgePointOfContactArtifact,
+	EdgePointOfContactPackage,
 	EdgePointOfContactSource,
+	EdgeVulnEqualVulnerability,
+	EdgeVulnMetadataVulnerability,
 }
 
 func (e Edge) IsValid() bool {
 	switch e {
-	case EdgeArtifactCertifyBad, EdgeArtifactCertifyGood, EdgeArtifactCertifyVexStatement, EdgeArtifactHashEqual, EdgeArtifactHasSbom, EdgeArtifactHasSlsa, EdgeArtifactIsOccurrence, EdgeArtifactHasMetadata, EdgeArtifactPointOfContact, EdgeBuilderHasSlsa, EdgeVulnerabilityCertifyVexStatement, EdgeVulnerabilityCertifyVuln, EdgeVulnerabilityVulnEqual, EdgePackageCertifyBad, EdgePackageCertifyGood, EdgePackageCertifyVexStatement, EdgePackageCertifyVuln, EdgePackageHasSbom, EdgePackageHasSourceAt, EdgePackageIsDependency, EdgePackageIsOccurrence, EdgePackagePkgEqual, EdgePackageHasMetadata, EdgePackagePointOfContact, EdgeSourceCertifyBad, EdgeSourceCertifyGood, EdgeSourceCertifyScorecard, EdgeSourceHasSourceAt, EdgeSourceIsOccurrence, EdgeSourceHasMetadata, EdgeSourcePointOfContact, EdgeCertifyBadArtifact, EdgeCertifyBadPackage, EdgeCertifyBadSource, EdgeCertifyGoodArtifact, EdgeCertifyGoodPackage, EdgeCertifyGoodSource, EdgeCertifyScorecardSource, EdgeCertifyVexStatementArtifact, EdgeCertifyVexStatementVulnerability, EdgeCertifyVexStatementPackage, EdgeCertifyVulnVulnerability, EdgeCertifyVulnPackage, EdgeHashEqualArtifact, EdgeHasSbomArtifact, EdgeHasSbomPackage, EdgeHasSlsaBuiltBy, EdgeHasSlsaMaterials, EdgeHasSlsaSubject, EdgeHasSourceAtPackage, EdgeHasSourceAtSource, EdgeIsDependencyPackage, EdgeIsOccurrenceArtifact, EdgeIsOccurrencePackage, EdgeIsOccurrenceSource, EdgeVulnEqualVulnerability, EdgePkgEqualPackage, EdgeHasMetadataPackage, EdgeHasMetadataArtifact, EdgeHasMetadataSource, EdgePointOfContactPackage, EdgePointOfContactArtifact, EdgePointOfContactSource:
+	case EdgeArtifactCertifyBad, EdgeArtifactCertifyGood, EdgeArtifactCertifyVexStatement, EdgeArtifactHashEqual, EdgeArtifactHasMetadata, EdgeArtifactHasSbom, EdgeArtifactHasSlsa, EdgeArtifactIsOccurrence, EdgeArtifactPointOfContact, EdgeBuilderHasSlsa, EdgeLicenseCertifyLegal, EdgePackageCertifyBad, EdgePackageCertifyGood, EdgePackageCertifyLegal, EdgePackageCertifyVexStatement, EdgePackageCertifyVuln, EdgePackageHasMetadata, EdgePackageHasSbom, EdgePackageHasSourceAt, EdgePackageIsDependency, EdgePackageIsOccurrence, EdgePackageNamePackageNamespace, EdgePackageNamePackageVersion, EdgePackageNamespacePackageName, EdgePackageNamespacePackageType, EdgePackagePkgEqual, EdgePackagePointOfContact, EdgePackageTypePackageNamespace, EdgePackageVersionPackageName, EdgeSourceCertifyBad, EdgeSourceCertifyGood, EdgeSourceCertifyLegal, EdgeSourceCertifyScorecard, EdgeSourceHasMetadata, EdgeSourceHasSourceAt, EdgeSourceIsOccurrence, EdgeSourceNameSourceNamespace, EdgeSourceNamespaceSourceName, EdgeSourceNamespaceSourceType, EdgeSourcePointOfContact, EdgeSourceTypeSourceNamespace, EdgeVulnerabilityCertifyVexStatement, EdgeVulnerabilityCertifyVuln, EdgeVulnerabilityIDVulnerabilityType, EdgeVulnerabilityTypeVulnerabilityID, EdgeVulnerabilityVulnEqual, EdgeVulnerabilityVulnMetadata, EdgeCertifyBadArtifact, EdgeCertifyBadPackage, EdgeCertifyBadSource, EdgeCertifyGoodArtifact, EdgeCertifyGoodPackage, EdgeCertifyGoodSource, EdgeCertifyLegalLicense, EdgeCertifyLegalPackage, EdgeCertifyLegalSource, EdgeCertifyScorecardSource, EdgeCertifyVexStatementArtifact, EdgeCertifyVexStatementPackage, EdgeCertifyVexStatementVulnerability, EdgeCertifyVulnPackage, EdgeCertifyVulnVulnerability, EdgeHashEqualArtifact, EdgeHasMetadataArtifact, EdgeHasMetadataPackage, EdgeHasMetadataSource, EdgeHasSbomArtifact, EdgeHasSbomPackage, EdgeHasSbomIncludedSoftware, EdgeHasSbomIncludedDependencies, EdgeHasSbomIncludedOccurrences, EdgeHasSlsaBuiltBy, EdgeHasSlsaMaterials, EdgeHasSlsaSubject, EdgeHasSourceAtPackage, EdgeHasSourceAtSource, EdgeIsDependencyPackage, EdgeIsOccurrenceArtifact, EdgeIsOccurrencePackage, EdgeIsOccurrenceSource, EdgePkgEqualPackage, EdgePointOfContactArtifact, EdgePointOfContactPackage, EdgePointOfContactSource, EdgeVulnEqualVulnerability, EdgeVulnMetadataVulnerability:
 		return true
 	}
 	return false
@@ -1648,5 +1967,59 @@ func (e *VexStatus) UnmarshalGQL(v interface{}) error {
 }
 
 func (e VexStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+// Records the type of the score being captured by the score node
+type VulnerabilityScoreType string
+
+const (
+	VulnerabilityScoreTypeCVSSv2  VulnerabilityScoreType = "CVSSv2"
+	VulnerabilityScoreTypeCVSSv3  VulnerabilityScoreType = "CVSSv3"
+	VulnerabilityScoreTypeEPSSv1  VulnerabilityScoreType = "EPSSv1"
+	VulnerabilityScoreTypeEPSSv2  VulnerabilityScoreType = "EPSSv2"
+	VulnerabilityScoreTypeCVSSv31 VulnerabilityScoreType = "CVSSv31"
+	VulnerabilityScoreTypeCVSSv4  VulnerabilityScoreType = "CVSSv4"
+	VulnerabilityScoreTypeOwasp   VulnerabilityScoreType = "OWASP"
+	VulnerabilityScoreTypeSsvc    VulnerabilityScoreType = "SSVC"
+)
+
+var AllVulnerabilityScoreType = []VulnerabilityScoreType{
+	VulnerabilityScoreTypeCVSSv2,
+	VulnerabilityScoreTypeCVSSv3,
+	VulnerabilityScoreTypeEPSSv1,
+	VulnerabilityScoreTypeEPSSv2,
+	VulnerabilityScoreTypeCVSSv31,
+	VulnerabilityScoreTypeCVSSv4,
+	VulnerabilityScoreTypeOwasp,
+	VulnerabilityScoreTypeSsvc,
+}
+
+func (e VulnerabilityScoreType) IsValid() bool {
+	switch e {
+	case VulnerabilityScoreTypeCVSSv2, VulnerabilityScoreTypeCVSSv3, VulnerabilityScoreTypeEPSSv1, VulnerabilityScoreTypeEPSSv2, VulnerabilityScoreTypeCVSSv31, VulnerabilityScoreTypeCVSSv4, VulnerabilityScoreTypeOwasp, VulnerabilityScoreTypeSsvc:
+		return true
+	}
+	return false
+}
+
+func (e VulnerabilityScoreType) String() string {
+	return string(e)
+}
+
+func (e *VulnerabilityScoreType) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = VulnerabilityScoreType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid VulnerabilityScoreType", str)
+	}
+	return nil
+}
+
+func (e VulnerabilityScoreType) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }

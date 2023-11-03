@@ -17,9 +17,10 @@ package deps_dev
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/guacsec/guac/pkg/assembler"
 	model "github.com/guacsec/guac/pkg/assembler/clients/generated"
@@ -28,6 +29,8 @@ import (
 	"github.com/guacsec/guac/pkg/handler/processor"
 	"github.com/guacsec/guac/pkg/ingestor/parser/common"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type depsDevParser struct {
 	doc           *processor.Document
@@ -67,9 +70,10 @@ func (d *depsDevParser) GetPredicates(ctx context.Context) *assembler.IngestPred
 
 	for _, isDepComp := range d.packComponent.IsDepPackages {
 		preds.IsDependency = append(preds.IsDependency, assembler.IsDependencyIngest{
-			Pkg:          isDepComp.CurrentPackageInput,
-			DepPkg:       isDepComp.DepPackageInput,
-			IsDependency: isDepComp.IsDependency,
+			Pkg:             isDepComp.CurrentPackageInput,
+			DepPkg:          isDepComp.DepPackageInput,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
+			IsDependency:    isDepComp.IsDependency,
 		})
 	}
 

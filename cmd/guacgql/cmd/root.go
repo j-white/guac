@@ -28,17 +28,24 @@ import (
 
 var flags = struct {
 	// graphQL server flags
-	backend  string
-	port     int
-	debug    bool
-	tracegql bool
-	testData bool
+	backend     string
+	port        int
+	tlsCertFile string
+	tlsKeyFile  string
+	debug       bool
+	tracegql    bool
 
 	// Needed only if using neo4j backend
 	nAddr  string
 	nUser  string
 	nPass  string
 	nRealm string
+
+	// Needed only if using ent backend
+	dbAddress string
+	dbDriver  string
+	dbDebug   bool
+	dbMigrate bool
 
 	// Needed only if using arangodb backend
 	arangoAddr string
@@ -68,14 +75,21 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		flags.backend = viper.GetString("gql-backend")
 		flags.port = viper.GetInt("gql-listen-port")
+		flags.tlsCertFile = viper.GetString("gql-tls-cert-file")
+		flags.tlsKeyFile = viper.GetString("gql-tls-key-file")
 		flags.debug = viper.GetBool("gql-debug")
 		flags.tracegql = viper.GetBool("gql-trace")
-		flags.testData = viper.GetBool("gql-test-data")
 
 		flags.nUser = viper.GetString("neo4j-user")
 		flags.nPass = viper.GetString("neo4j-pass")
 		flags.nAddr = viper.GetString("neo4j-addr")
 		flags.nRealm = viper.GetString("neo4j-realm")
+
+		// Needed only if using ent backend
+		flags.dbAddress = viper.GetString("db-address")
+		flags.dbDriver = viper.GetString("db-driver")
+		flags.dbDebug = viper.GetBool("db-debug")
+		flags.dbMigrate = viper.GetBool("db-migrate")
 
 		flags.arangoUser = viper.GetString("arango-user")
 		flags.arangoPass = viper.GetString("arango-pass")
@@ -105,8 +119,9 @@ func init() {
 		"arango-addr", "arango-user", "arango-pass",
 		"neo4j-addr", "neo4j-user", "neo4j-pass", "neo4j-realm",
 		"neptune-endpoint", "neptune-port", "neptune-region", "neptune-user", "neptune-realm",
-		"gql-test-data", "gql-listen-port", "gql-debug", "gql-backend", "gql-trace",
+		"gql-listen-port", "gql-tls-cert-file", "gql-tls-key-file", "gql-debug", "gql-backend", "gql-trace",
 		"gremlin-flavor", "gremlin-url", "gremlin-max-results-per-query", "gremlin-username", "gremlin-password", "gremlin-insecure-tls-skip-verify",
+		"db-address", "db-driver", "db-debug", "db-migrate",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to setup flag: %v", err)

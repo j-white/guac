@@ -52,17 +52,12 @@ func (n *isDependencyLink) BuildModelNode(c *demoClient) (model.Node, error) {
 
 // Ingest IngestDependencies
 
-func (c *demoClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
-	if len(pkgs) != len(depPkgs) {
-		return nil, gqlerror.Errorf("uneven packages and dependent packages for ingestion")
-	}
-	if len(pkgs) != len(dependencies) {
-		return nil, gqlerror.Errorf("uneven packages and dependencies nodes for ingestion")
-	}
+func (c *demoClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgInputSpec, depPkgs []*model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependencies []*model.IsDependencyInputSpec) ([]*model.IsDependency, error) {
+	// TODO(LUMJJB): match flags
 
 	var modelIsDependencies []*model.IsDependency
 	for i := range dependencies {
-		isDependency, err := c.IngestDependency(ctx, *pkgs[i], *depPkgs[i], *dependencies[i])
+		isDependency, err := c.IngestDependency(ctx, *pkgs[i], *depPkgs[i], depPkgMatchType, *dependencies[i])
 		if err != nil {
 			return nil, gqlerror.Errorf("IngestDependency failed with err: %v", err)
 		}
@@ -72,11 +67,11 @@ func (c *demoClient) IngestDependencies(ctx context.Context, pkgs []*model.PkgIn
 }
 
 // Ingest IsDependency
-func (c *demoClient) IngestDependency(ctx context.Context, packageArg model.PkgInputSpec, dependentPackageArg model.PkgInputSpec, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
-	return c.ingestDependency(ctx, packageArg, dependentPackageArg, dependency, true)
+func (c *demoClient) IngestDependency(ctx context.Context, packageArg model.PkgInputSpec, dependentPackageArg model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependency model.IsDependencyInputSpec) (*model.IsDependency, error) {
+	return c.ingestDependency(ctx, packageArg, dependentPackageArg, depPkgMatchType, dependency, true)
 }
 
-func (c *demoClient) ingestDependency(ctx context.Context, packageArg model.PkgInputSpec, dependentPackageArg model.PkgInputSpec, dependency model.IsDependencyInputSpec, readOnly bool) (*model.IsDependency, error) {
+func (c *demoClient) ingestDependency(ctx context.Context, packageArg model.PkgInputSpec, dependentPackageArg model.PkgInputSpec, depPkgMatchType model.MatchFlags, dependency model.IsDependencyInputSpec, readOnly bool) (*model.IsDependency, error) {
 	funcName := "IngestDependency"
 	lock(&c.m, readOnly)
 	defer unlock(&c.m, readOnly)
@@ -84,7 +79,6 @@ func (c *demoClient) ingestDependency(ctx context.Context, packageArg model.PkgI
 	// for IsDependency the dependent package will return the ID at the
 	// packageName node. VersionRange will be used to specify the versions are
 	// the attestation relates to
-
 	packageID, err := getPackageIDFromInput(c, packageArg, model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion})
 	if err != nil {
 		return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
@@ -95,15 +89,15 @@ func (c *demoClient) ingestDependency(ctx context.Context, packageArg model.PkgI
 	}
 	packageDependencies := foundPkgVersion.isDependencyLinks
 
-	depPackageID, err := getPackageIDFromInput(c, dependentPackageArg, model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions})
+	depPackageID, err := getPackageIDFromInput(c, dependentPackageArg, depPkgMatchType)
 	if err != nil {
 		return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
 	}
-	depPkgName, err := byID[*pkgVersionStruct](depPackageID, c)
+	depPkg, err := byID[pkgNameOrVersion](depPackageID, c)
 	if err != nil {
 		return nil, gqlerror.Errorf("%v ::  %s", funcName, err)
 	}
-	depPackageDependencies := depPkgName.isDependencyLinks
+	depPackageDependencies := depPkg.getIsDependencyLinks()
 
 	var searchIDs []uint32
 	if len(packageDependencies) < len(depPackageDependencies) {
@@ -132,7 +126,7 @@ func (c *demoClient) ingestDependency(ctx context.Context, packageArg model.PkgI
 	if !duplicate {
 		if readOnly {
 			c.m.RUnlock()
-			d, err := c.ingestDependency(ctx, packageArg, dependentPackageArg, dependency, false)
+			d, err := c.ingestDependency(ctx, packageArg, dependentPackageArg, depPkgMatchType, dependency, false)
 			c.m.RLock() // relock so that defer unlock does not panic
 			return d, err
 		}
@@ -151,7 +145,7 @@ func (c *demoClient) ingestDependency(ctx context.Context, packageArg model.PkgI
 		c.isDependencies = append(c.isDependencies, &collectedIsDependencyLink)
 		// set the backlinks
 		foundPkgVersion.setIsDependencyLinks(collectedIsDependencyLink.id)
-		depPkgName.setIsDependencyLinks(collectedIsDependencyLink.id)
+		depPkg.setIsDependencyLinks(collectedIsDependencyLink.id)
 	}
 
 	// build return GraphQL type
@@ -189,23 +183,34 @@ func (c *demoClient) IsDependency(ctx context.Context, filter *model.IsDependenc
 	var search []uint32
 	foundOne := false
 	if filter != nil && filter.Package != nil {
-		exactPackage, err := c.exactPackageVersion(filter.Package)
+		pkgs, err := c.findPackageVersion(filter.Package)
 		if err != nil {
 			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
 		}
-		if exactPackage != nil {
-			search = append(search, exactPackage.isDependencyLinks...)
-			foundOne = true
+		foundOne = len(pkgs) > 0
+		for _, pkg := range pkgs {
+			search = append(search, pkg.isDependencyLinks...)
 		}
 	}
-	if !foundOne && filter != nil && filter.DependentPackage != nil {
-		exactPackage, err := c.exactPackageName(filter.DependentPackage)
-		if err != nil {
-			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
-		}
-		if exactPackage != nil {
-			search = append(search, exactPackage.isDependencyLinks...)
-			foundOne = true
+	if !foundOne && filter != nil && filter.DependencyPackage != nil {
+		if filter.DependencyPackage.Version == nil {
+			exactPackage, err := c.exactPackageName(filter.DependencyPackage)
+			if err != nil {
+				return nil, gqlerror.Errorf("%v :: %v", funcName, err)
+			}
+			if exactPackage != nil {
+				search = append(search, exactPackage.isDependencyLinks...)
+				foundOne = true
+			}
+		} else {
+			pkgs, err := c.findPackageVersion(filter.Package)
+			if err != nil {
+				return nil, gqlerror.Errorf("%v :: %v", funcName, err)
+			}
+			foundOne = len(pkgs) > 0
+			for _, pkg := range pkgs {
+				search = append(search, pkg.isDependencyLinks...)
+			}
 		}
 	}
 
@@ -249,9 +254,9 @@ func (c *demoClient) buildIsDependency(link *isDependencyLink, filter *model.IsD
 			return nil, err
 		}
 	}
-	if filter != nil && filter.DependentPackage != nil {
-		depPkgFilter := &model.PkgSpec{Type: filter.DependentPackage.Type, Namespace: filter.DependentPackage.Namespace,
-			Name: filter.DependentPackage.Name}
+	if filter != nil && filter.DependencyPackage != nil {
+		depPkgFilter := &model.PkgSpec{Type: filter.DependencyPackage.Type, Namespace: filter.DependencyPackage.Namespace,
+			Name: filter.DependencyPackage.Name}
 		dep, err = c.buildPackageResponse(link.depPackageID, depPkgFilter)
 		if err != nil {
 			return nil, err
@@ -277,14 +282,14 @@ func (c *demoClient) buildIsDependency(link *isDependencyLink, filter *model.IsD
 	}
 
 	foundIsDependency := model.IsDependency{
-		ID:               nodeID(link.id),
-		Package:          p,
-		DependentPackage: dep,
-		VersionRange:     link.versionRange,
-		DependencyType:   link.dependencyType,
-		Justification:    link.justification,
-		Origin:           link.origin,
-		Collector:        link.collector,
+		ID:                nodeID(link.id),
+		Package:           p,
+		DependencyPackage: dep,
+		VersionRange:      link.versionRange,
+		DependencyType:    link.dependencyType,
+		Justification:     link.justification,
+		Origin:            link.origin,
+		Collector:         link.collector,
 	}
 	return &foundIsDependency, nil
 }
@@ -292,19 +297,7 @@ func (c *demoClient) buildIsDependency(link *isDependencyLink, filter *model.IsD
 func (c *demoClient) addDepIfMatch(out []*model.IsDependency,
 	filter *model.IsDependencySpec, link *isDependencyLink) (
 	[]*model.IsDependency, error) {
-	if filter != nil && noMatch(filter.Justification, link.justification) {
-		return out, nil
-	}
-	if filter != nil && noMatch(filter.Origin, link.origin) {
-		return out, nil
-	}
-	if filter != nil && noMatch(filter.Collector, link.collector) {
-		return out, nil
-	}
-	if filter != nil && noMatch(filter.VersionRange, link.versionRange) {
-		return out, nil
-	}
-	if filter != nil && filter.DependencyType != nil && *filter.DependencyType != link.dependencyType {
+	if noMatchIsDep(filter, link) {
 		return out, nil
 	}
 
@@ -316,4 +309,56 @@ func (c *demoClient) addDepIfMatch(out []*model.IsDependency,
 		return out, nil
 	}
 	return append(out, foundIsDependency), nil
+}
+
+func noMatchIsDep(filter *model.IsDependencySpec, link *isDependencyLink) bool {
+	if filter != nil {
+		return noMatch(filter.Justification, link.justification) ||
+			noMatch(filter.Origin, link.origin) ||
+			noMatch(filter.Collector, link.collector) ||
+			noMatch(filter.VersionRange, link.versionRange) ||
+			(filter.DependencyType != nil && *filter.DependencyType != link.dependencyType)
+	} else {
+		return false
+	}
+}
+
+func (c *demoClient) matchDependencies(filters []*model.IsDependencySpec, depLinkIDs []uint32) bool {
+	var depLinks []*isDependencyLink
+	if len(filters) > 0 {
+		for _, depLinkID := range depLinkIDs {
+			link, err := byID[*isDependencyLink](depLinkID, c)
+			if err != nil {
+				return false
+			}
+			depLinks = append(depLinks, link)
+		}
+
+		for _, filter := range filters {
+			if filter == nil {
+				continue
+			}
+			if filter.ID != nil {
+				// Check by ID if present
+				if !c.isIDPresent(*filter.ID, depLinkIDs) {
+					return false
+				}
+			} else {
+				// Otherwise match spec information
+				match := false
+				for _, depLink := range depLinks {
+					if !noMatchIsDep(filter, depLink) &&
+						(filter.Package == nil || c.matchPackages([]*model.PkgSpec{filter.Package}, []uint32{depLink.packageID})) &&
+						(filter.DependencyPackage == nil || c.matchPackages([]*model.PkgSpec{filter.DependencyPackage}, []uint32{depLink.depPackageID})) {
+						match = true
+						break
+					}
+				}
+				if !match {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }

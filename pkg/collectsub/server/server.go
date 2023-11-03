@@ -31,6 +31,7 @@ import (
 	"github.com/guacsec/guac/pkg/logging"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -38,30 +39,35 @@ type server struct {
 	pb.UnimplementedColectSubscriberServiceServer
 
 	// Db points to the backend DB, public for mocking testing purposes.
-	Db   db.CollectSubscriberDb
-	port int
+	Db          db.CollectSubscriberDb
+	port        int
+	tlsCertFile string
+	tlsKeyFile  string
 }
 
-func NewServer(port int) (*server, error) {
+func NewServer(port int, tlsCertFile string, tlsKeyFile string) (*server, error) {
 	db, err := simpledb.NewSimpleDb()
 	if err != nil {
 		return nil, err
 	}
 
 	return &server{
-		Db:   db,
-		port: port,
+		Db:          db,
+		port:        port,
+		tlsCertFile: tlsCertFile,
+		tlsKeyFile:  tlsKeyFile,
 	}, nil
 }
 
 func (s *server) AddCollectEntries(ctx context.Context, in *pb.AddCollectEntriesRequest) (*pb.AddCollectEntriesResponse, error) {
 	logger := ctxzap.Extract(ctx).Sugar()
-	logger.Infof("AddCollectEntries called with entries: %v", in.Entries)
+	logger.Debugf("AddCollectEntries called with entries: %v", in.Entries)
 
 	err := s.Db.AddCollectEntries(ctx, in.Entries)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add entry to db: %w", err)
 	}
+	logger.Infof("AddCollectEntries added %d entries", len(in.Entries))
 
 	return &pb.AddCollectEntriesResponse{
 		Success: true,
@@ -70,7 +76,7 @@ func (s *server) AddCollectEntries(ctx context.Context, in *pb.AddCollectEntries
 
 func (s *server) GetCollectEntries(ctx context.Context, in *pb.GetCollectEntriesRequest) (*pb.GetCollectEntriesResponse, error) {
 	logger := ctxzap.Extract(ctx).Sugar()
-	logger.Infof("GetCollectEntries called with filters: %v", in.Filters)
+	logger.Debugf("GetCollectEntries called with filters: %v", in.Filters)
 
 	ret, err := s.Db.GetCollectEntries(ctx, in.Filters, in.SinceTime)
 	if err != nil {
@@ -119,6 +125,7 @@ func (s *server) Serve(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error opening port %d when starting csub server: %w", s.port, err)
 	}
+
 	opts := []grpc.ServerOption{
 		grpc.UnaryInterceptor(
 			grpc_middleware.ChainUnaryServer(
@@ -126,7 +133,17 @@ func (s *server) Serve(ctx context.Context) error {
 				grpc_zap.UnaryServerInterceptor(logger.Desugar()),
 				contextToZapFieldsUnaryServerInterceptor(),
 			)),
+		grpc.MaxRecvMsgSize(16777216),
 	}
+
+	if s.tlsCertFile != "" && s.tlsKeyFile != "" {
+		creds, err := credentials.NewServerTLSFromFile(s.tlsCertFile, s.tlsKeyFile)
+		if err != nil {
+			return fmt.Errorf("error loading credentials from certificate: %s and key %s: %w", s.tlsCertFile, s.tlsKeyFile, err)
+		}
+		opts = append(opts, grpc.Creds(creds))
+	}
+
 	gs := grpc.NewServer(opts...)
 
 	pb.RegisterColectSubscriberServiceServer(gs, s)

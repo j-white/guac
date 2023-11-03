@@ -34,6 +34,7 @@ type Document struct {
 	Blob              []byte
 	Type              DocumentType
 	Format            FormatType
+	Encoding          EncodingType
 	SourceInformation SourceInformation
 }
 
@@ -62,6 +63,7 @@ const (
 	DocumentCycloneDX        DocumentType = "CycloneDX"
 	DocumentDepsDev          DocumentType = "DEPS_DEV"
 	DocumentCsaf             DocumentType = "CSAF"
+	DocumentOpenVEX          DocumentType = "OPEN_VEX"
 	DocumentIngestPredicates DocumentType = "INGEST_PREDICATES"
 	DocumentUnknown          DocumentType = "UNKNOWN"
 )
@@ -76,6 +78,19 @@ const (
 	FormatXML       FormatType = "XML"
 	FormatUnknown   FormatType = "UNKNOWN"
 )
+
+type EncodingType string
+
+const (
+	EncodingBzip2   EncodingType = "BZIP2"
+	EncodingZstd    EncodingType = "ZSTD"
+	EncodingUnknown EncodingType = "UNKNOWN"
+)
+
+var EncodingExts = map[string]EncodingType{
+	".bz2": EncodingBzip2,
+	".zst": EncodingZstd,
+}
 
 // SourceInformation provides additional information about where the document comes from
 type SourceInformation struct {

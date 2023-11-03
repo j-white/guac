@@ -28,7 +28,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler"
-	"github.com/guacsec/guac/pkg/assembler/backends/inmem"
+	"github.com/guacsec/guac/pkg/assembler/backends"
+	_ "github.com/guacsec/guac/pkg/assembler/backends/inmem"
 	model "github.com/guacsec/guac/pkg/assembler/clients/generated"
 	"github.com/guacsec/guac/pkg/assembler/graphql/generated"
 	"github.com/guacsec/guac/pkg/assembler/graphql/resolvers"
@@ -53,6 +54,7 @@ var (
 					Name:      "openssl",
 					Version:   ptrfrom.String("3.0.3"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   ">=1.19.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -74,6 +76,7 @@ var (
 					Name:      "dpkg",
 					Version:   ptrfrom.String("1.19.0"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   ">=1.19.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -95,6 +98,7 @@ var (
 					Name:      "bottompkg",
 					Version:   ptrfrom.String("1.19.0"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   ">=1.19.0",
 					DependencyType: model.DependencyTypeIndirect,
@@ -244,6 +248,7 @@ var (
 					Name:      "pkgName3",
 					Version:   ptrfrom.String("1.19.0"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   ">=1.19.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -327,6 +332,7 @@ var (
 					Name:      "extraName",
 					Version:   ptrfrom.String("1.19.0"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   "=3.0.3",
 					DependencyType: model.DependencyTypeDirect,
@@ -423,6 +429,7 @@ var (
 					Name:      "pkgNameB",
 					Version:   ptrfrom.String("1.19.0"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   ">=1.19.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -445,6 +452,7 @@ var (
 				},
 				CertifyGood: &model.CertifyGoodInputSpec{
 					Justification: "good package",
+					KnownSince:    tm,
 				},
 			},
 			{
@@ -459,6 +467,7 @@ var (
 				},
 				CertifyGood: &model.CertifyGoodInputSpec{
 					Justification: "good package",
+					KnownSince:    tm,
 				},
 			},
 		},
@@ -554,6 +563,7 @@ var (
 					Name:      "pkgNameE",
 					Version:   ptrfrom.String("3.0.3"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   "=>2.0.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -654,6 +664,7 @@ var (
 					Name:      "pkgNameI",
 					Version:   ptrfrom.String("3.0.3"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   ">=2.0.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -714,6 +725,7 @@ var (
 					Name:      "bName",
 					Version:   ptrfrom.String("1.19.1"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				Pkg: &model.PkgInputSpec{
 					Type:      "dType",
 					Namespace: ptrfrom.String("dNamespace"),
@@ -851,6 +863,7 @@ var (
 					Name:      "pkgNameM",
 					Version:   ptrfrom.String("3.0.3"),
 				},
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 				IsDependency: &model.IsDependencyInputSpec{
 					VersionRange:   "=>1.0.0",
 					DependencyType: model.DependencyTypeDirect,
@@ -944,7 +957,7 @@ func ingestIsDependency(ctx context.Context, client graphql.Client, graph assemb
 		if err != nil {
 			return fmt.Errorf("error in ingesting dependent package: %s\n", err)
 		}
-		_, err = model.IsDependency(ctx, client, *ingest.Pkg, *ingest.DepPkg, *ingest.IsDependency)
+		_, err = model.IsDependency(ctx, client, *ingest.Pkg, *ingest.DepPkg, ingest.DepPkgMatchFlag, *ingest.IsDependency)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting isDependency: %s\n", err)
@@ -983,7 +996,7 @@ func ingestHasSourceAt(ctx context.Context, client graphql.Client, graph assembl
 			return fmt.Errorf("error in ingesting src HasSourceAt: %v\n", err)
 		}
 
-		_, err = model.HasSourceAt(ctx, client, *ingest.Pkg, ingest.PkgMatchFlag, *ingest.Src, *ingest.HasSourceAt)
+		_, err = model.IngestHasSourceAt(ctx, client, *ingest.Pkg, ingest.PkgMatchFlag, *ingest.Src, *ingest.HasSourceAt)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting HasSourceAt: %v\n", err)
@@ -1057,7 +1070,7 @@ func ingestPkgEqual(ctx context.Context, client graphql.Client, graph assembler.
 			return fmt.Errorf("error in ingesting EqualPkg for PkgEqual: %v\n", err)
 		}
 
-		_, err = model.PkgEqual(ctx, client, *ingest.Pkg, *ingest.EqualPkg, *ingest.PkgEqual)
+		_, err = model.IngestPkgEqual(ctx, client, *ingest.Pkg, *ingest.EqualPkg, *ingest.PkgEqual)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting PkgEqual: %v\n", err)
@@ -1080,7 +1093,7 @@ func ingestHashEqual(ctx context.Context, client graphql.Client, graph assembler
 			return fmt.Errorf("error in ingesting EqualArtifact for HashEqual: %v\n", err)
 		}
 
-		_, err = model.HashEqual(ctx, client, *ingest.Artifact, *ingest.EqualArtifact, *ingest.HashEqual)
+		_, err = model.IngestHashEqual(ctx, client, *ingest.Artifact, *ingest.EqualArtifact, *ingest.HashEqual)
 
 		if err != nil {
 			return fmt.Errorf("error in ingesting HashEqual: %v\n", err)
@@ -1689,8 +1702,7 @@ func startTestServer() (*http.Server, error) {
 
 func getGraphqlTestServer() (*handler.Server, error) {
 	var topResolver resolvers.Resolver
-	args := inmem.DemoCredentials{}
-	backend, err := inmem.GetBackend(&args)
+	backend, err := backends.Get("inmem", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating inmem backend: %w", err)
 	}

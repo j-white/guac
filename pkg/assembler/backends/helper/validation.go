@@ -16,6 +16,8 @@
 package helper
 
 import (
+	"strings"
+
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
@@ -120,6 +122,68 @@ func ValidatePackageOrArtifactQueryFilter(subject *model.PackageOrArtifactSpec) 
 		}
 		if subjectDefined != 1 {
 			return gqlerror.Errorf("must specify at most one subject (package or artifact)")
+		}
+	}
+	return nil
+}
+
+func ValidateLicenseInput(license *model.LicenseInputSpec) error {
+	var inline string
+	var listVersion string
+	if license.Inline != nil {
+		inline = *license.Inline
+	}
+	if license.ListVersion != nil {
+		listVersion = *license.ListVersion
+	}
+	if inline == "" && listVersion == "" {
+		return gqlerror.Errorf("Neither Inline nor ListVersion are provided.")
+	}
+	if inline != "" && listVersion != "" {
+		return gqlerror.Errorf("Both Inline and ListVersion are provided.")
+	}
+	if inline == "" && strings.HasPrefix(license.Name, "LicenseRef") {
+		return gqlerror.Errorf("LicenseRef name provided without inline.")
+	}
+	if listVersion == "" && !strings.HasPrefix(license.Name, "LicenseRef") {
+		return gqlerror.Errorf("Inline provided provided with non LicenseRef name.")
+	}
+	return nil
+}
+
+// ValidateVexInput
+/*
+For [status] “not_affected”, a VEX statement SHOULD provide a [justification].
+If [justification] is not provided then [impact_statement] MUST be provided.
+For [status] “affected”, MUST include one [action_statement]
+*/
+func ValidateVexInput(vexStatement model.VexStatementInputSpec) error {
+	if vexStatement.Status == model.VexStatusNotAffected && vexStatement.VexJustification == model.VexJustificationNotProvided && vexStatement.Statement == "" {
+		return gqlerror.Errorf("for [status] “not_affected”, if [justification] is not provided then [statement] MUST be provided")
+	} else if vexStatement.Status == model.VexStatusAffected && vexStatement.VexJustification == model.VexJustificationNotProvided && vexStatement.Statement == "" {
+		return gqlerror.Errorf("for [status] “affected”, MUST include one [statement]")
+	}
+	return nil
+}
+
+func ValidateNoVul(vulnerability model.VulnerabilityInputSpec) error {
+	if strings.ToLower(vulnerability.Type) == "novuln" {
+		return gqlerror.Errorf("novuln type cannot be used")
+	}
+	return nil
+}
+
+func ValidateVulnerabilityIDInputSpec(vulnerability model.VulnerabilityInputSpec) error {
+	if strings.ToLower(vulnerability.Type) != "novuln" && vulnerability.VulnerabilityID == "" {
+		return gqlerror.Errorf("vulnerabilityID must be specified for type %s", vulnerability.Type)
+	}
+	return nil
+}
+
+func ValidateVulnerabilitySpec(vulnerability model.VulnerabilitySpec) error {
+	if vulnerability.NoVuln != nil && !*vulnerability.NoVuln {
+		if vulnerability.Type != nil && strings.EqualFold(*vulnerability.Type, "novuln") {
+			return gqlerror.Errorf("novuln boolean set to false, cannot specify vulnerability type to be novuln")
 		}
 	}
 	return nil

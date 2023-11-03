@@ -16,9 +16,13 @@
 package inmem
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,7 +32,9 @@ import (
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
-type DemoCredentials struct{}
+func init() {
+	backends.Register("inmem", getBackend)
+}
 
 // node is the common interface of all backend nodes.
 type node interface {
@@ -72,53 +78,45 @@ func (c *demoClient) getNextID() uint32 {
 }
 
 type demoClient struct {
-	id uint32
-	m  sync.RWMutex
+	id    uint32
+	m     sync.RWMutex
+	index indexType
 
-	artifacts              artMap
-	builders               builderMap
+	artifacts       artMap
+	builders        builderMap
+	licenses        licMap
+	packages        pkgTypeMap
+	sources         srcTypeMap
+	vulnerabilities vulnTypeMap
+
 	certifyBads            badList
 	certifyGoods           goodList
-	pkgEquals              pkgEqualList
-	vulnerabilities        vulnTypeMap
-	vulnerabilityEquals    vulnerabilityEqualList
+	certifyLegals          certifyLegalList
+	certifyVulnerabilities certifyVulnerabilityList
 	hasMetadatas           hasMetadataList
-	pointOfContacts        pointOfContactList
 	hasSBOMs               hasSBOMList
 	hasSLSAs               hasSLSAList
 	hasSources             hasSrcList
 	hashEquals             hashEqualList
-	index                  indexType
 	isDependencies         isDependencyList
 	occurrences            isOccurrenceList
-	packages               pkgTypeMap
+	pkgEquals              pkgEqualList
+	pointOfContacts        pointOfContactList
 	scorecards             scorecardList
-	sources                srcTypeMap
 	vexs                   vexList
-	certifyVulnerabilities certifyVulnerabilityList
+	vulnerabilityEquals    vulnerabilityEqualList
+	vulnerabilityMetadatas vulnerabilityMetadataList
 }
 
-func GetBackend(args backends.BackendArgs) (backends.Backend, error) {
+func getBackend(_ context.Context, _ backends.BackendArgs) (backends.Backend, error) {
 	client := &demoClient{
-		artifacts:              artMap{},
-		builders:               builderMap{},
-		certifyBads:            badList{},
-		certifyGoods:           goodList{},
-		pkgEquals:              pkgEqualList{},
-		vulnerabilities:        vulnTypeMap{},
-		vulnerabilityEquals:    vulnerabilityEqualList{},
-		hasSBOMs:               hasSBOMList{},
-		hasSLSAs:               hasSLSAList{},
-		hasSources:             hasSrcList{},
-		hashEquals:             hashEqualList{},
-		index:                  indexType{},
-		isDependencies:         isDependencyList{},
-		occurrences:            isOccurrenceList{},
-		packages:               pkgTypeMap{},
-		scorecards:             scorecardList{},
-		sources:                srcTypeMap{},
-		vexs:                   vexList{},
-		certifyVulnerabilities: certifyVulnerabilityList{},
+		artifacts:       artMap{},
+		builders:        builderMap{},
+		index:           indexType{},
+		licenses:        licMap{},
+		packages:        pkgTypeMap{},
+		sources:         srcTypeMap{},
+		vulnerabilities: vulnTypeMap{},
 	}
 
 	return client, nil
@@ -205,4 +203,63 @@ func unlock(m *sync.RWMutex, readOnly bool) {
 	} else {
 		m.Unlock()
 	}
+}
+
+func parseIDs(ids []string) ([]uint32, error) {
+	keys := make([]uint32, 0, len(ids))
+	for _, id := range ids {
+		if key, err := parseID(id); err != nil {
+			return nil, err
+		} else {
+			keys = append(keys, key)
+		}
+	}
+	return keys, nil
+}
+
+func parseID(id string) (uint32, error) {
+	id64, err := strconv.ParseUint(id, 10, 32)
+	return uint32(id64), err
+}
+
+func sortAndRemoveDups(ids []uint32) []uint32 {
+	numIDs := len(ids)
+	if numIDs > 1 {
+		slices.Sort(ids)
+		nextIndex := 1
+		for index := 1; index < numIDs; index++ {
+			currentVal := ids[index]
+			if ids[index-1] != currentVal {
+				ids[nextIndex] = currentVal
+				nextIndex++
+			}
+		}
+		ids = ids[:nextIndex]
+	}
+	return ids
+}
+
+func (c *demoClient) getPackageVersionAndArtifacts(pkgOrArt []uint32) (pkgs []uint32, arts []uint32, err error) {
+	for _, id := range pkgOrArt {
+		switch entry := c.index[id].(type) {
+		case *pkgVersionNode:
+			pkgs = append(pkgs, entry.id)
+		case *artStruct:
+			arts = append(arts, entry.id)
+		default:
+			return nil, nil, fmt.Errorf("unexpected type in package or artifact list: %s", reflect.TypeOf(entry))
+		}
+	}
+
+	return
+}
+
+// IDs should be sorted
+func (c *demoClient) isIDPresent(id string, linkIDs []uint32) bool {
+	linkID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return false
+	}
+	_, found := slices.BinarySearch[[]uint32](linkIDs, uint32(linkID))
+	return found
 }

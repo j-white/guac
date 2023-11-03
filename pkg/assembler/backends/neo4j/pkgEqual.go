@@ -17,6 +17,7 @@ package neo4j
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/guacsec/guac/pkg/assembler/backends/helper"
@@ -29,10 +30,6 @@ import (
 // Query PkgEqual
 
 func (c *neo4jClient) PkgEqual(ctx context.Context, pkgEqualSpec *model.PkgEqualSpec) ([]*model.PkgEqual, error) {
-
-	if pkgEqualSpec.Packages != nil && len(pkgEqualSpec.Packages) > 2 {
-		return nil, gqlerror.Errorf("cannot specify more than 2 packages in PkgEqual")
-	}
 
 	session := c.driver.NewSession(neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close()
@@ -259,4 +256,8 @@ func (c *neo4jClient) IngestPkgEqual(ctx context.Context, pkg model.PkgInputSpec
 		return nil, err
 	}
 	return result.(*model.PkgEqual), nil
+}
+
+func (c *neo4jClient) IngestPkgEquals(ctx context.Context, pkgs []*model.PkgInputSpec, otherPackages []*model.PkgInputSpec, pkgEquals []*model.PkgEqualInputSpec) ([]string, error) {
+	return nil, fmt.Errorf("not implemented - IngestPkgEquals")
 }

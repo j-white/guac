@@ -637,10 +637,6 @@ func (ec *executionContext) _PointOfContact(ctx context.Context, sel ast.Selecti
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNPointOfContact2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContact(ctx context.Context, sel ast.SelectionSet, v model.PointOfContact) graphql.Marshaler {
-	return ec._PointOfContact(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNPointOfContact2ᚕᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContactᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PointOfContact) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -698,6 +694,28 @@ func (ec *executionContext) marshalNPointOfContact2ᚖgithubᚗcomᚋguacsecᚋg
 func (ec *executionContext) unmarshalNPointOfContactInputSpec2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContactInputSpec(ctx context.Context, v interface{}) (model.PointOfContactInputSpec, error) {
 	res, err := ec.unmarshalInputPointOfContactInputSpec(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNPointOfContactInputSpec2ᚕᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContactInputSpecᚄ(ctx context.Context, v interface{}) ([]*model.PointOfContactInputSpec, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]*model.PointOfContactInputSpec, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNPointOfContactInputSpec2ᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContactInputSpec(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNPointOfContactInputSpec2ᚖgithubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContactInputSpec(ctx context.Context, v interface{}) (*model.PointOfContactInputSpec, error) {
+	res, err := ec.unmarshalInputPointOfContactInputSpec(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNPointOfContactSpec2githubᚗcomᚋguacsecᚋguacᚋpkgᚋassemblerᚋgraphqlᚋmodelᚐPointOfContactSpec(ctx context.Context, v interface{}) (model.PointOfContactSpec, error) {

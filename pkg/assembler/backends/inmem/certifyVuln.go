@@ -23,6 +23,7 @@ import (
 
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
@@ -59,6 +60,18 @@ func (n *certifyVulnerabilityLink) BuildModelNode(c *demoClient) (model.Node, er
 }
 
 // Ingest CertifyVuln
+func (c *demoClient) IngestCertifyVulns(ctx context.Context, pkgs []*model.PkgInputSpec, vulnerabilities []*model.VulnerabilityInputSpec, certifyVulns []*model.ScanMetadataInput) ([]*model.CertifyVuln, error) {
+	var modelCertifyVulnList []*model.CertifyVuln
+	for i := range certifyVulns {
+		certifyVuln, err := c.IngestCertifyVuln(ctx, *pkgs[i], *vulnerabilities[i], *certifyVulns[i])
+		if err != nil {
+			return nil, gqlerror.Errorf("IngestCertifyVuln failed with err: %v", err)
+		}
+		modelCertifyVulnList = append(modelCertifyVulnList, certifyVuln)
+	}
+	return modelCertifyVulnList, nil
+}
+
 func (c *demoClient) IngestCertifyVuln(ctx context.Context, pkg model.PkgInputSpec, vulnerability model.VulnerabilityInputSpec, certifyVuln model.ScanMetadataInput) (*model.CertifyVuln, error) {
 	return c.ingestVulnerability(ctx, pkg, vulnerability, certifyVuln, true)
 }
@@ -184,16 +197,37 @@ func (c *demoClient) CertifyVuln(ctx context.Context, filter *model.CertifyVulnS
 	var search []uint32
 	foundOne := false
 	if filter != nil && filter.Package != nil {
-		exactPackage, err := c.exactPackageVersion(filter.Package)
+		pkgs, err := c.findPackageVersion(filter.Package)
 		if err != nil {
 			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
 		}
-		if exactPackage != nil {
-			search = append(search, exactPackage.certifyVulnLinks...)
-			foundOne = true
+		foundOne = len(pkgs) > 0
+		for _, pkg := range pkgs {
+			search = append(search, pkg.certifyVulnLinks...)
 		}
 	}
-	if !foundOne && filter != nil && filter.Vulnerability != nil {
+	if !foundOne && filter != nil && filter.Vulnerability != nil &&
+		filter.Vulnerability.NoVuln != nil && *filter.Vulnerability.NoVuln {
+
+		exactVuln, err := c.exactVulnerability(&model.VulnerabilitySpec{
+			Type:            ptrfrom.String(noVulnType),
+			VulnerabilityID: ptrfrom.String(""),
+		})
+		if err != nil {
+			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
+		}
+		if exactVuln != nil {
+			search = append(search, exactVuln.certifyVulnLinks...)
+			foundOne = true
+		}
+	} else if !foundOne && filter != nil && filter.Vulnerability != nil {
+
+		if filter.Vulnerability.NoVuln != nil && !*filter.Vulnerability.NoVuln {
+			if filter.Vulnerability.Type != nil && *filter.Vulnerability.Type == noVulnType {
+				return []*model.CertifyVuln{}, gqlerror.Errorf("novuln boolean set to false, cannot specify vulnerability type to be novuln")
+			}
+		}
+
 		exactVuln, err := c.exactVulnerability(filter.Vulnerability)
 		if err != nil {
 			return nil, gqlerror.Errorf("%v :: %v", funcName, err)
@@ -285,6 +319,13 @@ func (c *demoClient) buildCertifyVulnerability(link *certifyVulnerabilityLink, f
 			vuln, err = c.buildVulnResponse(link.vulnerabilityID, filter.Vulnerability)
 			if err != nil {
 				return nil, err
+			}
+			if filter.Vulnerability.NoVuln != nil && !*filter.Vulnerability.NoVuln {
+				if vuln != nil {
+					if vuln.Type == noVulnType {
+						vuln = nil
+					}
+				}
 			}
 		}
 	} else {

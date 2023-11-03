@@ -17,16 +17,24 @@ package arangodb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/arangodb/go-driver"
+	"github.com/guacsec/guac/internal/testing/ptrfrom"
 	"github.com/guacsec/guac/pkg/assembler/graphql/model"
 )
 
 // Query IsOccurrence
 func (c *arangoClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *model.IsOccurrenceSpec) ([]*model.IsOccurrence, error) {
+
+	if isOccurrenceSpec != nil && isOccurrenceSpec.ID != nil {
+		io, err := c.buildIsOccurrenceByID(ctx, *isOccurrenceSpec.ID, isOccurrenceSpec)
+		if err != nil {
+			return nil, fmt.Errorf("buildIsOccurrenceByID failed with an error: %w", err)
+		}
+		return []*model.IsOccurrence{io}, nil
+	}
 
 	// TODO (pxp928): Optimization of the query can be done by starting from the occurrence artifact node (if specified)
 	var arangoQueryBuilder *arangoQueryBuilder
@@ -79,6 +87,7 @@ func (c *arangoClient) IsOccurrence(ctx context.Context, isOccurrenceSpec *model
 		combinedOccurrence = append(combinedOccurrence, pkgIsOccurrences...)
 
 		// get sources
+		values = map[string]any{}
 		arangoQueryBuilder = newForQuery(isOccurrencesStr, "isOccurrence")
 		setIsOccurrenceMatchValues(arangoQueryBuilder, isOccurrenceSpec, values)
 		arangoQueryBuilder.forInBound(isOccurrenceSubjectSrcEdgesStr, "sName", "isOccurrence")
@@ -119,15 +128,13 @@ func getSrcOccurrencesForQuery(ctx context.Context, c *arangoClient, arangoQuery
 		'origin': isOccurrence.origin
 	  }`)
 
-	fmt.Println(arangoQueryBuilder.string())
-
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "IsOccurrence")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query for IsOccurrence: %w", err)
 	}
 	defer cursor.Close()
 
-	return getSrcIsOccurrence(ctx, cursor)
+	return getIsOccurrenceFromCursor(ctx, cursor)
 }
 
 func getPkgOccurrencesForQuery(ctx context.Context, c *arangoClient, arangoQueryBuilder *arangoQueryBuilder, values map[string]any) ([]*model.IsOccurrence, error) {
@@ -156,34 +163,36 @@ func getPkgOccurrencesForQuery(ctx context.Context, c *arangoClient, arangoQuery
 		'origin': isOccurrence.origin
 	  }`)
 
-	fmt.Println(arangoQueryBuilder.string())
-
 	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "IsOccurrence")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query for IsOccurrence: %w", err)
 	}
 	defer cursor.Close()
 
-	return getPkgIsOccurrence(ctx, cursor)
+	return getIsOccurrenceFromCursor(ctx, cursor)
 }
 
-func setIsOccurrenceMatchValues(arangoQueryBuilder *arangoQueryBuilder, isOccurrenceSpec *model.IsOccurrenceSpec, queryValues map[string]any) {
+func queryIsOccurrenceBasedOnFilter(arangoQueryBuilder *arangoQueryBuilder, isOccurrenceSpec *model.IsOccurrenceSpec, queryValues map[string]any) {
 	if isOccurrenceSpec.ID != nil {
 		arangoQueryBuilder.filter("isOccurrence", "_id", "==", "@id")
 		queryValues["id"] = *isOccurrenceSpec.ID
 	}
 	if isOccurrenceSpec.Justification != nil {
 		arangoQueryBuilder.filter("isOccurrence", justification, "==", "@"+justification)
-		queryValues[justification] = isOccurrenceSpec.Justification
+		queryValues[justification] = *isOccurrenceSpec.Justification
 	}
 	if isOccurrenceSpec.Origin != nil {
 		arangoQueryBuilder.filter("isOccurrence", origin, "==", "@"+origin)
-		queryValues[origin] = isOccurrenceSpec.Origin
+		queryValues[origin] = *isOccurrenceSpec.Origin
 	}
 	if isOccurrenceSpec.Collector != nil {
 		arangoQueryBuilder.filter("isOccurrence", collector, "==", "@"+collector)
-		queryValues[collector] = isOccurrenceSpec.Collector
+		queryValues[collector] = *isOccurrenceSpec.Collector
 	}
+}
+
+func setIsOccurrenceMatchValues(arangoQueryBuilder *arangoQueryBuilder, isOccurrenceSpec *model.IsOccurrenceSpec, queryValues map[string]any) {
+	queryIsOccurrenceBasedOnFilter(arangoQueryBuilder, isOccurrenceSpec, queryValues)
 	arangoQueryBuilder.forOutBound(isOccurrenceArtEdgesStr, "art", "isOccurrence")
 	if isOccurrenceSpec.Artifact != nil {
 		if isOccurrenceSpec.Artifact.ID != nil {
@@ -225,12 +234,6 @@ func getOccurrenceQueryValues(pkg *model.PkgInputSpec, src *model.SourceInputSpe
 
 func (c *arangoClient) IngestOccurrences(ctx context.Context, subjects model.PackageOrSourceInputs, artifacts []*model.ArtifactInputSpec, occurrences []*model.IsOccurrenceInputSpec) ([]*model.IsOccurrence, error) {
 	if len(subjects.Packages) > 0 {
-		if len(subjects.Packages) != len(artifacts) {
-			return nil, fmt.Errorf("uneven packages and artifacts for ingestion")
-		} else if len(subjects.Packages) != len(occurrences) {
-			return nil, fmt.Errorf("uneven packages and occurrence for ingestion")
-		}
-
 		var listOfValues []map[string]any
 
 		for i := range subjects.Packages {
@@ -329,7 +332,7 @@ func (c *arangoClient) IngestOccurrences(ctx context.Context, subjects model.Pac
 		}
 		defer cursor.Close()
 
-		isOccurrenceList, err := getPkgIsOccurrence(ctx, cursor)
+		isOccurrenceList, err := getIsOccurrenceFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get occurrences from arango cursor: %w", err)
 		}
@@ -337,12 +340,6 @@ func (c *arangoClient) IngestOccurrences(ctx context.Context, subjects model.Pac
 		return isOccurrenceList, nil
 
 	} else if len(subjects.Sources) > 0 {
-		if len(subjects.Sources) != len(artifacts) {
-			return nil, fmt.Errorf("uneven sources and artifacts for ingestion")
-		} else if len(subjects.Sources) != len(occurrences) {
-			return nil, fmt.Errorf("uneven sources and occurrence for ingestion")
-		}
-
 		var listOfValues []map[string]any
 
 		for i := range subjects.Sources {
@@ -434,7 +431,7 @@ func (c *arangoClient) IngestOccurrences(ctx context.Context, subjects model.Pac
 			return nil, fmt.Errorf("failed to ingest source occurrence: %w", err)
 		}
 		defer cursor.Close()
-		isOccurrenceList, err := getSrcIsOccurrence(ctx, cursor)
+		isOccurrenceList, err := getIsOccurrenceFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get occurrences from arango cursor: %w", err)
 		}
@@ -516,7 +513,7 @@ func (c *arangoClient) IngestOccurrence(ctx context.Context, subject model.Packa
 		}
 		defer cursor.Close()
 
-		isOccurrenceList, err := getPkgIsOccurrence(ctx, cursor)
+		isOccurrenceList, err := getIsOccurrenceFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get occurrences from arango cursor: %w", err)
 		}
@@ -590,7 +587,7 @@ func (c *arangoClient) IngestOccurrence(ctx context.Context, subject model.Packa
 		}
 		defer cursor.Close()
 
-		isOccurrenceList, err := getSrcIsOccurrence(ctx, cursor)
+		isOccurrenceList, err := getIsOccurrenceFromCursor(ctx, cursor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get occurrences from arango cursor: %w", err)
 		}
@@ -606,9 +603,10 @@ func (c *arangoClient) IngestOccurrence(ctx context.Context, subject model.Packa
 	}
 }
 
-func getPkgIsOccurrence(ctx context.Context, cursor driver.Cursor) ([]*model.IsOccurrence, error) {
+func getIsOccurrenceFromCursor(ctx context.Context, cursor driver.Cursor) ([]*model.IsOccurrence, error) {
 	type collectedData struct {
 		PkgVersion     *dbPkgVersion   `json:"pkgVersion"`
+		SrcName        *dbSrcName      `json:"srcName"`
 		Artifact       *model.Artifact `json:"artifact"`
 		IsOccurrenceID string          `json:"isOccurrence_id"`
 		Justification  string          `json:"justification"`
@@ -633,59 +631,191 @@ func getPkgIsOccurrence(ctx context.Context, cursor driver.Cursor) ([]*model.IsO
 
 	var isOccurrenceList []*model.IsOccurrence
 	for _, createdValue := range createdValues {
-		pkg := generateModelPackage(createdValue.PkgVersion.TypeID, createdValue.PkgVersion.PkgType, createdValue.PkgVersion.NamespaceID, createdValue.PkgVersion.Namespace, createdValue.PkgVersion.NameID,
-			createdValue.PkgVersion.Name, &createdValue.PkgVersion.VersionID, &createdValue.PkgVersion.Version, &createdValue.PkgVersion.Subpath, createdValue.PkgVersion.QualifierList)
+		if createdValue.Artifact == nil {
+			return nil, fmt.Errorf("failed to get artifact from cursor for isOccurrence")
+		}
+		var pkg *model.Package = nil
+		var src *model.Source = nil
+		if createdValue.PkgVersion != nil {
+			pkg = generateModelPackage(createdValue.PkgVersion.TypeID, createdValue.PkgVersion.PkgType, createdValue.PkgVersion.NamespaceID, createdValue.PkgVersion.Namespace, createdValue.PkgVersion.NameID,
+				createdValue.PkgVersion.Name, createdValue.PkgVersion.VersionID, createdValue.PkgVersion.Version, createdValue.PkgVersion.Subpath, createdValue.PkgVersion.QualifierList)
+		} else {
+			src = generateModelSource(createdValue.SrcName.TypeID, createdValue.SrcName.SrcType, createdValue.SrcName.NamespaceID, createdValue.SrcName.Namespace,
+				createdValue.SrcName.NameID, createdValue.SrcName.Name, createdValue.SrcName.Commit, createdValue.SrcName.Tag)
+		}
 
 		isOccurrence := &model.IsOccurrence{
-			ID:        createdValue.IsOccurrenceID,
-			Subject:   pkg,
-			Artifact:  createdValue.Artifact,
-			Origin:    createdValue.Collector,
-			Collector: createdValue.Origin,
+			ID:            createdValue.IsOccurrenceID,
+			Artifact:      createdValue.Artifact,
+			Justification: createdValue.Justification,
+			Origin:        createdValue.Origin,
+			Collector:     createdValue.Collector,
+		}
+		if pkg != nil {
+			isOccurrence.Subject = pkg
+		} else if src != nil {
+			isOccurrence.Subject = src
+		} else {
+			return nil, fmt.Errorf("failed to get subject from cursor for isOccurrence")
 		}
 		isOccurrenceList = append(isOccurrenceList, isOccurrence)
 	}
 	return isOccurrenceList, nil
 }
 
-func getSrcIsOccurrence(ctx context.Context, cursor driver.Cursor) ([]*model.IsOccurrence, error) {
-	type collectedData struct {
-		SrcName        *dbSrcName      `json:"srcName"`
-		Artifact       *model.Artifact `json:"artifact"`
-		IsOccurrenceID string          `json:"isOccurrence_id"`
-		Justification  string          `json:"justification"`
-		Collector      string          `json:"collector"`
-		Origin         string          `json:"origin"`
+func (c *arangoClient) buildIsOccurrenceByID(ctx context.Context, id string, filter *model.IsOccurrenceSpec) (*model.IsOccurrence, error) {
+	if filter != nil && filter.ID != nil {
+		if *filter.ID != id {
+			return nil, fmt.Errorf("ID does not match filter")
+		}
 	}
 
-	var createdValues []collectedData
+	idSplit := strings.Split(id, "/")
+	if len(idSplit) != 2 {
+		return nil, fmt.Errorf("invalid ID: %s", id)
+	}
+
+	if idSplit[0] == isOccurrencesStr {
+		if filter != nil {
+			filter.ID = ptrfrom.String(id)
+		} else {
+			filter = &model.IsOccurrenceSpec{
+				ID: ptrfrom.String(id),
+			}
+		}
+		return c.queryIsOccurrenceNodeByID(ctx, filter)
+	} else {
+		return nil, fmt.Errorf("id type does not match for isOccurrence query: %s", id)
+	}
+}
+
+func (c *arangoClient) queryIsOccurrenceNodeByID(ctx context.Context, filter *model.IsOccurrenceSpec) (*model.IsOccurrence, error) {
+	values := map[string]any{}
+	arangoQueryBuilder := newForQuery(isOccurrencesStr, "isOccurrence")
+	queryIsOccurrenceBasedOnFilter(arangoQueryBuilder, filter, values)
+	arangoQueryBuilder.query.WriteString("\n")
+	arangoQueryBuilder.query.WriteString(`RETURN isOccurrence`)
+
+	cursor, err := executeQueryWithRetry(ctx, c.db, arangoQueryBuilder.string(), values, "queryIsOccurrenceNodeByID")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for isOccurrence: %w, values: %v", err, values)
+	}
+	defer cursor.Close()
+
+	type dbIsOccurrence struct {
+		IsOccurrenceID string  `json:"_id"`
+		PackageID      *string `json:"packageID"`
+		SourceID       *string `json:"sourceID"`
+		ArtifactID     string  `json:"artifactID"`
+		Justification  string  `json:"justification"`
+		Collector      string  `json:"collector"`
+		Origin         string  `json:"origin"`
+	}
+
+	var collectedValues []dbIsOccurrence
 	for {
-		var doc collectedData
+		var doc dbIsOccurrence
 		_, err := cursor.ReadDocument(ctx, &doc)
 		if err != nil {
 			if driver.IsNoMoreDocuments(err) {
 				break
 			} else {
-				return nil, fmt.Errorf("failed to get source occurrence from cursor: %w", err)
+				return nil, fmt.Errorf("failed to isOccurrence from cursor: %w", err)
 			}
 		} else {
-			createdValues = append(createdValues, doc)
+			collectedValues = append(collectedValues, doc)
 		}
 	}
 
-	var isOccurrenceList []*model.IsOccurrence
-	for _, createdValue := range createdValues {
-		src := generateModelSource(createdValue.SrcName.TypeID, createdValue.SrcName.SrcType, createdValue.SrcName.NamespaceID, createdValue.SrcName.Namespace,
-			createdValue.SrcName.NameID, createdValue.SrcName.Name, createdValue.SrcName.Commit, createdValue.SrcName.Tag)
-
-		isOccurrence := &model.IsOccurrence{
-			ID:        createdValue.IsOccurrenceID,
-			Subject:   src,
-			Artifact:  createdValue.Artifact,
-			Origin:    createdValue.Collector,
-			Collector: createdValue.Origin,
-		}
-		isOccurrenceList = append(isOccurrenceList, isOccurrence)
+	if len(collectedValues) != 1 {
+		return nil, fmt.Errorf("number of isOccurrence nodes found for ID: %s is greater than one", *filter.ID)
 	}
-	return isOccurrenceList, nil
+
+	isOccurrence := &model.IsOccurrence{
+		ID:            collectedValues[0].IsOccurrenceID,
+		Justification: collectedValues[0].Justification,
+		Origin:        collectedValues[0].Origin,
+		Collector:     collectedValues[0].Collector,
+	}
+
+	builtArtifact, err := c.buildArtifactResponseByID(ctx, collectedValues[0].ArtifactID, filter.Artifact)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get artifact from ID: %s, with error: %w", collectedValues[0].ArtifactID, err)
+	}
+	isOccurrence.Artifact = builtArtifact
+
+	if collectedValues[0].PackageID != nil {
+		var builtPackage *model.Package
+		if filter.Subject != nil && filter.Subject.Package != nil {
+			builtPackage, err = c.buildPackageResponseFromID(ctx, *collectedValues[0].PackageID, filter.Subject.Package)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get package from ID: %s, with error: %w", *collectedValues[0].PackageID, err)
+			}
+		} else {
+			builtPackage, err = c.buildPackageResponseFromID(ctx, *collectedValues[0].PackageID, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get package from ID: %s, with error: %w", *collectedValues[0].PackageID, err)
+			}
+		}
+		isOccurrence.Subject = builtPackage
+	} else if collectedValues[0].SourceID != nil {
+		var builtSource *model.Source
+		if filter.Subject != nil && filter.Subject.Source != nil {
+			builtSource, err = c.buildSourceResponseFromID(ctx, *collectedValues[0].SourceID, filter.Subject.Source)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get source from ID: %s, with error: %w", *collectedValues[0].SourceID, err)
+			}
+		} else {
+			builtSource, err = c.buildSourceResponseFromID(ctx, *collectedValues[0].SourceID, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get source from ID: %s, with error: %w", *collectedValues[0].SourceID, err)
+			}
+		}
+		isOccurrence.Subject = builtSource
+	} else {
+		return nil, fmt.Errorf("failed to get subject from isOccurrence")
+	}
+	return isOccurrence, nil
+}
+
+func (c *arangoClient) isOccurrenceNeighbors(ctx context.Context, nodeID string, allowedEdges edgeMap) ([]string, error) {
+	out := make([]string, 0, 3)
+	if allowedEdges[model.EdgeIsOccurrencePackage] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(isOccurrencesStr, "isOccurrence")
+		queryIsOccurrenceBasedOnFilter(arangoQueryBuilder, &model.IsOccurrenceSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor:  isOccurrence.packageID }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "isOccurrenceNeighbors - package")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeIsOccurrenceSource] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(isOccurrencesStr, "isOccurrence")
+		queryIsOccurrenceBasedOnFilter(arangoQueryBuilder, &model.IsOccurrenceSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor:  isOccurrence.sourceID }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "isOccurrenceNeighbors - source")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+	if allowedEdges[model.EdgeIsOccurrenceArtifact] {
+		values := map[string]any{}
+		arangoQueryBuilder := newForQuery(isOccurrencesStr, "isOccurrence")
+		queryIsOccurrenceBasedOnFilter(arangoQueryBuilder, &model.IsOccurrenceSpec{ID: &nodeID}, values)
+		arangoQueryBuilder.query.WriteString("\nRETURN { neighbor:  isOccurrence.artifactID }")
+
+		foundIDs, err := c.getNeighborIDFromCursor(ctx, arangoQueryBuilder, values, "isOccurrenceNeighbors - artifact")
+		if err != nil {
+			return out, fmt.Errorf("failed to get neighbors for node ID: %s from arango cursor with error: %w", nodeID, err)
+		}
+		out = append(out, foundIDs...)
+	}
+
+	return out, nil
 }

@@ -18,7 +18,7 @@ package testdata
 import (
 	_ "embed"
 	"encoding/base64"
-	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -32,6 +32,7 @@ import (
 	"github.com/guacsec/guac/pkg/certifier/components/root_package"
 	"github.com/guacsec/guac/pkg/handler/processor"
 	"github.com/guacsec/guac/pkg/ingestor/parser/common"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 )
 
@@ -98,6 +99,15 @@ var (
 	//go:embed exampledata/cyclonedx-no-top-level.json
 	CycloneDXExampleNoTopLevelComp []byte
 
+	//go:embed exampledata/cyclonedx-unaffected-vex.json
+	CycloneDXVEXUnAffected []byte
+
+	//go:embed exampledata/cyclonedx-vex-affected.json
+	CycloneDXVEXAffected []byte
+
+	//go:embed exampledata/cyclonedx-vex.xml
+	CyloneDXVEXExampleXML []byte
+
 	//go:embed exampledata/crev-review.json
 	ITE6CREVExample []byte
 
@@ -109,6 +119,33 @@ var (
 
 	//go:embed exampledata/certify-novuln.json
 	ITE6NoVulnExample []byte
+
+	//go:embed exampledata/oci-kubectl-linux-amd64-in-toto.json
+	OCIKubectlLinuxAMD64ITE6 []byte
+
+	//go:embed exampledata/oci-kubectl-linux-amd64-spdx.json
+	OCIKubectlLinuxAMD64SPDX []byte
+
+	//go:embed exampledata/oci-kubectl-linux-amd64-spdx-1.json
+	OCIKubectlLinuxAMD64SPDX1 []byte
+
+	//go:embed exampledata/oci-kubectl-linux-arm-v7-in-toto.json
+	OCIKubectlLinuxARMV7ITE6 []byte
+
+	//go:embed exampledata/oci-kubectl-linux-arm-v7-spdx.json
+	OCIKubectlLinuxARMV7SPDX []byte
+
+	//go:embed exampledata/oci-kubectl-linux-arm64-in-toto.json
+	OCIKubectlLinuxARM64ITE6 []byte
+
+	//go:embed exampledata/oci-kubectl-linux-arm64-spdx.json
+	OCIKubectlLinuxARM64SPDX []byte
+
+	//go:embed exampledata/oci-kubectl-linux-arm64-spdx-1.json
+	OCIKubectlLinuxARM64SPDX1 []byte
+
+	//go:embed exampledata/oci-kubectl-windows-amd64-in-toto.json
+	OCIKubectlWindowsAMD64ITE6 []byte
 
 	//go:embed exampledata/oci-dsse-att.json
 	OCIDsseAttExample []byte
@@ -127,6 +164,93 @@ var (
 
 	//go:embed exampledata/ingest_predicates.json
 	IngestPredicatesExample []byte
+
+	// json format
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
+	// CycloneDX VEX testdata unaffected
+	pkg, _   = asmhelpers.PurlToPkg("pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.10.0?type=jar")
+	vulnSpec = &generated.VulnerabilityInputSpec{
+		Type:            "cve",
+		VulnerabilityID: "cve-2020-25649",
+	}
+	CycloneDXUnAffectedVexIngest = []assembler.VexIngest{
+		{
+			Pkg:           pkg,
+			Vulnerability: vulnSpec,
+			VexData: &generated.VexStatementInputSpec{
+				Status:           generated.VexStatusNotAffected,
+				VexJustification: generated.VexJustificationVulnerableCodeNotInExecutePath,
+				Statement:        "Automated dataflow analysis and manual code review indicates that the vulnerable code is not reachable, either directly or indirectly.",
+				StatusNotes:      fmt.Sprintf("%s:%s", generated.VexStatusNotAffected, generated.VexJustificationVulnerableCodeNotInExecutePath),
+				KnownSince:       parseUTCTime("2020-12-03T00:00:00.000Z"),
+			},
+		},
+	}
+	CycloneDXUnAffectedVulnMetadata = []assembler.VulnMetadataIngest{
+		{
+			Vulnerability: vulnSpec,
+			VulnMetadata: &generated.VulnerabilityMetadataInputSpec{
+				ScoreType:  generated.VulnerabilityScoreTypeCvssv31,
+				ScoreValue: 7.5,
+				Timestamp:  parseUTCTime("2020-12-03T00:00:00.000Z"),
+			},
+		},
+		{
+			Vulnerability: vulnSpec,
+			VulnMetadata: &generated.VulnerabilityMetadataInputSpec{
+				ScoreType:  generated.VulnerabilityScoreTypeCvssv31,
+				ScoreValue: 8.2,
+				Timestamp:  parseUTCTime("2020-12-03T00:00:00.000Z"),
+			},
+		},
+		{
+			Vulnerability: vulnSpec,
+			VulnMetadata: &generated.VulnerabilityMetadataInputSpec{
+				ScoreType:  generated.VulnerabilityScoreTypeCvssv31,
+				ScoreValue: 0.0,
+				Timestamp:  parseUTCTime("2020-12-03T00:00:00.000Z"),
+			},
+		},
+	}
+	CycloneDXUnAffectedPredicates = assembler.IngestPredicates{
+		VulnMetadata: CycloneDXUnAffectedVulnMetadata,
+		Vex:          CycloneDXUnAffectedVexIngest,
+	}
+
+	// CycloneDX VEX testdata affected packages.
+	VulnSpecAffected = &generated.VulnerabilityInputSpec{
+		Type:            "cve",
+		VulnerabilityID: "cve-2021-44228",
+	}
+	VexDataAffected = &generated.VexStatementInputSpec{
+		Status:           generated.VexStatusAffected,
+		VexJustification: generated.VexJustificationNotProvided,
+		Statement:        "Versions of Product ABC are affected by the vulnerability. Customers are advised to upgrade to the latest release.",
+		StatusNotes:      fmt.Sprintf("%s:%s", generated.VexStatusAffected, generated.VexJustificationNotProvided),
+		KnownSince:       time.Unix(0, 0),
+	}
+	CycloneDXAffectedVulnMetadata = []assembler.VulnMetadataIngest{
+		{
+			Vulnerability: VulnSpecAffected,
+			VulnMetadata: &generated.VulnerabilityMetadataInputSpec{
+				ScoreType:  generated.VulnerabilityScoreTypeCvssv31,
+				ScoreValue: 10,
+				Timestamp:  time.Unix(0, 0),
+			},
+		},
+	}
+
+	topLevelPkg, _     = asmhelpers.PurlToPkg("pkg:guac/cdx/ABC")
+	HasSBOMVexAffected = []assembler.HasSBOMIngest{
+		{
+			Pkg: topLevelPkg,
+			HasSBOM: &model.HasSBOMInputSpec{
+				Algorithm:  "sha256",
+				Digest:     "eb62836ed6339a2d57f66d2e42509718fd480a1befea83f925e918444c369114",
+				KnownSince: parseRfc3339("2022-03-03T00:00:00Z"),
+			},
+		},
+	}
 
 	// DSSE/SLSA Testdata
 
@@ -486,8 +610,9 @@ var (
 
 	SpdxDeps = []assembler.IsDependencyIngest{
 		{
-			Pkg:    topLevelPack,
-			DepPkg: baselayoutPack,
+			Pkg:             topLevelPack,
+			DepPkg:          baselayoutPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "3.2.0-r22",
@@ -495,8 +620,9 @@ var (
 			},
 		},
 		{
-			Pkg:    topLevelPack,
-			DepPkg: baselayoutdataPack,
+			Pkg:             topLevelPack,
+			DepPkg:          baselayoutdataPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "3.2.0-r22",
@@ -504,8 +630,9 @@ var (
 			},
 		},
 		{
-			Pkg:    topLevelPack,
-			DepPkg: keysPack,
+			Pkg:             topLevelPack,
+			DepPkg:          keysPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "2.4-r1",
@@ -513,8 +640,9 @@ var (
 			},
 		},
 		{
-			Pkg:    topLevelPack,
-			DepPkg: worldFilePack,
+			Pkg:             topLevelPack,
+			DepPkg:          worldFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -522,8 +650,9 @@ var (
 			},
 		},
 		{
-			Pkg:    topLevelPack,
-			DepPkg: rootFilePack,
+			Pkg:             topLevelPack,
+			DepPkg:          rootFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -531,8 +660,9 @@ var (
 			},
 		},
 		{
-			Pkg:    topLevelPack,
-			DepPkg: triggersFilePack,
+			Pkg:             topLevelPack,
+			DepPkg:          triggersFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -540,8 +670,9 @@ var (
 			},
 		},
 		{
-			Pkg:    topLevelPack,
-			DepPkg: rsaPubFilePack,
+			Pkg:             topLevelPack,
+			DepPkg:          rsaPubFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -549,8 +680,9 @@ var (
 			},
 		},
 		{
-			Pkg:    baselayoutPack,
-			DepPkg: keysPack,
+			Pkg:             baselayoutPack,
+			DepPkg:          keysPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "2.4-r1",
@@ -558,8 +690,9 @@ var (
 			},
 		},
 		{
-			Pkg:    rootFilePack,
-			DepPkg: rsaPubFilePack,
+			Pkg:             rootFilePack,
+			DepPkg:          rsaPubFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -567,8 +700,9 @@ var (
 			},
 		},
 		{
-			Pkg:    baselayoutPack,
-			DepPkg: rootFilePack,
+			Pkg:             baselayoutPack,
+			DepPkg:          rootFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -576,8 +710,9 @@ var (
 			},
 		},
 		{
-			Pkg:    keysPack,
-			DepPkg: rsaPubFilePack,
+			Pkg:             keysPack,
+			DepPkg:          rsaPubFilePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeAllVersions},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "",
@@ -609,14 +744,174 @@ var (
 		},
 	}
 
+	spdxTime, _ = time.Parse(time.RFC3339, "2022-09-24T17:27:55.556104Z")
+
 	SpdxHasSBOM = []assembler.HasSBOMIngest{
 		{
 			Pkg: topLevelPack,
 			HasSBOM: &model.HasSBOMInputSpec{
-				Uri:              "TestSource",
+				Uri:              "https://anchore.com/syft/image/alpine-latest-e78eca08-d9f4-49c7-97e0-6d4b9bfa99c2",
 				Algorithm:        "sha256",
 				Digest:           "8b5e8212cae084f92ff91f8625a50ea1070738cfc68ecca08bf04d64f64b9feb",
 				DownloadLocation: "TestSource",
+				KnownSince:       spdxTime,
+			},
+		},
+	}
+
+	SpdxCertifyLegal = []assembler.CertifyLegalIngest{
+		{
+			Pkg: baselayoutPack,
+			Declared: []model.LicenseInputSpec{
+				{
+					Name:        "GPL-2.0-only",
+					ListVersion: ptrfrom.String("3.18"),
+				},
+			},
+			Discovered: []model.LicenseInputSpec{
+				{
+					Name:        "GPL-2.0-only",
+					ListVersion: ptrfrom.String("3.18"),
+				},
+			},
+			CertifyLegal: &model.CertifyLegalInputSpec{
+				DeclaredLicense:   "GPL-2.0-only",
+				DiscoveredLicense: "GPL-2.0-only",
+				Justification:     "Found in SPDX document.",
+				TimeScanned:       parseRfc3339("2022-09-24T17:27:55.556104Z"),
+			},
+		},
+		{
+			Pkg: baselayoutdataPack,
+			Declared: []model.LicenseInputSpec{
+				{
+					Name:        "GPL-2.0-only",
+					ListVersion: ptrfrom.String("3.18"),
+				},
+			},
+			Discovered: []model.LicenseInputSpec{
+				{
+					Name:        "GPL-2.0-only",
+					ListVersion: ptrfrom.String("3.18"),
+				},
+			},
+			CertifyLegal: &model.CertifyLegalInputSpec{
+				DeclaredLicense:   "GPL-2.0-only",
+				DiscoveredLicense: "GPL-2.0-only",
+				Justification:     "Found in SPDX document.",
+				TimeScanned:       parseRfc3339("2022-09-24T17:27:55.556104Z"),
+			},
+		},
+		{
+			Pkg: keysPack,
+			Declared: []model.LicenseInputSpec{
+				{
+					Name:        "MIT",
+					ListVersion: ptrfrom.String("3.18"),
+				},
+			},
+			Discovered: []model.LicenseInputSpec{
+				{
+					Name:        "MIT",
+					ListVersion: ptrfrom.String("3.18"),
+				},
+			},
+			CertifyLegal: &model.CertifyLegalInputSpec{
+				DeclaredLicense:   "MIT",
+				DiscoveredLicense: "MIT",
+				Justification:     "Found in SPDX document.",
+				TimeScanned:       parseRfc3339("2022-09-24T17:27:55.556104Z"),
+			},
+		},
+	}
+
+	SpdxHasMetadata = []assembler.HasMetadataIngest{
+		{
+			Pkg:          baselayoutPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine-baselayout:alpine-baselayout:3.2.0-r22:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          baselayoutPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine-baselayout:alpine_baselayout:3.2.0-r22:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          baselayoutdataPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine-baselayout-data:alpine-baselayout-data:3.2.0-r22:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          baselayoutdataPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine-baselayout-data:alpine_baselayout_data:3.2.0-r22:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          keysPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine-keys:alpine-keys:2.4-r1:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          keysPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine-keys:alpine_keys:2.4-r1:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          keysPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine:alpine-keys:2.4-r1:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
+			},
+		},
+		{
+			Pkg:          keysPack,
+			PkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
+			HasMetadata: &model.HasMetadataInputSpec{
+				Key:           "cpe",
+				Value:         "cpe:2.3:a:alpine:alpine_keys:2.4-r1:*:*:*:*:*:*:*",
+				Justification: "spdx cpe external reference",
+				Origin:        "GUAC SPDX",
+				Collector:     "GUAC",
 			},
 		},
 	}
@@ -625,6 +920,8 @@ var (
 		IsDependency: SpdxDeps,
 		IsOccurrence: SpdxOccurences,
 		HasSBOM:      SpdxHasSBOM,
+		HasMetadata:  SpdxHasMetadata,
+		CertifyLegal: SpdxCertifyLegal,
 	}
 
 	// CycloneDX Testdata
@@ -638,8 +935,9 @@ var (
 
 	CdxDeps = []assembler.IsDependencyIngest{
 		{
-			Pkg:    cdxTopLevelPack,
-			DepPkg: cdxBasefilesPack,
+			Pkg:             cdxTopLevelPack,
+			DepPkg:          cdxBasefilesPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "11.1+deb11u5",
@@ -647,8 +945,9 @@ var (
 			},
 		},
 		{
-			Pkg:    cdxTopLevelPack,
-			DepPkg: cdxNetbasePack,
+			Pkg:             cdxTopLevelPack,
+			DepPkg:          cdxNetbasePack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "6.3",
@@ -656,8 +955,9 @@ var (
 			},
 		},
 		{
-			Pkg:    cdxTopLevelPack,
-			DepPkg: cdxTzdataPack,
+			Pkg:             cdxTopLevelPack,
+			DepPkg:          cdxTzdataPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "2021a-1+deb11u6",
@@ -666,14 +966,17 @@ var (
 		},
 	}
 
+	cdxTime, _ = time.Parse(time.RFC3339, "2022-10-08T10:01:23-04:00")
+
 	CdxHasSBOM = []assembler.HasSBOMIngest{
 		{
 			Pkg: cdxTopLevelPack,
 			HasSBOM: &model.HasSBOMInputSpec{
-				Uri:              "TestSource",
+				Uri:              "urn:uuid:6a44e622-2983-4566-bf90-f87b6103ebaf",
 				Algorithm:        "sha256",
 				Digest:           "01942b5eefd3c15b50318c66d8d16627be573197c877e8a286a8cb12de7939cb",
 				DownloadLocation: "TestSource",
+				KnownSince:       cdxTime,
 			},
 		},
 	}
@@ -691,8 +994,9 @@ var (
 
 	CdxQuarkusDeps = []assembler.IsDependencyIngest{
 		{
-			Pkg:    cdxTopQuarkusPack,
-			DepPkg: cdxResteasyPack,
+			Pkg:             cdxTopQuarkusPack,
+			DepPkg:          cdxResteasyPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "2.13.4.Final",
@@ -700,8 +1004,9 @@ var (
 			},
 		},
 		{
-			Pkg:    cdxTopQuarkusPack,
-			DepPkg: cdxReactiveCommonPack,
+			Pkg:             cdxTopQuarkusPack,
+			DepPkg:          cdxReactiveCommonPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "2.13.4.Final",
@@ -709,8 +1014,9 @@ var (
 			},
 		},
 		{
-			Pkg:    cdxResteasyPack,
-			DepPkg: cdxReactiveCommonPack,
+			Pkg:             cdxResteasyPack,
+			DepPkg:          cdxReactiveCommonPack,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "2.13.4.Final",
@@ -727,7 +1033,8 @@ var (
 				Digest:    "85240ed8faa3cc4493db96d0223094842e7153890b091ff364040ad3ad89363157fc9d1bd852262124aec83134f0c19aa4fd0fa482031d38a76d74dfd36b7964",
 			},
 			IsOccurrence: isOccurrenceJustifyTopPkg,
-		}, {
+		},
+		{
 			Pkg: cdxResteasyPack,
 			Artifact: &model.ArtifactInputSpec{
 				Algorithm: "md5",
@@ -753,14 +1060,17 @@ var (
 		},
 	}
 
+	cdxQuarkusTime, _ = time.Parse(time.RFC3339, "2022-11-09T11:14:31Z")
+
 	CdxQuarkusHasSBOM = []assembler.HasSBOMIngest{
 		{
 			Pkg: cdxTopQuarkusPack,
 			HasSBOM: &model.HasSBOMInputSpec{
-				Uri:              "TestSource",
+				Uri:              "urn:uuid:0697952e-9848-4785-95bf-f81ff9731682",
 				Algorithm:        "sha256",
 				Digest:           "036a9f51468f5ce6eec7c310583164ed0ab9f58d7c03380a3fe19d420609e3de",
 				DownloadLocation: "TestSource",
+				KnownSince:       cdxQuarkusTime,
 			},
 		},
 	}
@@ -777,8 +1087,9 @@ var (
 
 	CdxNpmDeps = []assembler.IsDependencyIngest{
 		{
-			Pkg:    cdxWebAppPackage,
-			DepPkg: cdxBootstrapPackage,
+			Pkg:             cdxWebAppPackage,
+			DepPkg:          cdxBootstrapPackage,
+			DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 			IsDependency: &model.IsDependencyInputSpec{
 				DependencyType: model.DependencyTypeUnknown,
 				VersionRange:   "4.0.0-beta.2",
@@ -787,14 +1098,17 @@ var (
 		},
 	}
 
+	cdxNpmTime, _ = time.Parse(time.RFC3339, "2022-11-22T17:14:57Z")
+
 	CdxNpmHasSBOM = []assembler.HasSBOMIngest{
 		{
 			Pkg: cdxWebAppPackage,
 			HasSBOM: &model.HasSBOMInputSpec{
-				Uri:              "TestSource",
+				Uri:              "",
 				Algorithm:        "sha256",
 				Digest:           "35363f03c80f26a88db6f2400771bdcc6624bb7b61b96da8503be0f757605fde",
 				DownloadLocation: "TestSource",
+				KnownSince:       cdxNpmTime,
 			},
 		},
 	}
@@ -805,15 +1119,17 @@ var (
 	}
 
 	quarkusParentPackage, _ = asmhelpers.PurlToPkg("pkg:maven/io.quarkus/quarkus-parent@999-SNAPSHOT?type=pom")
+	quarkusTime, _          = time.Parse(time.RFC3339, "2023-02-16T21:52:02Z")
 
 	quarkusParentPackageHasSBOM = []assembler.HasSBOMIngest{
 		{
 			Pkg: quarkusParentPackage,
 			HasSBOM: &model.HasSBOMInputSpec{
-				Uri:              "TestSource",
+				Uri:              "urn:uuid:8a689387-e9b4-4ba2-835c-a2c3dde6181d",
 				Algorithm:        "sha256",
 				Digest:           "fcd4d1f9c83c274fbc2dabdca4e7de749b23fab1aa15dc2854880a13479fa74e",
 				DownloadLocation: "TestSource",
+				KnownSince:       quarkusTime,
 			},
 		},
 	}
@@ -1117,196 +1433,74 @@ var (
 	// Deps.dev
 
 	CollectedPypiWheelAxle = `{
-		"CurrentPackage":{
-		   "name":"wheel-axle-runtime",
-		   "namespace":"",
-		   "qualifiers":null,
-		   "subpath":"",
-		   "type":"pypi",
-		   "version":"0.0.4.dev20230415195356"
-		},
-		"DepPackages":[
-		   {
-			  "CurrentPackage":{
-				 "name":"filelock",
-				 "namespace":"",
-				 "qualifiers":null,
-				 "subpath":"",
-				 "type":"pypi",
-				 "version":"3.12.2"
-			  },
-			  "DepPackages":null,
-			  "IsDepPackages":null,
-			  "Scorecard":{
-				 "aggregateScore":6.300000190734863,
-				 "checks":[
-					{
-					   "check":"Maintained",
-					   "score":10
-					},
-					{
-					   "check":"CII-Best-Practices",
-					   "score":0
-					},
-					{
-					   "check":"License",
-					   "score":9
-					},
-					{
-					   "check":"Security-Policy",
-					   "score":10
-					},
-					{
-					   "check":"Token-Permissions",
-					   "score":0
-					},
-					{
-					   "check":"Dangerous-Workflow",
-					   "score":10
-					},
-					{
-					   "check":"Pinned-Dependencies",
-					   "score":7
-					},
-					{
-					   "check":"Binary-Artifacts",
-					   "score":10
-					},
-					{
-					   "check":"Vulnerabilities",
-					   "score":10
-					},
-					{
-					   "check":"Fuzzing",
-					   "score":10
-					},
-					{
-					   "check":"Signed-Releases",
-					   "score":-1
-					},
-					{
-					   "check":"Branch-Protection",
-					   "score":0
-					},
-					{
-					   "check":"Packaging",
-					   "score":10
-					}
-				 ],
-				 "collector":"",
-				 "origin":"",
-				 "scorecardCommit":"6c5de2c32a4b8f60211e8e8eb94f8d3370a11b93",
-				 "scorecardVersion":"v4.10.5-77-g6c5de2c",
-				 "timeScanned":"2022-11-21T17:45:50.52Z"
-			  },
-			  "Source":{
-				 "commit":null,
-				 "name":"py-filelock",
-				 "namespace":"github.com/tox-dev",
-				 "tag":null,
-				 "type":"git"
-			  },
-			  "UpdateTime":"2022-11-21T17:45:50.52Z"
-		   }
-		],
-		"IsDepPackages":[
-		   {
-			  "CurrentPackageInput":{
-				 "name":"wheel-axle-runtime",
-				 "namespace":"",
-				 "qualifiers":null,
-				 "subpath":"",
-				 "type":"pypi",
-				 "version":"0.0.4.dev20230415195356"
-			  },
-			  "DepPackageInput":{
-				 "name":"filelock",
-				 "namespace":"",
-				 "qualifiers":null,
-				 "subpath":"",
-				 "type":"pypi",
-				 "version":"3.12.2"
-			  },
-			  "IsDependency":{
-				 "collector":"",
-				 "dependencyType":"DIRECT",
-				 "justification":"dependency data collected via deps.dev",
-				 "origin":"",
-				 "versionRange":""
-			  }
-		   }
-		],
-		"Scorecard":{
-		   "aggregateScore":4.800000190734863,
-		   "checks":[
-			  {
-				 "check":"Maintained",
-				 "score":6
-			  },
-			  {
-				 "check":"CII-Best-Practices",
-				 "score":0
-			  },
-			  {
-				 "check":"License",
-				 "score":10
-			  },
-			  {
-				 "check":"Signed-Releases",
-				 "score":-1
-			  },
-			  {
-				 "check":"Branch-Protection",
-				 "score":-1
-			  },
-			  {
-				 "check":"Packaging",
-				 "score":-1
-			  },
-			  {
-				 "check":"Pinned-Dependencies",
-				 "score":7
-			  },
-			  {
-				 "check":"Dangerous-Workflow",
-				 "score":10
-			  },
-			  {
-				 "check":"Binary-Artifacts",
-				 "score":9
-			  },
-			  {
-				 "check":"Token-Permissions",
-				 "score":0
-			  },
-			  {
-				 "check":"Fuzzing",
-				 "score":0
-			  },
-			  {
-				 "check":"Vulnerabilities",
-				 "score":10
-			  },
-			  {
-				 "check":"Security-Policy",
-				 "score":0
-			  }
-		   ],
-		   "collector":"",
-		   "origin":"",
-		   "scorecardCommit":"4e95816f4f0510f29ac1e680f4bea4cbe9666b1d",
-		   "scorecardVersion":"v4.10.5-72-g4e95816",
-		   "timeScanned":"2022-11-21T17:45:50.52Z"
-		},
-		"Source":{
-		   "commit":null,
-		   "name":"wheel-axle-runtime",
-		   "namespace":"github.com/karellen",
-		   "tag":null,
-		   "type":"git"
-		},
-		"UpdateTime":"2022-11-21T17:45:50.52Z"
-	 }`
+   "CurrentPackage":{
+      "name":"wheel-axle-runtime",
+      "namespace":"",
+      "qualifiers":null,
+      "subpath":"",
+      "type":"pypi",
+      "version":"0.0.4"
+   },
+   "DepPackages":[
+      {
+         "CurrentPackage":{
+            "name":"filelock",
+            "namespace":"",
+            "qualifiers":null,
+            "subpath":"",
+            "type":"pypi",
+            "version":null
+         },
+         "DepPackages":null,
+         "IsDepPackages":null,
+         "Scorecard":null,
+         "Source":{
+            "commit":null,
+            "name":"py-filelock",
+            "namespace":"github.com/tox-dev",
+            "tag":null,
+            "type":"git"
+         },
+         "UpdateTime":"2022-11-21T17:45:50.52Z"
+      }
+   ],
+   "IsDepPackages":[
+      {
+         "CurrentPackageInput":{
+            "name":"wheel-axle-runtime",
+            "namespace":"",
+            "qualifiers":null,
+            "subpath":"",
+            "type":"pypi",
+            "version":null
+         },
+         "DepPackageInput":{
+            "name":"filelock",
+            "namespace":"",
+            "qualifiers":null,
+            "subpath":"",
+            "type":"pypi",
+            "version":null
+         },
+         "IsDependency":{
+            "collector":"",
+            "dependencyType":"DIRECT",
+            "justification":"dependency data collected via deps.dev",
+            "origin":"",
+            "versionRange":""
+         }
+      }
+   ],
+   "Scorecard":null,
+   "Source":{
+      "commit":null,
+      "name":"wheel-axle-runtime",
+      "namespace":"github.com/karellen",
+      "tag":null,
+      "type":"git"
+   },
+   "UpdateTime":"2022-11-21T17:45:50.52Z"
+}`
 
 	CollectedMavenWebJars = `{
 		"CurrentPackage":{
@@ -1630,6 +1824,86 @@ var (
 		"UpdateTime":"2022-11-21T17:45:50.52Z"
 	 }`
 
+	CollectedForeignTypesNoDeps = `{
+		"CurrentPackage":{
+		   "name":"foreign-types",
+		   "namespace":"",
+		   "qualifiers":null,
+		   "subpath":"",
+		   "type":"cargo",
+		   "version":"0.3.2"
+		},
+		"Scorecard":{
+		   "aggregateScore":4.599999904632568,
+		   "checks":[
+			  {
+				 "check":"Maintained",
+				 "score":5
+			  },
+			  {
+				 "check":"CII-Best-Practices",
+				 "score":0
+			  },
+			  {
+				 "check":"Signed-Releases",
+				 "score":-1
+			  },
+			  {
+				 "check":"Packaging",
+				 "score":-1
+			  },
+			  {
+				 "check":"Dangerous-Workflow",
+				 "score":10
+			  },
+			  {
+				 "check":"Binary-Artifacts",
+				 "score":10
+			  },
+			  {
+				 "check":"Token-Permissions",
+				 "score":0
+			  },
+			  {
+				 "check":"Pinned-Dependencies",
+				 "score":7
+			  },
+			  {
+				 "check":"Fuzzing",
+				 "score":0
+			  },
+			  {
+				 "check":"Vulnerabilities",
+				 "score":10
+			  },
+			  {
+				 "check":"Branch-Protection",
+				 "score":0
+			  },
+			  {
+				 "check":"License",
+				 "score":10
+			  },
+			  {
+				 "check":"Security-Policy",
+				 "score":0
+			  }
+		   ],
+		   "collector":"",
+		   "origin":"",
+		   "scorecardCommit":"6c5de2c32a4b8f60211e8e8eb94f8d3370a11b93",
+		   "scorecardVersion":"v4.10.5-77-g6c5de2c",
+		   "timeScanned":"2022-11-21T17:45:50.52Z"
+		},
+		"Source":{
+		   "commit":null,
+		   "name":"foreign-types",
+		   "namespace":"github.com/sfackler",
+		   "tag":null,
+		   "type":"git"
+		},
+		"UpdateTime":"2022-11-21T17:45:50.52Z"
+	 }`
 	CollectedForeignTypes = `{
 		"CurrentPackage":{
 		   "name":"foreign-types",
@@ -1891,11 +2165,109 @@ var (
 		"UpdateTime":"2022-11-21T17:45:50.52Z"
 	 }`
 
+	// OpenVEX
+
+	//go:embed exampledata/open-vex-not-affected.json
+	NotAffectedOpenVEXExample []byte
+
+	NotAffectedOpenVexIngest = []assembler.VexIngest{
+		{
+			Pkg: &generated.PkgInputSpec{
+				Name:      "git",
+				Version:   strP("sha256:23a264e6e429852221a963e9f17338ba3f5796dc7086e46439a6f4482cf6e0cb"),
+				Namespace: strP(""),
+				Type:      "oci",
+				Subpath:   strP(""),
+			},
+			Artifact: nil,
+			Vulnerability: &generated.VulnerabilityInputSpec{
+				Type:            "cve",
+				VulnerabilityID: "cve-2023-12345",
+			},
+			VexData: &generated.VexStatementInputSpec{
+				KnownSince:       parseRfc3339("2023-01-09T21:23:03.579712389-06:00"),
+				Origin:           "https://openvex.dev/docs/public/vex-a06f9de1ad1b1e555a33b2d0c1e7e6ecc4dc1800ff457c61ea09d8e97670d2a3",
+				VexJustification: generated.VexJustificationInlineMitigationsAlreadyExist,
+				Status:           generated.VexStatusNotAffected,
+				Statement:        "Included git is mitigated against CVE-2023-12345 !",
+			},
+		},
+	}
+
+	//go:embed exampledata/open-vex-affected.json
+	AffectedOpenVex []byte
+
+	AffectedOpenVexIngest = []assembler.VexIngest{
+		{
+			Pkg: &generated.PkgInputSpec{
+				Name:      "bash",
+				Version:   strP("1.0.0"),
+				Namespace: strP("wolfi"),
+				Type:      "apk",
+				Subpath:   strP(""),
+			},
+			Artifact: nil,
+			Vulnerability: &generated.VulnerabilityInputSpec{
+				Type:            "cve",
+				VulnerabilityID: "cve-1234-5678",
+			},
+			VexData: &generated.VexStatementInputSpec{
+				KnownSince:       parseRfc3339("2023-01-19T02:36:03.290252574-06:00"),
+				Origin:           "merged-vex-67124ea942ef30e1f42f3f2bf405fbbc4f5a56e6e87684fc5cd957212fa3e025",
+				Status:           generated.VexStatusAffected,
+				VexJustification: generated.VexJustificationNotProvided,
+				Statement:        "This is a test action statement",
+			},
+		},
+	}
+
+	AffectedOpenVEXCertifyVulnIngest = []assembler.CertifyVulnIngest{
+		{
+			Pkg: &generated.PkgInputSpec{
+				Name:      "bash",
+				Version:   strP("1.0.0"),
+				Namespace: strP("wolfi"),
+				Type:      "apk",
+				Subpath:   strP(""),
+			},
+			Vulnerability: &generated.VulnerabilityInputSpec{
+				Type:            "cve",
+				VulnerabilityID: "cve-1234-5678",
+			},
+			VulnData: &generated.ScanMetadataInput{
+				TimeScanned: parseRfc3339("2023-01-19T02:36:03.290252574-06:00"),
+			},
+		},
+	}
+
 	// CSAF
 	//go:embed exampledata/rhsa-csaf.json
 	CsafExampleRedHat []byte
 
 	CsafVexIngest = []assembler.VexIngest{
+		{
+			Pkg: &model.PkgInputSpec{
+				Type:       "rpm",
+				Namespace:  strP("redhat"),
+				Name:       "openssl",
+				Version:    strP("1.1.1k-8.el8_6"),
+				Qualifiers: []model.PackageQualifierInputSpec{{Key: "arch", Value: "aarch64"}, {Key: "epoch", Value: "1"}},
+				Subpath:    strP(""),
+			},
+			Vulnerability: &model.VulnerabilityInputSpec{Type: "cve", VulnerabilityID: "cve-2023-0286"},
+			VexData: &model.VexStatementInputSpec{
+				Status:           generated.VexStatusFixed,
+				VexJustification: generated.VexJustificationNotProvided,
+				Statement: `For details on how to apply this update, which includes the changes described in this advisory, refer to:
+
+https://access.redhat.com/articles/11258
+
+For the update to take effect, all services linked to the OpenSSL library must be restarted, or the system rebooted.`,
+
+				KnownSince: parseRfc3339("2023-03-23T11:14:00Z"),
+				Origin:     "RHSA-2023:1441",
+			},
+		},
 		{
 			Pkg: &model.PkgInputSpec{
 				Type:       "rpm",
@@ -1907,8 +2279,8 @@ var (
 			},
 			Vulnerability: &model.VulnerabilityInputSpec{Type: "cve", VulnerabilityID: "cve-2023-0286"},
 			VexData: &model.VexStatementInputSpec{
-				Status:           "AFFECTED",
-				VexJustification: "NOT_PROVIDED",
+				Status:           generated.VexStatusAffected,
+				VexJustification: generated.VexJustificationNotProvided,
 				Statement: `For details on how to apply this update, which includes the changes described in this advisory, refer to:
 
 https://access.redhat.com/articles/11258
@@ -1921,6 +2293,23 @@ For the update to take effect, all services linked to the OpenSSL library must b
 		},
 	}
 	CsafCertifyVulnIngest = []assembler.CertifyVulnIngest{
+		{
+			Pkg: &model.PkgInputSpec{
+				Type:      "rpm",
+				Namespace: strP("redhat"),
+				Name:      "openssl",
+				Version:   strP("1.1.1k-8.el8_6"),
+				Qualifiers: []model.PackageQualifierInputSpec{
+					{Key: "arch", Value: "aarch64"},
+					{Key: "epoch", Value: "1"},
+				},
+				Subpath: strP(""),
+			},
+			Vulnerability: &model.VulnerabilityInputSpec{Type: "NoVuln", VulnerabilityID: ""},
+			VulnData: &model.ScanMetadataInput{
+				TimeScanned: parseRfc3339("2023-03-23T11:14:00Z"),
+			},
+		},
 		{
 			Pkg: &model.PkgInputSpec{
 				Type:      "rpm",
@@ -1970,8 +2359,9 @@ For the update to take effect, all services linked to the OpenSSL library must b
 		},
 		IsDependency: []assembler.IsDependencyIngest{
 			{
-				Pkg:    topLevelPack,
-				DepPkg: baselayoutPack,
+				Pkg:             topLevelPack,
+				DepPkg:          baselayoutPack,
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 				IsDependency: &generated.IsDependencyInputSpec{
 					DependencyType: generated.DependencyTypeUnknown,
 					VersionRange:   "3.2.0-r22",
@@ -1979,8 +2369,9 @@ For the update to take effect, all services linked to the OpenSSL library must b
 				},
 			},
 			{
-				Pkg:    topLevelPack,
-				DepPkg: baselayoutdataPack,
+				Pkg:             topLevelPack,
+				DepPkg:          baselayoutdataPack,
+				DepPkgMatchFlag: model.MatchFlags{Pkg: model.PkgMatchTypeSpecificVersion},
 				IsDependency: &generated.IsDependencyInputSpec{
 					DependencyType: generated.DependencyTypeUnknown,
 					VersionRange:   "3.2.0-r22",
@@ -2429,6 +2820,9 @@ var IngestPredicatesCmpOpts = []cmp.Option{
 	cmpopts.SortSlices(packageQualifierInputSpecLess),
 	cmpopts.SortSlices(psaInputSpecLess),
 	cmpopts.SortSlices(slsaPredicateInputSpecLess),
+	cmpopts.SortSlices(certifyLegalInputSpecLess),
+	cmpopts.SortSlices(licenseInputSpecLess),
+	cmpopts.SortSlices(hasMetadataLess),
 }
 
 func certifyScorecardLess(e1, e2 assembler.CertifyScorecardIngest) bool {
@@ -2455,6 +2849,18 @@ func slsaPredicateInputSpecLess(e1, e2 model.SLSAPredicateInputSpec) bool {
 	return gLess(e1, e2)
 }
 
+func certifyLegalInputSpecLess(e1, e2 assembler.CertifyLegalIngest) bool {
+	return gLess(e1, e2)
+}
+
+func licenseInputSpecLess(e1, e2 generated.LicenseInputSpec) bool {
+	return gLess(e1, e2)
+}
+
+func hasMetadataLess(e1, e2 assembler.HasMetadataIngest) bool {
+	return gLess(e1, e2)
+}
+
 func gLess(e1, e2 any) bool {
 	s1, _ := json.Marshal(e1)
 	s2, _ := json.Marshal(e2)
@@ -2475,6 +2881,14 @@ func parseRfc3339(s string) time.Time {
 
 func toTime(s string) time.Time {
 	timeScanned, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		panic(err)
+	}
+	return timeScanned
+}
+
+func parseUTCTime(s string) time.Time {
+	timeScanned, err := time.Parse("2006-01-02T15:04:05Z", s)
 	if err != nil {
 		panic(err)
 	}

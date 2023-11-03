@@ -27,7 +27,9 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	sc "github.com/guacsec/guac/pkg/certifier/components/source"
+	"github.com/guacsec/guac/pkg/collectsub/client"
 	csub_client "github.com/guacsec/guac/pkg/collectsub/client"
+	"github.com/guacsec/guac/pkg/ingestor"
 
 	"github.com/guacsec/guac/pkg/certifier"
 	"github.com/guacsec/guac/pkg/certifier/scorecard"
@@ -40,10 +42,10 @@ import (
 )
 
 type scorecardOptions struct {
-	graphqlEndpoint string
-	poll            bool
-	interval        time.Duration
-	csubAddr        string
+	graphqlEndpoint   string
+	poll              bool
+	interval          time.Duration
+	csubClientOptions client.CsubClientOptions
 }
 
 var scorecardCmd = &cobra.Command{
@@ -56,6 +58,8 @@ var scorecardCmd = &cobra.Command{
 		opts, err := validateScorecardFlags(
 			viper.GetString("gql-addr"),
 			viper.GetString("csub-addr"),
+			viper.GetBool("csub-tls"),
+			viper.GetBool("csub-tls-skip-verify"),
 			viper.GetBool("poll"),
 			viper.GetString("interval"),
 		)
@@ -75,7 +79,7 @@ var scorecardCmd = &cobra.Command{
 		}
 
 		// initialize collectsub client
-		csubClient, err := csub_client.NewClient(opts.csubAddr)
+		csubClient, err := csub_client.NewClient(opts.csubClientOptions)
 		if err != nil {
 			logger.Infof("collectsub client initialization failed, this ingestion will not pull in any additional data through the collectsub service: %v", err)
 			csubClient = nil
@@ -111,43 +115,17 @@ var scorecardCmd = &cobra.Command{
 		if err := certify.RegisterCertifier(scCertifier, certifier.CertifierScorecard); err != nil {
 			logger.Fatalf("unable to register certifier: %v", err)
 		}
-		processorFunc := getProcessor(ctx)
-		collectSubEmitFunc := getCollectSubEmit(ctx, csubClient)
-		ingestorFunc := getIngestor(ctx)
-		assemblerFunc := getAssembler(ctx, opts.graphqlEndpoint)
 
 		totalNum := 0
 		gotErr := false
 		// Set emit function to go through the entire pipeline
 		emit := func(d *processor.Document) error {
 			totalNum += 1
-			start := time.Now()
+			err := ingestor.Ingest(ctx, d, opts.graphqlEndpoint, csubClient)
 
-			docTree, err := processorFunc(d)
 			if err != nil {
-				gotErr = true
-				return fmt.Errorf("unable to process doc: %v, format: %v, document: %v", err, d.Format, d.Type)
+				return fmt.Errorf("unable to ingest document: %v", err)
 			}
-
-			predicates, idstrings, err := ingestorFunc(docTree)
-			if err != nil {
-				gotErr = true
-				return fmt.Errorf("unable to ingest doc tree: %v", err)
-			}
-
-			err = collectSubEmitFunc(idstrings)
-			if err != nil {
-				logger.Infof("unable to create entries in collectsub server, but continuing: %v", err)
-			}
-
-			err = assemblerFunc(predicates)
-			if err != nil {
-				gotErr = true
-				return fmt.Errorf("unable to assemble graphs: %v", err)
-			}
-			t := time.Now()
-			elapsed := t.Sub(start)
-			logger.Infof("[%v] completed doc %+v", elapsed, d.SourceInformation)
 			return nil
 		}
 
@@ -192,10 +170,16 @@ var scorecardCmd = &cobra.Command{
 	},
 }
 
-func validateScorecardFlags(graphqlEndpoint string, csubAddr string, poll bool, interval string) (scorecardOptions, error) {
+func validateScorecardFlags(graphqlEndpoint string, csubAddr string, csubTls bool, csubTlsSkipVerify bool, poll bool, interval string) (scorecardOptions, error) {
 	var opts scorecardOptions
 	opts.graphqlEndpoint = graphqlEndpoint
-	opts.csubAddr = csubAddr
+
+	csubOpts, err := client.ValidateCsubClientFlags(csubAddr, csubTls, csubTlsSkipVerify)
+	if err != nil {
+		return opts, fmt.Errorf("unable to validate csub client flags: %w", err)
+	}
+	opts.csubClientOptions = csubOpts
+
 	opts.poll = poll
 	i, err := time.ParseDuration(interval)
 	if err != nil {

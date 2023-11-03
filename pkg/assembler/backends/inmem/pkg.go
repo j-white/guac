@@ -17,10 +17,13 @@ package inmem
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
@@ -98,7 +101,7 @@ type pkgVersionStruct struct {
 	id                  uint32
 	parent              uint32
 	name                string
-	versions            pkgVersionList
+	versions            pkgVersionMap
 	srcMapLinks         []uint32
 	isDependencyLinks   []uint32
 	badLinks            []uint32
@@ -106,7 +109,8 @@ type pkgVersionStruct struct {
 	hasMetadataLinks    []uint32
 	pointOfContactLinks []uint32
 }
-type pkgVersionList []*pkgVersionNode
+type pkgVersionNodeHash string
+type pkgVersionMap map[pkgVersionNodeHash]*pkgVersionNode
 type pkgVersionNode struct {
 	id                  uint32
 	parent              uint32
@@ -124,6 +128,7 @@ type pkgVersionNode struct {
 	hasMetadataLinks    []uint32
 	pointOfContactLinks []uint32
 	pkgEquals           []uint32
+	certifyLegals       []uint32
 }
 
 // Be type safe, don't use any / interface{}
@@ -151,26 +156,36 @@ func (n *pkgVersionStruct) ID() uint32   { return n.id }
 func (n *pkgVersionNode) ID() uint32     { return n.id }
 
 func (n *pkgNamespaceStruct) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := make([]uint32, 0, 1+len(n.namespaces))
-	for _, v := range n.namespaces {
-		out = append(out, v.id)
+	var out []uint32
+	if allowedEdges[model.EdgePackageTypePackageNamespace] {
+		for _, v := range n.namespaces {
+			out = append(out, v.id)
+		}
 	}
 	return out
 }
 func (n *pkgNameStruct) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := make([]uint32, 0, 1+len(n.names))
-	for _, v := range n.names {
-		out = append(out, v.id)
+	var out []uint32
+	if allowedEdges[model.EdgePackageNamespacePackageName] {
+		for _, v := range n.names {
+			out = append(out, v.id)
+		}
 	}
-	out = append(out, n.parent)
+	if allowedEdges[model.EdgePackageNamespacePackageType] {
+		out = append(out, n.parent)
+	}
 	return out
 }
 func (n *pkgVersionStruct) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := []uint32{n.parent}
-	for _, v := range n.versions {
-		out = append(out, v.id)
+	var out []uint32
+	if allowedEdges[model.EdgePackageNamePackageNamespace] {
+		out = append(out, n.parent)
 	}
-
+	if allowedEdges[model.EdgePackageNamePackageVersion] {
+		for _, v := range n.versions {
+			out = append(out, v.id)
+		}
+	}
 	if allowedEdges[model.EdgePackageHasSourceAt] {
 		out = append(out, n.srcMapLinks...)
 	}
@@ -193,8 +208,10 @@ func (n *pkgVersionStruct) Neighbors(allowedEdges edgeMap) []uint32 {
 	return out
 }
 func (n *pkgVersionNode) Neighbors(allowedEdges edgeMap) []uint32 {
-	out := []uint32{n.parent}
-
+	var out []uint32
+	if allowedEdges[model.EdgePackageVersionPackageName] {
+		out = append(out, n.parent)
+	}
 	if allowedEdges[model.EdgePackageHasSourceAt] {
 		out = append(out, n.srcMapLinks...)
 	}
@@ -227,6 +244,9 @@ func (n *pkgVersionNode) Neighbors(allowedEdges edgeMap) []uint32 {
 	}
 	if allowedEdges[model.EdgePackagePointOfContact] {
 		out = append(out, n.pointOfContactLinks...)
+	}
+	if allowedEdges[model.EdgePackageCertifyLegal] {
+		out = append(out, n.certifyLegals...)
 	}
 
 	return out
@@ -315,6 +335,8 @@ func (p *pkgVersionNode) getPointOfContactLinks() []uint32   { return p.pointOfC
 // pkgEqual back edges
 func (p *pkgVersionNode) setPkgEquals(id uint32) { p.pkgEquals = append(p.pkgEquals, id) }
 
+func (p *pkgVersionNode) setCertifyLegals(id uint32) { p.certifyLegals = append(p.certifyLegals, id) }
+
 // Ingest Package
 
 func (c *demoClient) IngestPackages(ctx context.Context, pkgs []*model.PkgInputSpec) ([]*model.Package, error) {
@@ -380,20 +402,21 @@ func (c *demoClient) IngestPackage(ctx context.Context, input model.PkgInputSpec
 				id:       c.getNextID(),
 				parent:   namesStruct.id,
 				name:     input.Name,
-				versions: pkgVersionList{},
+				versions: pkgVersionMap{},
 			}
 			c.index[versionStruct.id] = versionStruct
 			names[input.Name] = versionStruct
 		}
 		c.m.Unlock()
 	}
+	versions := versionStruct.versions
 
 	c.m.RLock()
-	duplicate, collectedVersion := duplicatePkgVer(versionStruct.versions, input)
+	duplicate, collectedVersion := duplicatePkgVer(versions, input)
 	c.m.RUnlock()
 	if !duplicate {
 		c.m.Lock()
-		duplicate, collectedVersion = duplicatePkgVer(versionStruct.versions, input)
+		duplicate, collectedVersion = duplicatePkgVer(versions, input)
 		if !duplicate {
 			collectedVersion = &pkgVersionNode{
 				id:         c.getNextID(),
@@ -403,8 +426,13 @@ func (c *demoClient) IngestPackage(ctx context.Context, input model.PkgInputSpec
 				qualifiers: getQualifiersFromInput(input.Qualifiers),
 			}
 			c.index[collectedVersion.id] = collectedVersion
-			// Need to append to version and replace field in versionStruct
-			versionStruct.versions = append(versionStruct.versions, collectedVersion)
+
+			versionDigest, err := hashPkgVersionNode(collectedVersion)
+			if err != nil {
+				c.m.Unlock()
+				return nil, err
+			}
+			versions[versionDigest] = collectedVersion
 		}
 		c.m.Unlock()
 	}
@@ -415,18 +443,39 @@ func (c *demoClient) IngestPackage(ctx context.Context, input model.PkgInputSpec
 	return c.buildPackageResponse(collectedVersion.id, nil)
 }
 
-func duplicatePkgVer(versions pkgVersionList, input model.PkgInputSpec) (bool, *pkgVersionNode) {
-	for _, v := range versions {
-		if noMatchInput(input.Version, v.version) {
-			continue
-		}
-		if noMatchInput(input.Subpath, v.subpath) {
-			continue
-		}
-		if !reflect.DeepEqual(v.qualifiers, getQualifiersFromInput(input.Qualifiers)) {
-			continue
-		}
-		return true, v
+// hash the canonical representation of a version.
+func hashPkgVersionNode(version *pkgVersionNode) (pkgVersionNodeHash, error) {
+	if version == nil {
+		return "", fmt.Errorf("version is nil")
+	}
+	return hashVersionHelper(version.version, version.subpath, version.qualifiers), nil
+}
+
+// hash the canonical representation of a version
+func hashPkgInputSpecVersion(input model.PkgInputSpec) pkgVersionNodeHash {
+	qualifiers := getQualifiersFromInput(input.Qualifiers)
+	return hashVersionHelper(nilToEmpty(input.Version), nilToEmpty(input.Subpath), qualifiers)
+}
+
+func hashVersionHelper(version string, subpath string, qualifiers map[string]string) pkgVersionNodeHash {
+	// first sort the qualifiers
+	qualifierSlice := make([]string, 0, len(qualifiers))
+	for key, value := range qualifiers {
+		qualifierSlice = append(qualifierSlice, fmt.Sprintf("%s:%s", key, value))
+	}
+	slices.Sort(qualifierSlice)
+	qualifiersStr := strings.Join(qualifierSlice, ",")
+
+	canonicalVersion := fmt.Sprintf("%s,%s,%s", version, subpath, qualifiersStr)
+	digest := sha256.Sum256([]byte(canonicalVersion))
+	return pkgVersionNodeHash(fmt.Sprintf("%x", digest))
+}
+
+func duplicatePkgVer(versions pkgVersionMap, input model.PkgInputSpec) (bool, *pkgVersionNode) {
+	digest := hashPkgInputSpecVersion(input)
+
+	if version, ok := versions[digest]; ok {
+		return true, version
 	}
 	return false, nil
 }
@@ -688,6 +737,62 @@ func getPackageIDFromInput(c *demoClient, input model.PkgInputSpec, pkgMatchType
 	return packageID, nil
 }
 
+func (c *demoClient) matchPackages(filter []*model.PkgSpec, pkgs []uint32) bool {
+	pkgs = slices.Clone(pkgs)
+	pkgs = sortAndRemoveDups(pkgs)
+
+	for _, pvSpec := range filter {
+		if pvSpec != nil {
+			if pvSpec.ID != nil {
+				// Check by ID if present
+				if !c.isIDPresent(*pvSpec.ID, pkgs) {
+					return false
+				}
+			} else {
+				// Otherwise match spec information
+				match := false
+				for _, pkgId := range pkgs {
+					id := pkgId
+					pkgVersion, err := byID[*pkgVersionNode](id, c)
+					if err == nil {
+						if noMatch(pvSpec.Subpath, pkgVersion.subpath) || noMatchQualifiers(pvSpec, pkgVersion.qualifiers) || noMatch(pvSpec.Version, pkgVersion.version) {
+							continue
+						}
+						id = pkgVersion.parent
+					}
+					pkgName, err := byID[*pkgVersionStruct](id, c)
+					if err == nil {
+						if noMatch(pvSpec.Name, pkgName.name) {
+							continue
+						}
+						id = pkgName.parent
+					}
+					pkgNamespace, err := byID[*pkgNameStruct](id, c)
+					if err == nil {
+						if noMatch(pvSpec.Namespace, pkgNamespace.namespace) {
+							continue
+						}
+						id = pkgNamespace.parent
+					}
+					pkgType, err := byID[*pkgNamespaceStruct](id, c)
+					if err == nil {
+						if noMatch(pvSpec.Type, pkgType.typeKey) {
+							continue
+						} else {
+							match = true
+							break
+						}
+					}
+				}
+				if !match {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 func getCollectedPackageQualifiers(qualifierMap map[string]string) []*model.PackageQualifier {
 	qualifiers := []*model.PackageQualifier{}
 	for key, val := range qualifierMap {
@@ -718,7 +823,7 @@ func getQualifiersFromFilter(qualifiersSpec []*model.PackageQualifierSpec) map[s
 		return qualifiersMap
 	}
 	for _, kv := range qualifiersSpec {
-		qualifiersMap[kv.Key] = *kv.Value
+		qualifiersMap[kv.Key] = nilToEmpty(kv.Value)
 	}
 	return qualifiersMap
 }
@@ -737,7 +842,7 @@ func noMatchQualifiers(filter *model.PkgSpec, v map[string]string) bool {
 	return false
 }
 
-func (c *demoClient) exactPackageVersion(filter *model.PkgSpec) (*pkgVersionNode, error) {
+func (c *demoClient) findPackageVersion(filter *model.PkgSpec) ([]*pkgVersionNode, error) {
 	if filter == nil {
 		return nil, nil
 	}
@@ -749,10 +854,11 @@ func (c *demoClient) exactPackageVersion(filter *model.PkgSpec) (*pkgVersionNode
 		id := uint32(id64)
 		if node, ok := c.index[id]; ok {
 			if c, ok := node.(*pkgVersionNode); ok {
-				return c, nil
+				return []*pkgVersionNode{c}, nil
 			}
 		}
 	}
+	out := make([]*pkgVersionNode, 0)
 	if filter.Type != nil && filter.Namespace != nil && filter.Name != nil && filter.Version != nil {
 		tp, ok := c.packages[*filter.Type]
 		if !ok {
@@ -768,17 +874,17 @@ func (c *demoClient) exactPackageVersion(filter *model.PkgSpec) (*pkgVersionNode
 		}
 		for _, v := range nm.versions {
 			if *filter.Version != v.version ||
-				noMatchInput(filter.Subpath, v.subpath) ||
+				noMatch(filter.Subpath, v.subpath) ||
 				noMatchQualifiers(filter, v.qualifiers) {
 				continue
 			}
-			return v, nil
+			out = append(out, v)
 		}
 	}
-	return nil, nil
+	return out, nil
 }
 
-func (c *demoClient) exactPackageName(filter *model.PkgNameSpec) (*pkgVersionStruct, error) {
+func (c *demoClient) exactPackageName(filter *model.PkgSpec) (*pkgVersionStruct, error) {
 	if filter == nil {
 		return nil, nil
 	}

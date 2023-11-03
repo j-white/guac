@@ -24,6 +24,10 @@ import (
 
 var flagStore = make(map[string]*pflag.Flag)
 
+const (
+	ConfigLogLevelVar = "log-level"
+)
+
 var NotFound = errors.New("Flag not found")
 
 func init() {
@@ -33,15 +37,21 @@ func init() {
 	// names for config file.
 	set.String("nats-addr", "nats://127.0.0.1:4222", "address to connect to NATs Server")
 	set.String("csub-addr", "localhost:2782", "address to connect to collect-sub service")
+	set.Bool("csub-tls", false, "enable tls connection to the server")
+	set.Bool("csub-tls-skip-verify", false, "skip verifying server certificate (for self-signed certificates for example)")
 	set.Bool("use-csub", true, "use collectsub server for datasource")
 
 	set.Int("csub-listen-port", 2782, "port to listen to on collect-sub service")
+	set.String("csub-tls-cert-file", "", "path to the TLS certificate in PEM format for collect-sub service")
+	set.String("csub-tls-key-file", "", "path to the TLS key in PEM format for collect-sub service")
 
-	set.String("gql-backend", "gremlin", "backend used for graphql api server: [inmem | arango (experimental) | neo4j (unmaintained) | gremlin (in progress)]")
+	set.String("gql-backend", "gremlin", "backend used for graphql api server: [inmem | arango (experimental) | ent (experimental) | gremlin (experimental) | neo4j (unmaintained)]")
+
 	set.Int("gql-listen-port", 8080, "port used for graphql api server")
+	set.String("gql-tls-cert-file", "", "path to the TLS certificate in PEM format for graphql api server")
+	set.String("gql-tls-key-file", "", "path to the TLS key in PEM format for graphql api server")
 	set.Bool("gql-debug", false, "debug flag which enables the graphQL playground")
 	set.Bool("gql-trace", false, "flag which enables tracing of graphQL requests and responses on the console")
-	set.Bool("gql-test-data", false, "Populate backend with test data")
 
 	set.String("neo4j-addr", "neo4j://localhost:7687", "address to neo4j db")
 	set.String("neo4j-user", "", "neo4j user credential to connect to graph db")
@@ -53,6 +63,11 @@ func init() {
 	set.String("neptune-region", "us-east-1", "region to connect to neptune db")
 	set.String("neptune-user", "", "neptune user credential to connect to graph db")
 	set.String("neptune-realm", "neptune", "realm to connect to graph db")
+
+	set.String("db-address", "postgres://localhost/guac_dev", "Full URL of database to connect to")
+	set.String("db-driver", "postgres", "database driver to use, one of [postgres | sqlite3 | mysql] or anything supported by sql.DB")
+	set.Bool("db-debug", false, "enable debug logging for database queries")
+	set.Bool("db-migrate", true, "automatically run database migrations on start")
 
 	set.String("arango-addr", "http://localhost:8529", "address to arango db")
 	set.String("arango-user", "", "arango user to connect to graph db")
@@ -72,6 +87,9 @@ func init() {
 
 	set.Bool("service-poll", true, "sets the collector or certifier to polling mode")
 	set.BoolP("poll", "p", false, "sets the collector or certifier to polling mode")
+
+	set.Bool("retrieve-dependencies", true, "enable the deps.dev collector to retrieve package dependencies")
+
 	set.StringP("interval", "i", "5m", "if polling set interval, m, h, s, etc.")
 
 	set.BoolP("cert-good", "g", false, "enable to certifyGood, otherwise defaults to certifyBad")
@@ -88,6 +106,15 @@ func init() {
 
 	// Google Cloud platform flags
 	set.String("gcp-credentials-path", "", "Path to the Google Cloud service account credentials json file.\nAlternatively you can set GOOGLE_APPLICATION_CREDENTIALS=<path> in your environment.")
+
+	// S3 flags
+	set.String("s3-url", "", "url of the s3 endpoint")
+	set.String("s3-bucket", "", "bucket in the s3 provider")
+	set.String("s3-item", "", "item in the s3 provider")
+	set.String("s3-mp", "kafka", "message provider (sqs or kafka)")
+	set.String("s3-mp-endpoint", "", "endpoint for the message provider")
+	set.String("s3-queues", "", "comma-separated list of queue/topic names")
+	set.String("s3-region", "us-east-1", "aws region")
 
 	set.VisitAll(func(f *pflag.Flag) {
 		flagStore[f.Name] = f

@@ -20,9 +20,25 @@ test: generate
 	echo 'mode: atomic' > coverage.txt && go test -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=30s ./...
 
 # Run the integration tests. Requires github token for scorecard (GITHUB_AUTH_TOKEN=<your token>)
+# To run it locally you can run the following command: make start-integration-service
 .PHONY: integration-test
 integration-test: generate check-env
 	go test -tags=integration ./...
+
+# Runs the integration tests locally using docker-compose to start the dependencies and cleans up after itself.
+.PHONY: integration-test-local
+integration-test-local: generate check-env start-integration-service
+	# wait for the service to start which is a http server at 8080 port
+	@echo "Waiting for the service to start"
+	@counter=0; \
+	while [ $$counter -lt 15 ] && ! curl --silent --head --output /dev/null --fail http://localhost:8080; do \
+		printf '.'; \
+		sleep 1; \
+		counter=$$((counter+1)); \
+	done; \
+	[ $$counter -eq 15 ] && { echo "Service did not start in time"; exit 1; } || echo "Service is up!"
+	ENT_TEST_DATABASE_URL='postgresql://guac:guac@localhost/guac?sslmode=disable' go test -tags=integration ./...
+	$(CONTAINER) compose down
 
 .PHONY: integration-merge-test
 integration-merge-test: generate check-env
@@ -42,9 +58,10 @@ cover: test
 .PHONY: fmt
 fmt:
 	@echo "Testing formatting and imports"
-	test -z "$(shell find . -name '*.go' -not -wholename './vendor/*' -not -name '*.pb.go' -exec goimports -l -e {} \;)"
+	test -z "$(shell find . -name '*.go' -not -path './.git/*' -not -wholename './vendor/*' -not -name '*.pb.go' -exec goimports -l -e {} \;)"
 	@echo "Testing copyright notice"
-	test -z "$(shell find . -name '*.go' -not -wholename './vendor/*' -not -name '*.pb.go' -exec .github/scripts/copyright.sh {} \;)"
+	test -z "$(shell find . -name '*.go' -not -path './.git/*' -not -wholename './vendor/*' -not -name '*.pb.go' -exec .github/scripts/copyright.sh {} \;)"
+
 
 # Check that generated files are up to date
 .PHONY: generated_up_to_date
@@ -84,7 +101,7 @@ format: fmt-md
 fmt-md:
 	npx --yes prettier --write --prose-wrap always **/*.md
 
-# generate code from autogen tools (gqlgen, genqlclient, mockgen)
+# generate code from autogen tools (gqlgen, genqlclient, mockgen, ent)
 .PHONY: generate
 generate:
 	go generate ./...
@@ -92,7 +109,7 @@ generate:
 # build bins for goos/goarch of current host
 .PHONY: build_bins
 build_bins:
-	goreleaser build --clean --snapshot --single-target 
+	goreleaser build --clean --snapshot --single-target
 
 # Build bins and copy to ./bin to align with docs
 # Separate build_bins as its own target to ensure (workaround) goreleaser finish writing dist/artifacts.json
@@ -124,17 +141,22 @@ container: check-docker-tool-check check-docker-buildx-tool-check check-goreleas
 # To run the service, run `make container` and then `make service`
 # making the container is a longer process and thus not a dependency of service.
 .PHONY: start-service
-start-service:
+start-service: check-docker-compose-tool-check
 	# requires force recreate since docker compose reuses containers and neo4j does
 	# not handle that well.
 	#
 	# if container images are missing, run `make container` first
-	$(CONTAINER) compose up --force-recreate
+	$(CONTAINER) compose -f docker-compose.yml -f container_files/mem.yaml up --force-recreate
 
 # to flush state, service-stop must be used else state is taken from old containers
 .PHONY: stop-service
 stop-service:
 	$(CONTAINER) compose down
+
+# This is a helper target to run the integration tests locally. 
+.PHONY: start-integration-service
+start-integration-service: check-docker-compose-tool-check
+	$(CONTAINER) compose -f integration.docker-compose.yaml up 	--force-recreate -d
 
 .PHONY: check-docker-tool-check
 check-docker-tool-check:
@@ -146,8 +168,16 @@ check-docker-tool-check:
 # Check that docker buildx is installed.
 .PHONY: check-docker-buildx-tool-check
 check-docker-buildx-tool-check:
-	@if ! command -v docker buildx >/dev/null 2>&1; then \
-		echo "'$(CONTAINER)' builx is not installed. Please install '$(CONTAINER)' buildx and try again."; \
+	@if ! $(CONTAINER) buildx >/dev/null 2>&1; then \
+		echo "'$(CONTAINER)' buildx is not installed. Please install '$(CONTAINER)' buildx and try again."; \
+		exit 1; \
+	fi
+
+# Check that docker compose is installed.
+.PHONY: check-docker-compose-tool-check
+check-docker-compose-tool-check:
+	@if ! $(CONTAINER) compose >/dev/null 2>&1; then \
+		echo "'$(CONTAINER)' compose is not installed or not correctly linked to. Please install '$(CONTAINER)' compose or link it as a plugin and try again."; \
 		exit 1; \
 	fi
 
@@ -184,4 +214,4 @@ check-goreleaser-tool-check:
 
 # Check that all the tools are installed.
 .PHONY: check-tools
-check-tools: check-docker-tool-check check-docker-buildx-tool-check check-protoc-tool-check check-golangci-lint-tool-check check-mockgen-tool-check check-goreleaser-tool-check
+check-tools: check-docker-tool-check check-docker-buildx-tool-check check-docker-compose-tool-check check-protoc-tool-check check-golangci-lint-tool-check check-mockgen-tool-check check-goreleaser-tool-check

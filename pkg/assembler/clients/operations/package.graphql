@@ -19,7 +19,10 @@
 
 mutation IngestPackage($pkg: PkgInputSpec!) {
   ingestPackage(pkg: $pkg) {
-    ...AllPkgTree
+    packageTypeID
+    packageNamespaceID
+    packageNameID
+    packageVersionID
   }
 }
 
@@ -27,7 +30,10 @@ mutation IngestPackage($pkg: PkgInputSpec!) {
 
 mutation IngestPackages($pkgs: [PkgInputSpec!]!) {
   ingestPackages(pkgs: $pkgs) {
-    ...AllPkgTree
+    packageTypeID
+    packageNamespaceID
+    packageNameID
+    packageVersionID
   }
 }
 
@@ -40,58 +46,58 @@ query Packages($filter: PkgSpec!) {
 }
 
 query PackageTypes($filter: PkgSpec!) {
-  packages(pkgSpec: $filter){
+  packages(pkgSpec: $filter) {
     id
     type
   }
 }
 
 query PackageNamespaces($filter: PkgSpec!) {
-  packages(pkgSpec: $filter){
+  packages(pkgSpec: $filter) {
     id
     type
     namespaces {
-        id
-        namespace
+      id
+      namespace
     }
   }
 }
 
 query PackageNames($filter: PkgSpec!) {
-  packages(pkgSpec: $filter){
+  packages(pkgSpec: $filter) {
     id
     type
     namespaces {
+      id
+      namespace
+      names {
         id
-        namespace
-        names {
-            id
-            name
-        }
+        name
+      }
     }
   }
 }
 
 query PackageVersions($filter: PkgSpec!) {
-  packages(pkgSpec: $filter){
+  packages(pkgSpec: $filter) {
     id
     type
     namespaces {
+      id
+      namespace
+      names {
         id
-        namespace
-        names {
-            id
-            name
-            versions {
-                id
-                version
-                qualifiers {                  
-                  key
-                  value
-                }
-                subpath
-            }
+        name
+        versions {
+          id
+          version
+          qualifiers {
+            key
+            value
+          }
+          subpath
         }
+      }
     }
   }
 }

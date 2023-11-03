@@ -1,14 +1,3 @@
-# arangodb 
-arango-user: root
-arango-pass: test123
-arango-addr: http://arangodb:8529
-
-# neo4j
-neo4j-user: neo4j
-neo4j-pass: s3cr3t
-neo4j-addr: neo4j://neo4j:7687
-neo4j-realm: neo4j
-
 # nats
 nats-addr: nats://nats:4222
 
@@ -20,7 +9,6 @@ csub-listen-port: 2782
 gql-backend: inmem
 gql-listen-port: 8080
 gql-debug: true
-gql-test-data: false
 gql-addr: http://guac-graphql:8080/query
 
 # collector polling

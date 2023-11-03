@@ -16,12 +16,18 @@
 package process
 
 import (
+	"bytes"
+	"compress/bzip2"
 	"context"
-	"encoding/json"
+	"encoding/xml"
 	"fmt"
+	"io"
+	"path/filepath"
+	"strings"
 
 	uuid "github.com/gofrs/uuid"
 	"github.com/guacsec/guac/pkg/emitter"
+	"github.com/guacsec/guac/pkg/handler/collector"
 	"github.com/guacsec/guac/pkg/handler/processor"
 	"github.com/guacsec/guac/pkg/handler/processor/csaf"
 	"github.com/guacsec/guac/pkg/handler/processor/cyclonedx"
@@ -29,13 +35,17 @@ import (
 	"github.com/guacsec/guac/pkg/handler/processor/dsse"
 	"github.com/guacsec/guac/pkg/handler/processor/guesser"
 	"github.com/guacsec/guac/pkg/handler/processor/ite6"
+	"github.com/guacsec/guac/pkg/handler/processor/open_vex"
 	"github.com/guacsec/guac/pkg/handler/processor/scorecard"
 	"github.com/guacsec/guac/pkg/handler/processor/spdx"
 	"github.com/guacsec/guac/pkg/logging"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/klauspost/compress/zstd"
 )
 
 var (
 	documentProcessors = map[processor.DocumentType]processor.DocumentProcessor{}
+	json               = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 func init() {
@@ -45,6 +55,7 @@ func init() {
 	_ = RegisterDocumentProcessor(&dsse.DSSEProcessor{}, processor.DocumentDSSE)
 	_ = RegisterDocumentProcessor(&spdx.SPDXProcessor{}, processor.DocumentSPDX)
 	_ = RegisterDocumentProcessor(&csaf.CSAFProcessor{}, processor.DocumentCsaf)
+	_ = RegisterDocumentProcessor(&open_vex.OpenVEXProcessor{}, processor.DocumentOpenVEX)
 	_ = RegisterDocumentProcessor(&scorecard.ScorecardProcessor{}, processor.DocumentScorecard)
 	_ = RegisterDocumentProcessor(&cyclonedx.CycloneDXProcessor{}, processor.DocumentCycloneDX)
 	_ = RegisterDocumentProcessor(&deps_dev.DepsDev{}, processor.DocumentDepsDev)
@@ -61,7 +72,7 @@ func RegisterDocumentProcessor(p processor.DocumentProcessor, d processor.Docume
 
 // Subscribe is used by NATS JetStream to stream the documents received from the collector
 // and process them them via Process
-func Subscribe(ctx context.Context, transportFunc func(processor.DocumentTree) error) error {
+func Subscribe(ctx context.Context, em collector.Emitter) error {
 	logger := logging.FromContext(ctx)
 
 	uuid, err := uuid.NewV4()
@@ -76,25 +87,19 @@ func Subscribe(ctx context.Context, transportFunc func(processor.DocumentTree) e
 
 	// should still continue if there are errors since problem is with individual documents
 	processFunc := func(d []byte) error {
+
 		doc := processor.Document{}
 		err := json.Unmarshal(d, &doc)
 		if err != nil {
 			logger.Errorf("[processor: %s] failed unmarshal the document bytes: %v", uuidString, err)
 			return nil
 		}
-		docTree, err := Process(ctx, &doc)
-		if err != nil {
-			logger.Error("[processor: %s] failed process document: %v", uuidString, err)
-			return nil
-		}
 
-		err = transportFunc(docTree)
+		err = em(&doc)
 		if err != nil {
 			logger.Error("[processor: %s] failed transportFunc: %v", uuidString, err)
 			return nil
 		}
-
-		logger.Infof("[processor: %s] docTree Processed: %+v", uuidString, docTree.Document.SourceInformation)
 		return nil
 	}
 
@@ -137,6 +142,10 @@ func processHelper(ctx context.Context, doc *processor.Document) (*processor.Doc
 }
 
 func processDocument(ctx context.Context, i *processor.Document) ([]*processor.Document, error) {
+	if err := decodeDocument(ctx, i); err != nil {
+		return nil, err
+	}
+
 	if err := preProcessDocument(ctx, i); err != nil {
 		return nil, err
 	}
@@ -176,6 +185,10 @@ func validateFormat(i *processor.Document) error {
 		if !json.Valid(i.Blob) {
 			return fmt.Errorf("invalid JSON document")
 		}
+	case processor.FormatXML:
+		if err := xml.Unmarshal(i.Blob, &struct{}{}); err != nil {
+			return fmt.Errorf("invalid XML document")
+		}
 	case processor.FormatUnknown:
 		return nil
 	default:
@@ -199,4 +212,42 @@ func unpackDocument(i *processor.Document) ([]*processor.Document, error) {
 		return nil, fmt.Errorf("no document processor registered for type: %s", i.Type)
 	}
 	return p.Unpack(i) // nolint:wrapcheck
+}
+
+func decodeDocument(ctx context.Context, i *processor.Document) error {
+	logger := logging.FromContext(ctx)
+	var reader io.Reader
+	var err error
+	if i.Encoding == "" {
+		ext := filepath.Ext(i.SourceInformation.Source)
+		encoding, ok := processor.EncodingExts[strings.ToLower(ext)]
+		if ok {
+			i.Encoding = encoding
+		}
+	}
+	logger.Infof("Decoding document with encoding:  %v", i.Encoding)
+	switch i.Encoding {
+	case processor.EncodingBzip2:
+		reader = bzip2.NewReader(bytes.NewReader(i.Blob))
+	case processor.EncodingZstd:
+		reader, err = zstd.NewReader(bytes.NewReader(i.Blob))
+		if err != nil {
+			return fmt.Errorf("unable to create zstd reader: %w", err)
+		}
+	}
+	if reader != nil {
+		if err := decompressDocument(i, reader); err != nil {
+			return fmt.Errorf("unable to decode document: %w", err)
+		}
+	}
+	return nil
+}
+
+func decompressDocument(i *processor.Document, reader io.Reader) error {
+	uncompressed, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("unable to decompress document: %w", err)
+	}
+	i.Blob = uncompressed
+	return nil
 }
